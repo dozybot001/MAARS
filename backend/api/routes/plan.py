@@ -109,17 +109,20 @@ async def _run_plan_inner(body: PlanRunRequest):
             if plan["tasks"]:
                 asyncio.create_task(api_state.sio.emit("plan-tree-update", _tree_update_payload(plan)))
 
-        def on_thinking(chunk, task_id=None, operation=None, schedule_info=None):
+        async def on_thinking(chunk, task_id=None, operation=None, schedule_info=None):
             if abort_event and abort_event.is_set():
                 return
-            payload = {"chunk": chunk}
+            payload = {"chunk": chunk, "source": "plan"}
             if task_id is not None:
                 payload["taskId"] = task_id
             if operation is not None:
                 payload["operation"] = operation
             if schedule_info is not None:
                 payload["scheduleInfo"] = schedule_info
-            asyncio.create_task(api_state.sio.emit("plan-thinking", payload))
+            try:
+                await api_state.sio.emit("plan-thinking", payload)
+            except Exception:
+                pass
 
         result = await run_plan(
             plan, None, on_thinking, abort_event, on_tasks_batch,

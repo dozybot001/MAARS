@@ -36,3 +36,10 @@ class ExecutionRetryRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
     plan_id: Optional[str] = Field(default=None, alias="planId")
     task_id: str = Field(..., alias="taskId")
+
+
+class IdeaCollectRequest(BaseModel):
+    """Request for idea agent literature collection."""
+    model_config = ConfigDict(populate_by_name=True)
+    idea: str = Field(..., description="Fuzzy research idea")
+    limit: int = Field(default=10, ge=1, le=50, description="Max number of papers to return")

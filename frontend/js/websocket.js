@@ -93,7 +93,7 @@
 
         state.socket.on('plan-thinking', (data) => {
             if (!thinking) return;
-            thinking.appendChunk(data.chunk || '', data.taskId, data.operation, data.scheduleInfo);
+            thinking.appendChunk(data.chunk || '', data.taskId, data.operation, data.scheduleInfo, data.source || 'plan');
         });
 
         state.socket.on('plan-tree-update', (data) => {
@@ -110,6 +110,10 @@
         });
 
         state.socket.on('plan-error', () => plan.resetPlanUI());
+
+        state.socket.on('execution-start', () => {
+            if (thinking) thinking.clear();
+        });
 
         state.socket.on('execution-layout', (data) => { views.setExecutionLayout(data); });
 
@@ -169,12 +173,17 @@
 
         state.socket.on('task-thinking', (data) => {
             if (!thinking) return;
-            thinking.appendChunk(data.chunk || '', data.taskId, data.operation, data.scheduleInfo);
+            thinking.appendChunk(data.chunk || '', data.taskId, data.operation, data.scheduleInfo, data.source || 'task');
+        });
+
+        state.socket.on('idea-thinking', (data) => {
+            if (!thinking) return;
+            thinking.appendChunk(data.chunk || '', data.taskId ?? null, data.operation || 'Refine', data.scheduleInfo, data.source || 'idea');
         });
 
         state.socket.on('task-output', (data) => {
             if (!output || !data.taskId) return;
-            output.setTaskOutput(data.taskId, data.output);
+            output.setTaskOutput('task_' + data.taskId, data.output);
         });
 
         state.socket.on('execution-stats-update', (data) => {

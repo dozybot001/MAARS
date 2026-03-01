@@ -275,7 +275,7 @@ class ExecutionRunner:
                 resolved_inputs = await resolve_artifacts(task, self.task_map, self.plan_id or "")
 
                 async def _on_thinking(chunk: str, task_id: Optional[str] = None, operation: Optional[str] = None, schedule_info: Optional[dict] = None) -> None:
-                    payload: dict = {"chunk": chunk, "taskId": task_id, "operation": operation or "Execute"}
+                    payload: dict = {"chunk": chunk, "source": "task", "taskId": task_id, "operation": operation or "Execute"}
                     if schedule_info is not None:
                         payload["scheduleInfo"] = schedule_info
                     await self._emit_await("task-thinking", payload)
@@ -371,10 +371,13 @@ class ExecutionRunner:
                     validation_spec=validation_spec,
                     api_config=self.api_config,
                     abort_event=self.abort_event,
+                    on_thinking=_on_thinking,
                 )
-            for chunk in chunk_string(report, 20):
-                await self._emit_await("task-thinking", {"chunk": chunk, "taskId": task_id, "operation": "Validate"})
-                await asyncio.sleep(_MOCK_VALIDATOR_CHUNK_DELAY)
+            # Mock / Agent 模式：report 非流式生成，需模拟 chunk 写入 Thinking
+            if use_mock or exec_agent:
+                for chunk in chunk_string(report, 20):
+                    await self._emit_await("task-thinking", {"chunk": chunk, "source": "task", "taskId": task_id, "operation": "Validate"})
+                    await asyncio.sleep(_MOCK_VALIDATOR_CHUNK_DELAY)
 
             if self.plan_id:
                 await save_validation_report(

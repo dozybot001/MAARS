@@ -1,44 +1,73 @@
 """
 Task Agent 单轮 LLM 实现 - 任务执行。
-Agent 实现放在 task_agent/，单轮 LLM 放在 task_agent/llm/。
-Generates output from task description and input artifacts.
-Supports mock mode (useMock=True): returns simulated output without LLM calls.
-Supports streaming via on_thinking callback for real-time output display.
+与 Plan/Idea 对齐：Mock 模式依赖 test/mock-ai/execute.json，使用 mock_chat_completion 流式输出。
 """
 
-import asyncio
 import re
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import orjson
 import json_repair
 
 from shared.llm_client import chat_completion, merge_phase_config
-from shared.utils import chunk_string
+from test.mock_stream import mock_chat_completion
 
-# Mock 模式下 chunk 间延迟（秒）
-_MOCK_CHUNK_DELAY = 0.03
+TASK_DIR = Path(__file__).resolve().parent.parent
+MOCK_AI_DIR = TASK_DIR.parent / "test" / "mock-ai"
+RESPONSE_TYPE = "execute"
+
+_mock_cache: Dict[str, dict] = {}
 
 
-async def _mock_execute(output_format: str, task_id: str, on_thinking: Optional[Callable] = None) -> Any:
-    """Return simulated output for mock mode. No LLM call."""
-    if _is_json_format(output_format):
-        result = {"_mock": True, "task_id": task_id, "note": "Simulated output (Mock AI mode)"}
-        if on_thinking:
-            for chunk in chunk_string(orjson.dumps(result, option=orjson.OPT_INDENT_2).decode("utf-8"), 20):
-                r = on_thinking(chunk, task_id=task_id, operation="Execute")
-                if asyncio.iscoroutine(r):
-                    await r
-                await asyncio.sleep(_MOCK_CHUNK_DELAY)
-        return result
-    text = f"# Mock Output\n\nSimulated content for task {task_id}.\n\n(Mock AI mode)"
-    if on_thinking:
-        for chunk in chunk_string(text, 20):
-            r = on_thinking(chunk, task_id=task_id, operation="Execute")
-            if asyncio.iscoroutine(r):
-                await r
-            await asyncio.sleep(_MOCK_CHUNK_DELAY)
-    return text
+def _get_mock_cached(response_type: str) -> dict:
+    if response_type not in _mock_cache:
+        path = MOCK_AI_DIR / f"{response_type}.json"
+        try:
+            _mock_cache[response_type] = orjson.loads(path.read_bytes())
+        except (FileNotFoundError, orjson.JSONDecodeError):
+            _mock_cache[response_type] = {}
+    return _mock_cache[response_type]
+
+
+def _load_mock_response(response_type: str, task_id: str, use_json_mode: bool) -> Optional[Dict]:
+    """从 test/mock-ai/ 加载 mock，与 Plan/Idea 对齐。"""
+    data = _get_mock_cached(response_type)
+    entry = data.get(task_id) or (data.get("_default_markdown") if not use_json_mode else None) or data.get("_default")
+    if not entry:
+        return None
+    content = entry.get("content")
+    if isinstance(content, str):
+        content_str = content
+    else:
+        content_str = orjson.dumps(content).decode("utf-8")
+    return {"content": content_str, "reasoning": entry.get("reasoning", "")}
+
+
+async def _run_mock_execute(
+    task_id: str,
+    output_format: str,
+    on_thinking: Optional[Callable] = None,
+) -> Any:
+    """Mock 执行：从 execute.json 加载，使用 mock_chat_completion 流式输出。供 executor 与 agent 共用。"""
+    use_json_mode = _is_json_format(output_format)
+    mock = _load_mock_response(RESPONSE_TYPE, task_id, use_json_mode)
+    if not mock:
+        raise ValueError(f"No mock data for {RESPONSE_TYPE}/{task_id}")
+    stream = on_thinking is not None
+
+    def stream_chunk(chunk: str):
+        if on_thinking and chunk:
+            return on_thinking(chunk, task_id=task_id, operation="Execute")
+
+    effective_on_thinking = stream_chunk if stream else None
+    content = await mock_chat_completion(
+        mock["content"],
+        mock["reasoning"],
+        effective_on_thinking,
+        stream=stream,
+    )
+    return _parse_task_agent_output(content or "", use_json_mode)
 
 
 def _is_json_format(output_format: str) -> bool:
@@ -145,7 +174,7 @@ async def execute_task(
     raw_cfg = api_config or {}
     if raw_cfg.get("useMock"):
         output_format = (output_spec or {}).get("format") or ""
-        return await _mock_execute(output_format, task_id, on_thinking)
+        return await _run_mock_execute(task_id, output_format, on_thinking)
 
     cfg = merge_phase_config(raw_cfg, "execute")
     _, temperature = _get_task_agent_params(raw_cfg)

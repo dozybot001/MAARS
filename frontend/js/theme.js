@@ -25,6 +25,7 @@
     }
 
     const PHASES = [
+        { key: 'idea', label: 'Idea LLM' },
         { key: 'atomicity', label: 'Atomicity Check' },
         { key: 'decompose', label: 'Decompose' },
         { key: 'format', label: 'Format' },
@@ -74,21 +75,23 @@
             { key: 'maxFailures', label: 'Max retries', type: 'number', min: 1, max: 10, default: 3, section: 'Mock', tip: 'Max retries after task failure' },
         ],
         llm: [
-            { key: 'planLlmTemperature', label: 'Plan Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan', tip: 'Temperature for plan LLM calls (atomicity/decompose/format)' },
-            { key: 'taskLlmTemperature', label: 'Task Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task', tip: 'Temperature for task execution LLM output' },
-            { key: 'maxFailures', label: 'Max retries', type: 'number', min: 1, max: 10, default: 3, section: 'Task', tip: 'Max retries after execution/validation failure' },
+            { key: 'ideaLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Idea LLM', tip: 'Temperature for idea LLM keyword extraction' },
+            { key: 'planLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan LLM', tip: 'Temperature for plan LLM (atomicity/decompose/format)' },
+            { key: 'taskLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task LLM', tip: 'Temperature for task LLM output' },
+            { key: 'maxFailures', label: 'Max retries', type: 'number', min: 1, max: 10, default: 3, section: 'Task LLM', tip: 'Max retries after execution/validation failure' },
         ],
         llmagent: [
-            { key: 'planLlmTemperature', label: 'Plan Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan', tip: 'Temperature for plan LLM (atomicity/decompose/format)' },
-            { key: 'taskLlmTemperature', label: 'Task Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task Agent', tip: 'Temperature for task Agent LLM' },
-            { key: 'taskAgentMaxTurns', label: 'Task max turns', type: 'number', min: 1, max: 30, default: 15, section: 'Task Agent', tip: 'Max turns for task Agent loop (incl. tool calls)' },
+            { key: 'ideaLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Idea LLM', tip: 'Temperature for idea LLM keyword extraction' },
+            { key: 'planLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan LLM', tip: 'Temperature for plan LLM (atomicity/decompose/format)' },
+            { key: 'taskLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task Agent', tip: 'Temperature for task Agent LLM' },
+            { key: 'taskAgentMaxTurns', label: 'Max turns', type: 'number', min: 1, max: 30, default: 15, section: 'Task Agent', tip: 'Max turns for task Agent loop (incl. tool calls)' },
             { key: 'maxFailures', label: 'Max retries', type: 'number', min: 1, max: 10, default: 3, section: 'Task Agent', tip: 'Max retries after execution/validation failure' },
         ],
         agent: [
-            { key: 'planAgentMaxTurns', label: 'Plan max turns', type: 'number', min: 1, max: 50, default: 30, section: 'Plan Agent', tip: 'Max turns for plan Agent loop' },
-            { key: 'planLlmTemperature', label: 'Plan Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan Agent', tip: 'Temperature for plan Agent LLM' },
-            { key: 'taskLlmTemperature', label: 'Task Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task Agent', tip: 'Temperature for task Agent LLM' },
-            { key: 'taskAgentMaxTurns', label: 'Task max turns', type: 'number', min: 1, max: 30, default: 15, section: 'Task Agent', tip: 'Max turns for task Agent loop (incl. tool calls)' },
+            { key: 'planAgentMaxTurns', label: 'Max turns', type: 'number', min: 1, max: 50, default: 30, section: 'Plan Agent', tip: 'Max turns for plan Agent loop' },
+            { key: 'planLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Plan Agent', tip: 'Temperature for plan Agent LLM' },
+            { key: 'taskLlmTemperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.3, section: 'Task Agent', tip: 'Temperature for task Agent LLM' },
+            { key: 'taskAgentMaxTurns', label: 'Max turns', type: 'number', min: 1, max: 30, default: 15, section: 'Task Agent', tip: 'Max turns for task Agent loop (incl. tool calls)' },
             { key: 'maxFailures', label: 'Max retries', type: 'number', min: 1, max: 10, default: 3, section: 'Task Agent', tip: 'Max retries after execution/validation failure' },
         ],
     };

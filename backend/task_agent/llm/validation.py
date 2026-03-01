@@ -1,10 +1,12 @@
 """
 Task output validation - LLM-based validation. Used in LLM mode only.
 Agent mode uses task-output-validator skill instead.
+Supports streaming via on_chunk for real-time Thinking display.
 """
 
+import asyncio
 import json
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from shared.llm_client import chat_completion, merge_phase_config
 
@@ -30,11 +32,13 @@ async def validate_task_output_with_llm(
     validation_spec: Optional[Dict[str, Any]] = None,
     api_config: Optional[Dict] = None,
     abort_event: Optional[Any] = None,
+    on_thinking: Optional[Callable[[str, Optional[str], Optional[str], Optional[dict]], None]] = None,
 ) -> Tuple[bool, str]:
     """
     Use LLM to validate task output against criteria.
     Returns (passed, report_markdown).
     Called only in LLM mode; Agent mode uses task-output-validator skill.
+    When on_thinking provided, streams LLM output for real-time Thinking display.
     """
     content = _get_content_str(result)
     validation = validation_spec or {}
@@ -59,17 +63,25 @@ Task output to validate:
 
 Respond with JSON: {{"passed": true|false, "report": "markdown report"}}"""
 
+    def _stream_chunk(chunk: str):
+        """转发 chunk 到 on_thinking，若为 async 则返回 coroutine 供 chat_completion await。"""
+        if on_thinking and chunk:
+            r = on_thinking(chunk, task_id=task_id, operation="Validate", schedule_info=None)
+            if asyncio.iscoroutine(r):
+                return r
+
     try:
         cfg = merge_phase_config(api_config or {}, "validate")
+        stream = on_thinking is not None
         response = await chat_completion(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
             cfg,
-            on_chunk=None,
+            on_chunk=_stream_chunk if stream else None,
             abort_event=abort_event,
-            stream=False,
+            stream=stream,
             temperature=0.0,
             response_format={"type": "json_object"},
         )

@@ -102,7 +102,8 @@
         if (Object.keys(outputs).length && window.MAARS?.output?.setTaskOutput) {
             Object.entries(outputs).forEach(([taskId, out]) => {
                 const val = out && typeof out === 'object' && 'content' in out ? out.content : out;
-                window.MAARS.output.setTaskOutput(taskId, val);
+                const key = taskId === 'idea' ? 'idea' : 'task_' + taskId;
+                window.MAARS.output.setTaskOutput(key, val);
             });
             window.MAARS.output.applyOutputHighlight?.();
         }
@@ -122,6 +123,17 @@
         return data;
     }
 
+    async function refineIdea(idea, limit) {
+        const response = await fetch(`${cfg.API_BASE_URL}/idea/collect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea: idea || '', limit: limit || 10 }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Refine failed');
+        return data;
+    }
+
     async function resumeFromTask(taskId) {
         const planId = await cfg.resolvePlanId();
         const response = await fetch(`${cfg.API_BASE_URL}/execution/run`, {
@@ -134,5 +146,5 @@
         return data;
     }
 
-    window.MAARS.api = { loadExampleIdea, loadExecution, clearDb, restoreRecentPlan, retryTask, resumeFromTask };
+    window.MAARS.api = { loadExampleIdea, loadExecution, clearDb, restoreRecentPlan, retryTask, resumeFromTask, refineIdea };
 })();

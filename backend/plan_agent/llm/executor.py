@@ -141,10 +141,11 @@ async def _call_chat_completion(
     task_id = context["taskId"]
     task = context.get("task", {})
 
-    def stream_chunk(chunk: str) -> None:
+    def stream_chunk(chunk: str):
+        """转发 chunk 到 on_thinking，若为 async 则返回 coroutine 供 mock_chat/chat_completion await。"""
         if on_thinking and chunk:
             op_label = _OP_LABELS.get(response_type, response_type.capitalize())
-            on_thinking(chunk, task_id=task_id, operation=op_label)
+            return on_thinking(chunk, task_id=task_id, operation=op_label)
 
     if use_mock:
         mock = await _load_mock_response(response_type, task_id)
@@ -291,7 +292,7 @@ async def check_atomicity(
                 on_thinking,
                 ctx,
                 abort_event,
-                stream=False,
+                stream=True,
                 use_mock=use_mock,
                 api_config=api_config,
                 temperature=0.0 if attempt == 0 else RETRY_TEMPERATURE,
@@ -441,7 +442,7 @@ async def assess_quality(
             on_thinking,
             ctx,
             abort_event,
-            stream=False,
+            stream=True,
             use_mock=use_mock,
             api_config=api_config,
         )

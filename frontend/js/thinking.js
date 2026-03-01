@@ -6,6 +6,7 @@
     'use strict';
 
     const escapeHtml = window.MAARS?.utils?.escapeHtml || ((s) => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')));
+    const escapeHtmlAttr = window.MAARS?.utils?.escapeHtmlAttr || ((s) => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')));
     const truncateForDisplay = (s, maxLen) => {
         if (s == null || typeof s !== 'string') return '';
         const str = String(s).trim();
@@ -29,6 +30,8 @@
     state[`${PREFIX}ScheduleCounter`] = state[`${PREFIX}ScheduleCounter`] ?? 0;
     state[`${PREFIX}PlanCounter`] = state[`${PREFIX}PlanCounter`] ?? 0;
     state[`${PREFIX}PlanStreamingKey`] = state[`${PREFIX}PlanStreamingKey`] ?? '';
+    state[`${PREFIX}IdeaCounter`] = state[`${PREFIX}IdeaCounter`] ?? 0;
+    state[`${PREFIX}IdeaStreamingKey`] = state[`${PREFIX}IdeaStreamingKey`] ?? '';
     state.taskOutputs = state.taskOutputs || {};
     state.outputUserScrolled = state.outputUserScrolled ?? false;
     state.outputBlockUserScrolled = state.outputBlockUserScrolled || {};
@@ -69,7 +72,10 @@
                 continue;
             }
             i++;
-            let headerText = block.taskId != null ? `Task ${block.taskId} | ${block.operation || ''}` : (block.operation || 'Thinking');
+            const agentLabel = (block.source || 'Thinking').charAt(0).toUpperCase() + (block.source || 'thinking').slice(1);
+            const op = block.operation || '—';
+            const tid = block.taskId != null ? String(block.taskId) : '—';
+            let headerText = `${agentLabel} | ${op} | ${tid}`;
             const si = block.scheduleInfo;
             if (si) {
                 const parts = [];
@@ -134,7 +140,8 @@
         }, throttle);
     }
 
-    function clearThinking() {
+    function clearThinking(opts) {
+        const keepOutputs = opts && opts.keepOutputs === true;
         state[`${PREFIX}ThinkingBlocks`] = [];
         state[`${PREFIX}ThinkingUserScrolled`] = false;
         state[`${PREFIX}ThinkingBlockUserScrolled`] = {};
@@ -142,10 +149,14 @@
         state[`${PREFIX}ScheduleCounter`] = 0;
         state[`${PREFIX}PlanCounter`] = 0;
         state[`${PREFIX}PlanStreamingKey`] = '';
-        state.taskOutputs = {};
-        state.outputUserScrolled = false;
-        state.outputBlockUserScrolled = {};
-        state.outputLastUpdatedKey = '';
+        state[`${PREFIX}IdeaCounter`] = 0;
+        state[`${PREFIX}IdeaStreamingKey`] = '';
+        if (!keepOutputs) {
+            state.taskOutputs = {};
+            state.outputUserScrolled = false;
+            state.outputBlockUserScrolled = {};
+            state.outputLastUpdatedKey = '';
+        }
         const el = document.getElementById(CONTENT_EL);
         const area = document.getElementById(AREA_EL);
         if (el) el.innerHTML = '';
@@ -153,15 +164,19 @@
         renderOutput();
     }
 
-    function appendChunk(chunk, taskId, operation, scheduleInfo) {
+    function appendChunk(chunk, taskId, operation, scheduleInfo, source) {
         const blocksKey = `${PREFIX}ThinkingBlocks`;
         const planStreamingKey = `${PREFIX}PlanStreamingKey`;
+        const ideaStreamingKey = `${PREFIX}IdeaStreamingKey`;
         const scheduleCounterKey = `${PREFIX}ScheduleCounter`;
         const planCounterKey = `${PREFIX}PlanCounter`;
+        const ideaCounterKey = `${PREFIX}IdeaCounter`;
         const lastUpdatedKey = `${PREFIX}LastUpdatedBlockKey`;
+        const isIdea = source === 'idea' || operation === 'Refine';
 
         if (!chunk && scheduleInfo != null) {
             state[planStreamingKey] = '';
+            state[ideaStreamingKey] = '';
             if (scheduleInfo.tool_name) {
                 state[scheduleCounterKey] = (state[scheduleCounterKey] || 0) + 1;
                 const key = `schedule_${state[scheduleCounterKey]}`;
@@ -171,8 +186,27 @@
             }
             return;
         }
+        if (taskId == null && isIdea && chunk) {
+            let block = state[ideaStreamingKey] ? state[blocksKey].find((b) => b.key === state[ideaStreamingKey]) : null;
+            state[planStreamingKey] = '';
+            if (block) {
+                block.content += chunk;
+                if (scheduleInfo != null) block.scheduleInfo = scheduleInfo;
+                state[lastUpdatedKey] = block.key;
+            } else {
+                state[ideaCounterKey] = (state[ideaCounterKey] || 0) + 1;
+                const key = `idea_${state[ideaCounterKey]}`;
+                block = { key, taskId: null, operation: operation || 'Refine', content: chunk, scheduleInfo: scheduleInfo || null, source: 'idea' };
+                state[blocksKey].push(block);
+                state[ideaStreamingKey] = key;
+                state[lastUpdatedKey] = key;
+            }
+            scheduleRender();
+            return;
+        }
         if (taskId == null && chunk) {
             let block = state[planStreamingKey] ? state[blocksKey].find((b) => b.key === state[planStreamingKey]) : null;
+            state[ideaStreamingKey] = '';
             if (block) {
                 block.content += chunk;
                 if (scheduleInfo != null) block.scheduleInfo = scheduleInfo;
@@ -180,7 +214,7 @@
             } else {
                 state[planCounterKey] = (state[planCounterKey] || 0) + 1;
                 const key = `plan_${state[planCounterKey]}`;
-                block = { key, taskId: null, operation: operation || 'Plan', content: chunk, scheduleInfo: scheduleInfo || null };
+                block = { key, taskId: null, operation: operation || 'Plan', content: chunk, scheduleInfo: scheduleInfo || null, source: 'plan' };
                 state[blocksKey].push(block);
                 state[planStreamingKey] = key;
                 state[lastUpdatedKey] = key;
@@ -189,10 +223,11 @@
             return;
         }
         state[planStreamingKey] = '';
+        state[ideaStreamingKey] = '';
         const key = (taskId != null && operation != null) ? `${String(taskId)}::${String(operation)}` : '_default';
         let block = state[blocksKey].find((b) => b.key === key);
         if (!block) {
-            block = { key, taskId, operation, content: '', scheduleInfo: null };
+            block = { key, taskId, operation, content: '', scheduleInfo: null, source: source || 'task' };
             state[blocksKey].push(block);
         }
         if (chunk) block.content += chunk;
@@ -234,7 +269,20 @@
         const area = document.getElementById('taskAgentOutputArea');
         if (!el || !area) return;
         const outputs = state.taskOutputs;
-        const keys = Object.keys(outputs).sort();
+        if (outputs.refine !== undefined) {
+            outputs.idea = outputs.refine;
+            delete outputs.refine;
+        }
+        const keys = Object.keys(outputs).sort((a, b) => {
+            if (a === 'idea') return -1;
+            if (b === 'idea') return 1;
+            if (a.startsWith('task_') && b.startsWith('task_')) {
+                const na = parseInt(a.slice(6), 10);
+                const nb = parseInt(b.slice(6), 10);
+                if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            }
+            return String(a).localeCompare(b);
+        });
         const wasNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         const savedScrollTops = {};
         el.querySelectorAll('.task-agent-output-block').forEach((blockEl) => {
@@ -250,7 +298,9 @@
         for (const taskId of keys) {
             const raw = outputs[taskId];
             let content = '';
-            if (typeof raw === 'object' && raw !== null) {
+            let displayLabel = taskId === 'idea' ? 'Refine' : (taskId.startsWith('task_') ? 'Task ' + taskId.slice(6) : 'Task ' + (taskId || ''));
+            if (typeof raw === 'object' && raw !== null && raw.label) {
+                displayLabel = raw.label;
                 // Object with 'content' string (e.g. from Agent Finish tool) → render content as markdown
                 if ('content' in raw && typeof raw.content === 'string') {
                     const text = raw.content || '';
@@ -263,7 +313,7 @@
                 content = (raw || '') ? (typeof marked !== 'undefined' ? marked.parse(String(raw)) : String(raw)) : '';
             }
             if (content && typeof DOMPurify !== 'undefined') content = DOMPurify.sanitize(content);
-            html += `<div class="task-agent-output-block" data-task-id="${escapeHtml(taskId || '')}"><div class="task-agent-output-block-header">Task ${escapeHtml(taskId || '')}<button type="button" class="task-agent-output-block-expand" aria-label="Expand" title="Expand">⤢</button></div><div class="task-agent-output-block-body">${content}</div></div>`;
+            html += `<div class="task-agent-output-block" data-task-id="${escapeHtml(taskId || '')}" data-label="${escapeHtmlAttr(displayLabel || '')}"><div class="task-agent-output-block-header">${escapeHtml(displayLabel)}<button type="button" class="task-agent-output-block-expand" aria-label="Expand" title="Expand">⤢</button></div><div class="task-agent-output-block-body">${content}</div></div>`;
         }
         try {
             el.innerHTML = html || '';
@@ -311,7 +361,7 @@
     }
 
     let _outputModalOpen = false;
-    function openOutputModal(taskId, contentHtml, scrollTop) {
+    function openOutputModal(taskId, contentHtml, scrollTop, titleLabel) {
         const modal = document.getElementById('taskAgentOutputModal');
         const titleEl = document.getElementById('taskAgentOutputModalTitle');
         const bodyEl = document.getElementById('taskAgentOutputModalBody');
@@ -321,7 +371,7 @@
         if (_outputModalOpen) return;
         _outputModalOpen = true;
         modal.setAttribute('data-current-task-id', taskId || '');
-        titleEl.textContent = taskId ? `Task ${taskId}` : 'Task Output';
+        titleEl.textContent = titleLabel || (taskId ? 'Task ' + taskId : 'Task Output');
         bodyEl.innerHTML = contentHtml || '';
         bodyEl.scrollTop = scrollTop || 0;
         if (typeof hljs !== 'undefined') {
@@ -380,7 +430,9 @@
                 const block = expandBtn.closest('.task-agent-output-block');
                 if (block) {
                     const bodyEl = block.querySelector('.task-agent-output-block-body');
-                    openOutputModal(block.getAttribute('data-task-id') || '', bodyEl?.innerHTML || '', bodyEl?.scrollTop || 0);
+                    const label = block.getAttribute('data-label') || '';
+                    const taskId = block.getAttribute('data-task-id') || '';
+                    openOutputModal(taskId, bodyEl?.innerHTML || '', bodyEl?.scrollTop || 0, label || (taskId ? 'Task ' + taskId : 'Task Output'));
                 }
                 return;
             }

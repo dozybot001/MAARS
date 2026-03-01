@@ -26,7 +26,9 @@ async def simulate_reasoning_stream(
             raise asyncio.CancelledError("Aborted")
         chunk = reasoning[i : i + chunk_size]
         if chunk:
-            on_thinking(chunk)
+            r = on_thinking(chunk)
+            if asyncio.iscoroutine(r):
+                await r
         await asyncio.sleep(delay_ms / 1000.0)
 
 

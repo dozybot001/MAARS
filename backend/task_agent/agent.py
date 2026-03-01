@@ -144,7 +144,7 @@ async def run_task_agent(
 ) -> Any:
     """ReAct-style Agent loop with ReadArtifact, ReadFile, Finish tools. Runs in isolated sandbox."""
     if api_config.get("useMock"):
-        from .llm.executor import _mock_execute
+        from .llm.executor import _run_mock_execute
 
         output_format = (output_spec or {}).get("format") or ""
         mock_tools = ["ReadArtifact", "ReadFile", "ListSkills", "LoadSkill", "ReadSkillFile", "WriteFile", "Finish"]
@@ -163,7 +163,7 @@ async def run_task_agent(
                 if asyncio.iscoroutine(r):
                     await r
             await asyncio.sleep(0.03)
-        return await _mock_execute(output_format, task_id, on_thinking)
+        return await _run_mock_execute(task_id, output_format, on_thinking)
 
     if plan_id and task_id:
         await ensure_sandbox_dir(plan_id, task_id)
