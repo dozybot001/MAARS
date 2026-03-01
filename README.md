@@ -14,9 +14,13 @@ python -m uvicorn main:asgi_app --host 0.0.0.0 --port 3001 --loop asyncio --http
 
 在浏览器中访问 **http://localhost:3001**
 
-点击 **Load Example Idea** 可加载示例 idea。
+点击 **Load Example Idea** 可加载示例 idea。**Refine** 可从模糊 idea 提取关键词并检索 arXiv 文献；**Plan** 将 idea 分解为任务树；**Execute** 执行任务。
 
 ## 核心流程
+
+### 0. Refine（可选）
+
+用户输入模糊 idea → **Refine** 按钮 → Idea Agent 提取关键词 → arXiv 检索 → 文献列表展示于 Output，并创建新 plan。
 
 ### 1. Generate Plan（规划）
 
@@ -32,11 +36,15 @@ python -m uvicorn main:asgi_app --host 0.0.0.0 --port 3001 --loop asyncio --http
 
 ### 3. Execution（执行）
 
-Task Agent 池并行执行就绪任务，每个任务执行后 Validate，实时状态推送。Thinking 区域展示 Plan/Execute 阶段、轮次、工具调用及参数摘要（如 `ReadFile(path: sandbox/notes.txt)`）。
+Task Agent 池并行执行就绪任务，每个任务执行后 Validate，实时状态推送。Thinking 区域展示 Refine/Plan/Execute 阶段、轮次、工具调用及参数摘要（如 `ReadFile(path: sandbox/notes.txt)`）。
 
 ## Agent 工作流
 
-**AI Mode** 可选 Mock LLM / Mock Agent / LLM / LLM+Agent / Agent。Multi Agent 叙事：Plan Agent + Task Agent，均支持 ReAct 式多轮工具调用。
+**AI Mode** 可选 Mock LLM / Mock Agent / LLM / LLM+Agent / Agent。三个 Agent：Idea Agent（Refine）、Plan Agent、Task Agent。
+
+### Idea Agent
+
+Refine 按钮触发，从模糊 idea 提取关键词并检索 arXiv 文献。仅 LLM 单轮，Mock 模式可用。流式 thinking 通过 `idea-thinking` 推送。
 
 ### Plan Agent
 
@@ -75,15 +83,17 @@ maars/
 ├── backend/
 │   ├── main.py          # FastAPI + Socket.io 入口
 │   ├── api/             # 路由、schemas、state
+│   ├── idea_agent/      # Idea Agent：关键词提取、arXiv 检索
+│   │   └── llm/         # Idea Agent LLM 实现
 │   ├── plan_agent/      # Plan Agent：atomicity → decompose → format（业务逻辑）
 │   │   └── llm/         # Plan Agent LLM 实现
 │   ├── task_agent/      # Task Agent：runner、execution、skills
 │   │   ├── llm/         # Task Agent LLM 实现（executor + validation）
-│   │   └── skills/      # task-output-validator、markdown-reporter 等
+│   │   └── skills/     # task-output-validator、markdown-reporter 等
 │   ├── visualization/   # 分解树、执行图布局
 │   ├── shared/          # 共享模块：graph、llm_client、skill_utils、utils
 │   ├── db/              # 文件存储：db/{plan_id}/、settings.json
-│   └── test/            # Mock AI
+│   └── test/            # Mock AI（mock-ai/refine.json、execute.json 等）
 └── frontend/            # 静态页面、任务树、WebSocket
 ```
 
@@ -93,6 +103,7 @@ maars/
 
 ## 文档
 
+- [文档索引](docs/README.md)（三个 Agent 工作流、区域职责等）
 - [前端脚本与模块依赖](docs/FRONTEND_SCRIPTS.md)
 - [Release Note 标准](docs/RELEASE_NOTE_STANDARD.md)
 - [执行图布局规则](backend/visualization/EXECUTION_LAYOUT_RULES.md)
