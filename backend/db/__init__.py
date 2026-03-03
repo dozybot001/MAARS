@@ -324,6 +324,7 @@ def _resolve_config(raw: dict) -> dict:
     idea_m = agent_mode.get("ideaAgent") or "mock"
     plan_m = agent_mode.get("planAgent") or "mock"
     task_m = agent_mode.get("taskAgent") or "mock"
+    paper_m = agent_mode.get("paperAgent") or "mock"
 
     presets = raw.get("presets")
     current = raw.get("current")
@@ -337,9 +338,11 @@ def _resolve_config(raw: dict) -> dict:
     cfg["ideaUseMock"] = idea_m == "mock"
     cfg["planUseMock"] = plan_m == "mock"
     cfg["taskUseMock"] = task_m == "mock"
+    cfg["paperUseMock"] = paper_m == "mock"
     cfg["ideaAgentMode"] = idea_m == "agent"
     cfg["planAgentMode"] = plan_m == "agent"
     cfg["taskAgentMode"] = task_m == "agent"
+    cfg["paperAgentMode"] = paper_m == "agent"
     cfg["ideaUseRAG"] = bool(agent_mode.get("ideaRAG", False))
 
     reflection = raw.get("reflection") or {}

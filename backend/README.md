@@ -7,12 +7,13 @@
 - **Idea Agent** (`idea_agent/`)：文献收集（Refine），LLM 单轮或 ADK 驱动
 - **Plan Agent** (`plan_agent/`)：规划分解，LLM 单轮或 ADK 驱动
 - **Task Agent** (`task_agent/`)：任务执行与验证，LLM 单轮或 ADK 驱动
+- **Paper Agent** (`paper_agent/`)：论文草稿生成（Write），LLM 单轮，Mock/LLM 模式
 
-## 三模式架构
+## 四模式架构
 
 | 模式 | 说明 | 实现 |
 |------|------|------|
-| **Mock** | 模拟输出，不调用真实 LLM | `*UseMock=True`，走 LLM 管道（mock_chat_completion） |
+| **Mock** | 模拟输出，不调用真实 LLM | `*UseMock=True`（含 ideaUseMock、planUseMock、taskUseMock、paperUseMock），走 LLM 管道（mock_chat_completion） |
 | **LLM** | 固定步骤 + 单轮 chat_completion | `*AgentMode=False`，collect_literature / _atomicity_and_decompose_recursive / execute_task |
 | **Agent** | Google ADK 驱动，工具循环 | `*AgentMode=True`，adk_runner.run_*_agent_adk |
 

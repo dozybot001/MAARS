@@ -6,7 +6,7 @@
     const cfg = window.MAARS?.config;
     if (!cfg) return;
 
-    const DEFAULT_AGENT_MODE = { ideaAgent: 'mock', planAgent: 'mock', taskAgent: 'mock', ideaRAG: false };
+    const DEFAULT_AGENT_MODE = { ideaAgent: 'mock', planAgent: 'mock', taskAgent: 'mock', paperAgent: 'mock', ideaRAG: false };
     const DEFAULT_REFLECTION = { enabled: false, maxIterations: 2, qualityThreshold: 70 };
     const PANELS = ['settingsPanelTheme', 'settingsPanelAi', 'settingsPanelDb'];
     let _configState = { agentMode: { ...DEFAULT_AGENT_MODE }, reflection: { ...DEFAULT_REFLECTION }, current: '', presets: {} };

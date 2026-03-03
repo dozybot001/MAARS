@@ -146,6 +146,14 @@
         renderOutput();
     }
 
+    /** 仅清空 paper 产出槽位，保留 task 产出。paper-start 时调用。 */
+    function clearPaperOutput() {
+        if ('paper' in state.taskOutputs) {
+            delete state.taskOutputs['paper'];
+            renderOutput();
+        }
+    }
+
     function setTaskOutput(taskId, output) {
         if (!taskId) return;
         state.taskOutputs[taskId] = output;
@@ -267,6 +275,7 @@
         document.addEventListener('maars:plan-start', onFlowStart);
         document.addEventListener('maars:task-start', onFlowStart);
         document.addEventListener('maars:restore-start', onFlowStart);
+        document.addEventListener('maars:paper-start', clearPaperOutput);
     })();
 
     document.addEventListener('maars:idea-complete', (e) => {

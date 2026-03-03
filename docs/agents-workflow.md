@@ -325,7 +325,7 @@ Plan + Task 产出 → 单轮 LLM 生成 → Markdown / LaTeX 论文草稿
 
 ### 7.4 模式说明
 
-Paper Agent 当前仅集成 LLM 管道，无 Mock/Agent 模式。Agent 模式（工具调用、文献检索、引用校验、章节迭代等）待后续开发。
+Paper Agent 支持 Mock 与 LLM 模式；Mock 模式从 `test/mock-ai/paper.json` 加载，使用 mock_chat_completion 流式输出。Agent 模式（工具调用、文献检索、引用校验、章节迭代等）待后续开发。
 
 ---
 
