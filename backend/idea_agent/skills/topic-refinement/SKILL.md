@@ -46,7 +46,7 @@ After refinement, keywords should be:
 
 ## For RefineIdea
 
-When the idea was refined, ensure the refined_idea:
-- Reflects the narrowed scope in description
-- Has research_questions that match the refined topic
-- Includes refinement_reason in method_approach if applicable
+When the idea was refined, ensure the output:
+- Reflects the narrowed scope
+- Has clear questions or goals that match the refined topic
+- Includes refinement_reason if the scope was narrowed from a broader idea

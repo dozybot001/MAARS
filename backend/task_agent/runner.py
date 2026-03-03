@@ -17,6 +17,7 @@ from shared.constants import (
     MOCK_EXECUTION_PASS_PROBABILITY,
     MOCK_VALIDATION_PASS_PROBABILITY,
 )
+from shared.idea_utils import get_idea_text
 from shared.utils import chunk_string
 from .pools import worker_manager
 from .artifact_resolver import resolve_artifacts
@@ -124,8 +125,8 @@ class ExecutionRunner:
             try:
                 idea_data = await get_idea(self.idea_id)
                 if idea_data:
-                    refined = idea_data.get("refined_idea") or {}
-                    self._idea_text = (refined.get("description") or "").strip() or (idea_data.get("idea") or "").strip()
+                    refined = idea_data.get("refined_idea")
+                    self._idea_text = get_idea_text(refined) or (idea_data.get("idea") or "").strip()
             except Exception:
                 pass
         try:

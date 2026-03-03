@@ -19,27 +19,10 @@
     function formatRefineResult(data) {
         const keywords = data.keywords || [];
         const papers = data.papers || [];
-        const refined = data.refined_idea || {};
-        const desc = refined.description || '';
-        const rqs = refined.research_questions || [];
-        const gap = refined.research_gap || '';
-        const method = refined.method_approach || '';
+        const refined = (data.refined_idea && typeof data.refined_idea === 'string') ? data.refined_idea.trim() : '';
 
         let md = '## Refine Results\n\n';
-        if (desc) {
-            md += '### Refined Idea\n\n' + desc + '\n\n';
-        }
-        if (rqs.length) {
-            md += '**Research Questions:**\n';
-            rqs.forEach((q) => { md += '- ' + q + '\n'; });
-            md += '\n';
-        }
-        if (gap) {
-            md += '**Research Gap:** ' + gap + '\n\n';
-        }
-        if (method) {
-            md += '**Method Approach:** ' + method + '\n\n';
-        }
+        if (refined) md += '### Refined Idea\n\n' + refined + '\n\n';
         md += '**Keywords:** ' + (keywords.length ? keywords.join(', ') : '—') + '\n\n';
         md += '**Papers (' + papers.length + '):**\n\n';
         papers.forEach((p, i) => {
@@ -62,10 +45,6 @@
         const area = document.getElementById('taskAgentOutputArea');
         if (!el || !area) return;
         const outputs = state.taskOutputs;
-        if (outputs.refine !== undefined) {
-            outputs.idea = outputs.refine;
-            delete outputs.refine;
-        }
         const keys = Object.keys(outputs).sort((a, b) => {
             if (a === 'idea') return -1;
             if (b === 'idea') return 1;
@@ -280,7 +259,8 @@
 
     document.addEventListener('maars:idea-complete', (e) => {
         const data = e.detail || {};
-        if (data.keywords != null || (data.papers && data.papers.length > 0) || (data.refined_idea && data.refined_idea.description)) {
+        const hasRefined = typeof data.refined_idea === 'string' && data.refined_idea.trim();
+        if (data.keywords != null || (data.papers && data.papers.length > 0) || hasRefined) {
             const formatted = formatRefineResult(data);
             setTaskOutput('idea', { content: formatted, label: 'Refine' });
             applyOutputHighlight();

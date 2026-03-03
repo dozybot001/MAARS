@@ -56,7 +56,7 @@ async def run_idea_agent_adk(
         "papers": [],
         "filtered_papers": [],
         "analysis": "",
-        "refined_idea": {},
+        "refined_idea": "",
         "rag_context": "",
     }
 
@@ -215,11 +215,11 @@ async def run_idea_agent_adk(
         return {
             "keywords": finish_result.get("keywords", []),
             "papers": finish_result.get("papers", []),
-            "refined_idea": finish_result.get("refined_idea", {}),
+            "refined_idea": finish_result.get("refined_idea", ""),
         }
 
     return {
         "keywords": idea_state.get("keywords", []),
         "papers": idea_state.get("papers", []),
-        "refined_idea": idea_state.get("refined_idea", {}),
+        "refined_idea": idea_state.get("refined_idea", ""),
     }

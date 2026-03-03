@@ -143,7 +143,7 @@ IDEA_AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "RefineIdea",
-            "description": "Generate refined_idea (description, research_questions, research_gap, method_approach) from idea and papers. Call after AnalyzePapers.",
+            "description": "Generate refined idea as Markdown from idea and papers. Call after AnalyzePapers. Output concrete, actionable content decomposable into 3–10 tasks.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -163,7 +163,7 @@ IDEA_AGENT_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "refined_idea": {"type": "object", "description": "The refined_idea to validate"},
+                    "refined_idea": {"type": "string", "description": "The refined idea (Markdown) to validate"},
                 },
                 "required": ["refined_idea"],
             },
@@ -179,7 +179,7 @@ IDEA_AGENT_TOOLS = [
                 "properties": {
                     "keywords": {"type": "array", "items": {"type": "string"}, "description": "Final keywords used"},
                     "papers": {"type": "array", "description": "Final papers list (full objects)"},
-                    "refined_idea": {"type": "object", "description": "Final refined_idea"},
+                    "refined_idea": {"type": "string", "description": "Final refined idea (Markdown)"},
                 },
                 "required": ["keywords", "papers", "refined_idea"],
             },
@@ -309,13 +309,13 @@ Output JSON only:
 
 
 async def _validate_refined_llm(
-    refined_idea: dict, api_config: dict, abort_event: Optional[Any] = None
+    refined_idea: str, api_config: dict, abort_event: Optional[Any] = None
 ) -> Dict:
     """LLM call for ValidateRefinedIdea. Returns {score, comment, should_rewrite}."""
     prompt = f"""Assess this refined research idea for executability and specificity.
 
 **Refined idea:**
-{orjson.dumps(refined_idea, option=orjson.OPT_INDENT_2).decode("utf-8")}
+{refined_idea or ""}
 
 Output JSON only:
 {{"score": 1-5, "comment": "string", "should_rewrite": bool}}
@@ -461,24 +461,21 @@ Output 2-4 sentences: relationship, insights, preliminary research gap."""
 
     if name == "RefineIdea":
         papers = idea_state.get("filtered_papers") or idea_state.get("papers") or []
-        papers_ctx = args.get("papers_context") or _build_papers_context(papers)
         refined = await refine_idea_from_papers(
             args.get("idea") or idea, papers, api_config, abort_event=abort_event
         )
         idea_state["refined_idea"] = refined
-        return False, orjson.dumps(refined, option=orjson.OPT_INDENT_2).decode("utf-8")
+        return False, refined
 
     if name == "ValidateRefinedIdea":
-        refined = args.get("refined_idea") or idea_state.get("refined_idea") or {}
+        refined = args.get("refined_idea") or idea_state.get("refined_idea") or ""
         result = await _validate_refined_llm(refined, api_config, abort_event)
         return False, orjson.dumps(result, option=orjson.OPT_INDENT_2).decode("utf-8")
 
     if name == "FinishIdea":
         keywords = args.get("keywords") or idea_state.get("keywords") or []
         papers = args.get("papers") or idea_state.get("papers") or []
-        refined = args.get("refined_idea") or idea_state.get("refined_idea") or {}
-        if not refined.get("description"):
-            refined = idea_state.get("refined_idea") or refined
+        refined = args.get("refined_idea") or idea_state.get("refined_idea") or ""
         return True, orjson.dumps(
             {"keywords": keywords, "papers": papers, "refined_idea": refined},
             option=orjson.OPT_INDENT_2,

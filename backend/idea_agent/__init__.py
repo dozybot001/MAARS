@@ -44,7 +44,7 @@ async def collect_literature(
         on_thinking: 可选，流式时每收到 LLM token 调用，用于 Thinking 区域展示（Keywords、Refine 两阶段）
 
     Returns:
-        {keywords: [...], papers: [...], refined_idea: {description, research_questions, research_gap, method_approach}}
+        {keywords: [...], papers: [...], refined_idea: "..."}  # refined_idea is Markdown string
     """
     # 1. Keywords：提取检索关键词
     if on_thinking is not None:

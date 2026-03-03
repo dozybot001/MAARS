@@ -19,6 +19,7 @@ from shared.constants import (
     TEMP_REFLECT,
     TEMP_SKILL_GEN,
 )
+from shared.idea_utils import get_idea_text
 from shared.llm_client import chat_completion, merge_phase_config
 
 _AGENT_DIRS = {
@@ -55,8 +56,8 @@ def _build_idea_eval_context(output: dict, context: dict) -> str:
     idea = context.get("idea", "")
     keywords = output.get("keywords", [])
     papers = output.get("papers", [])
-    refined = output.get("refined_idea", {})
-    refined_desc = refined.get("description", "") if isinstance(refined, dict) else str(refined)
+    refined = output.get("refined_idea")
+    refined_desc = get_idea_text(refined)
 
     papers_summary = ""
     for p in papers[:10]:

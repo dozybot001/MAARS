@@ -17,7 +17,7 @@ Three academic templates for structuring refined research ideas. Use when Refine
 
 ## Heilmeier Catechism
 
-For engineering and applied research. Map refined_idea to:
+For engineering and applied research. You may use these fields to organize your output (not required):
 
 - **problem_statement**: What is the problem? Why does it matter?
 - **state_of_the_art**: Current solutions and limitations
@@ -28,7 +28,7 @@ For engineering and applied research. Map refined_idea to:
 
 ## Scientific Discovery
 
-For theory and experiments. Map refined_idea to:
+For theory and experiments. You may use these fields (not required):
 
 - **research_question**: Central RQ (RQ1:, RQ2:)
 - **hypothesis**: Testable claim
@@ -39,7 +39,7 @@ For theory and experiments. Map refined_idea to:
 
 ## System Optimization
 
-For performance and efficiency. Map refined_idea to:
+For performance and efficiency. You may use these fields (not required):
 
 - **target_system**: System or component to optimize
 - **bottleneck_analysis**: Current limitations
@@ -47,11 +47,4 @@ For performance and efficiency. Map refined_idea to:
 - **implementation_steps**: Concrete steps
 - **evaluation_metrics**: How to measure success
 
-## Mapping to MAARS refined_idea
-
-MAARS uses: description, research_questions, research_gap, method_approach. When refining:
-
-- **description**: Combine problem_statement + key_insight (Heilmeier) or research_question + hypothesis (scientific) or target_system + optimization_strategy (system)
-- **research_questions**: 1–3 questions with RQ1:, RQ2: prefix
-- **research_gap**: related_work_gap or bottleneck_analysis
-- **method_approach**: technical_plan or proposed_method or implementation_steps
+Use whichever structure best fits the research type. Quality matters; schema is flexible.

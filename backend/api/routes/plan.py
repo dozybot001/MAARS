@@ -15,6 +15,7 @@ from db import (
     list_plan_outputs,
     save_plan,
 )
+from shared.idea_utils import get_idea_text
 from visualization import build_layout_from_execution, compute_decomposition_layout
 from plan_agent.index import run_plan
 from shared.reflection import reflection_loop
@@ -100,9 +101,8 @@ async def _run_plan_inner(body: PlanRunRequest, idea_id: str, plan_id: str):
         if not idea_data or not idea_data.get("idea"):
             raise ValueError("Idea not found. Please Refine first to create an idea.")
         raw_idea = idea_data["idea"].strip() if isinstance(idea_data.get("idea"), str) else ""
-        # Plan 分解使用 refined_idea.description，若无则回退到原始 idea
-        refined = idea_data.get("refined_idea") or {}
-        idea = (refined.get("description") or "").strip() or raw_idea
+        refined = idea_data.get("refined_idea")
+        idea = get_idea_text(refined) or raw_idea
 
         config = await get_effective_config()
         use_mock = config.get("planUseMock", True)

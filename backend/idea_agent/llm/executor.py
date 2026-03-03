@@ -181,57 +181,9 @@ async def extract_keywords_stream(
 
 # --- Refined Idea 生成 ---
 
-_REFINE_IDEA_SYSTEM_PROMPT = """You are a research assistant. Given the user's fuzzy research idea and retrieved papers, produce a structured, executable research idea.
+_REFINE_IDEA_SYSTEM_PROMPT = """You are a research assistant. Given the user's fuzzy research idea and retrieved papers, produce a refined, executable research idea.
 
-Output in two parts:
-
-1. **Reasoning** (2-4 sentences): First, analyze how the papers relate to the user's idea, what insights you draw, and what research gap you identify. Write this as plain text. This will be shown as your thinking process.
-
-2. **JSON**: Then output a JSON block wrapped in ```json and ``` with exactly these fields:
-{
-  "description": "A clear, expanded research description (2-4 sentences) that can guide task decomposition",
-  "research_questions": ["RQ1: ...", "RQ2: ..."],
-  "research_gap": "Brief statement of existing work's limitations and this study's contribution",
-  "method_approach": "Suggested methodology or technical approach (optional, can be empty string)"
-}
-
-Requirements:
-- Reasoning: Must appear first; explain your analysis before the JSON
-- description: Must be concrete and actionable; expand vague ideas using insights from papers
-- research_questions: 1-3 questions; use "RQ1:", "RQ2:" prefix
-- research_gap: 1-2 sentences
-- If no papers provided, infer from the user's idea alone
-- The JSON block must be the last part of your response"""
-
-
-def _parse_refined_idea_response(text: str) -> Dict:
-    """解析 LLM 返回的 JSON，提取 refined_idea 结构。支持 reasoning + ```json...``` 或纯 JSON。"""
-    default = {
-        "description": "",
-        "research_questions": [],
-        "research_gap": "",
-        "method_approach": "",
-    }
-    cleaned = (text or "").strip()
-    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
-    if m:
-        cleaned = m.group(1).strip()
-    # 若无 ```json``` 块，尝试整体解析（兼容仅输出 JSON 的旧行为）
-    try:
-        data = json.loads(cleaned)
-        desc = data.get("description")
-        rqs = data.get("research_questions")
-        gap = data.get("research_gap")
-        method = data.get("method_approach")
-        return {
-            "description": str(desc).strip() if desc else "",
-            "research_questions": [str(q).strip() for q in (rqs if isinstance(rqs, list) else []) if q],
-            "research_gap": str(gap).strip() if gap else "",
-            "method_approach": str(method).strip() if method else "",
-        }
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return default
+Output the refined idea directly as Markdown. No JSON. Structure it freely (e.g. ## Description, ## Research Questions, ## Gap, ## Method). Be concrete and actionable; ensure it is decomposable into 3–10 tasks. If no papers provided, infer from the user's idea alone."""
 
 
 def _build_papers_context(papers: List[dict], max_chars: int = 4000) -> str:
@@ -256,9 +208,9 @@ async def refine_idea_from_papers(
     papers: List[dict],
     api_config: dict,
     abort_event: Optional[Any] = None,
-) -> Dict:
+) -> str:
     """
-    基于用户 idea 与检索到的 papers，生成结构化的可执行 refined idea。
+    基于用户 idea 与检索到的 papers，生成可执行的 refined idea（直接 Markdown 输出）。
     非流式版本，用于无 on_thinking 时。
     """
     if not idea or not isinstance(idea, str):
@@ -270,8 +222,8 @@ async def refine_idea_from_papers(
     if use_mock:
         mock = _load_mock_response(RESPONSE_TYPE_REFINE, MOCK_KEY)
         if not mock:
-            return _parse_refined_idea_response("{}")
-        return _parse_refined_idea_response(mock["content"])
+            return ""
+        return (mock["content"] or "").strip()
 
     cfg = merge_phase_config(api_config, "idea")
     papers_ctx = _build_papers_context(papers)
@@ -289,9 +241,9 @@ async def refine_idea_from_papers(
             abort_event=abort_event,
         )
         text = response if isinstance(response, str) else str(response)
-        return _parse_refined_idea_response(text)
+        return (text or "").strip()
     except Exception:
-        return _parse_refined_idea_response("{}")
+        return ""
 
 
 async def refine_idea_from_papers_stream(
@@ -300,9 +252,9 @@ async def refine_idea_from_papers_stream(
     api_config: dict,
     on_chunk: Optional[OnThinkingCallback] = None,
     abort_event: Optional[Any] = None,
-) -> Dict:
+) -> str:
     """
-    流式基于用户 idea 与检索到的 papers，生成结构化的可执行 refined idea。
+    流式基于用户 idea 与检索到的 papers，生成可执行的 refined idea（直接 Markdown 输出）。
     Thinking 区域 operation 为 "Refine"。
     """
     if not idea or not isinstance(idea, str):
@@ -314,7 +266,7 @@ async def refine_idea_from_papers_stream(
     if use_mock:
         mock = _load_mock_response(RESPONSE_TYPE_REFINE, MOCK_KEY)
         if not mock:
-            return _parse_refined_idea_response("{}")
+            return ""
         stream = on_chunk is not None
 
         def stream_chunk(c: str):
@@ -329,7 +281,7 @@ async def refine_idea_from_papers_stream(
             stream=stream,
             abort_event=abort_event,
         )
-        return _parse_refined_idea_response(content or "{}")
+        return (content or "").strip()
 
     cfg = merge_phase_config(api_config, "idea")
     papers_ctx = _build_papers_context(papers)
@@ -353,6 +305,6 @@ async def refine_idea_from_papers_stream(
             abort_event=abort_event,
         )
         text = full_content if isinstance(full_content, str) else str(full_content)
-        return _parse_refined_idea_response(text)
+        return (text or "").strip()
     except Exception:
-        return _parse_refined_idea_response("{}")
+        return ""
