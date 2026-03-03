@@ -47,6 +47,10 @@ When the idea is too broad:
 - **Atomic**: Single search, single analysis, single write-up, single decision, one clear deliverable
 - **Non-atomic**: Multiple methodologies, distinct deliverables, handoff points, "and then" in description
 
+## Paper Agent Boundary
+
+Do not create a task for the final research paper. The Paper Agent generates the paper from task outputs after execution. Tasks may produce summaries, synthesis reports, comparison outputs, or literature reviews—these are appropriate. The Paper Agent composes them into the final paper.
+
 ## Red Flags
 
 - Task description contains "and" linking two distinct activities → likely non-atomic

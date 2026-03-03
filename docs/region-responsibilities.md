@@ -29,6 +29,7 @@
 | Idea Agent | 文献列表（keywords + papers） | `idea` |
 | Plan Agent | 任务树结构 | 不进入 Output，由 Tree View 承载 |
 | Task Agent | 各任务的 artifact（JSON/Markdown） | `task_{task_id}`，如 `task_1` |
+| Paper Agent | 论文草稿（Markdown/LaTeX） | `paper` |
 
 **不展示**：推理过程、中间状态、调度信息。
 

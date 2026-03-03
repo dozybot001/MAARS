@@ -51,3 +51,11 @@ class IdeaCollectRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     idea: Optional[str] = Field(default=None, description="Fuzzy research idea")
     limit: int = Field(default=10, ge=1, le=50, description="Max number of papers to return")
+
+
+class PaperRunRequest(BaseModel):
+    """Paper Agent 论文生成请求。"""
+    model_config = ConfigDict(populate_by_name=True)
+    idea_id: str = Field(..., alias="ideaId", description="Idea ID")
+    plan_id: str = Field(..., alias="planId", description="Plan ID")
+    format: Optional[str] = Field(default="markdown", description="Output format: markdown or latex")

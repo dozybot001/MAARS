@@ -69,6 +69,8 @@
         const keys = Object.keys(outputs).sort((a, b) => {
             if (a === 'idea') return -1;
             if (b === 'idea') return 1;
+            if (a === 'paper') return 1;
+            if (b === 'paper') return -1;
             if (a.startsWith('task_') && b.startsWith('task_')) {
                 const na = parseInt(a.slice(6), 10);
                 const nb = parseInt(b.slice(6), 10);
@@ -290,6 +292,16 @@
     });
 
     document.addEventListener('maars:task-complete', () => applyOutputHighlight());
+
+    document.addEventListener('maars:paper-complete', (e) => {
+        const data = e.detail || {};
+        const content = data.content || '';
+        if (content) {
+            setTaskOutput('paper', { content, label: 'Paper Draft' });
+            applyOutputHighlight();
+            document.dispatchEvent(new CustomEvent('maars:switch-to-output-tab'));
+        }
+    });
 
     document.addEventListener('maars:task-output', (e) => {
         const data = e.detail;

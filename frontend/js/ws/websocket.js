@@ -58,6 +58,14 @@
             document.dispatchEvent(new CustomEvent('maars:plan-error'));
         });
 
+        state.socket.on('paper-start', () => {});
+        state.socket.on('paper-complete', (data) => {
+            document.dispatchEvent(new CustomEvent('maars:paper-complete', { detail: data }));
+        });
+        state.socket.on('paper-error', (data) => {
+            document.dispatchEvent(new CustomEvent('maars:paper-error', { detail: { error: data?.error } }));
+        });
+
         state.socket.on('execution-layout', (data) => {
             document.dispatchEvent(new CustomEvent('maars:execution-layout', { detail: data }));
         });

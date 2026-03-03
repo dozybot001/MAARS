@@ -340,6 +340,7 @@ def _resolve_config(raw: dict) -> dict:
     cfg["ideaAgentMode"] = idea_m == "agent"
     cfg["planAgentMode"] = plan_m == "agent"
     cfg["taskAgentMode"] = task_m == "agent"
+    cfg["ideaUseRAG"] = bool(agent_mode.get("ideaRAG", False))
 
     reflection = raw.get("reflection") or {}
     cfg["reflectionEnabled"] = reflection.get("enabled", False)

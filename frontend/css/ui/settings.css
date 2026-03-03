@@ -500,6 +500,13 @@
     color: var(--text-secondary);
 }
 
+/* Idea Agent PDF RAG */
+.settings-idea-rag-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
 /* Self-Reflection controls */
 .settings-reflection-controls {
     display: flex;

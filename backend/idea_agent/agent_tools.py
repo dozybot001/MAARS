@@ -15,11 +15,16 @@ from loguru import logger
 
 from shared.constants import TEMP_ANALYSIS, TEMP_EXTRACT
 from shared.llm_client import chat_completion, merge_phase_config
-from shared.skill_utils import parse_skill_frontmatter
+from shared.skill_utils import list_skills as _list_skills, load_skill as _load_skill, read_skill_file as _read_skill_file
 
 from . import arxiv
 from .llm import extract_keywords, refine_idea_from_papers
 from .llm.executor import _build_papers_context
+
+try:
+    from .rag_engine import get_rag_engine
+except ImportError:
+    get_rag_engine = None
 
 # Idea Agent skills root: MAARS_IDEA_SKILLS_DIR env or backend/idea_agent/skills/
 _IDEA_SKILLS_DIR = os.environ.get("MAARS_IDEA_SKILLS_DIR")
@@ -32,72 +37,17 @@ IDEA_SKILLS_ROOT = (
 
 def _idea_agent_list_skills() -> str:
     """List Idea Agent skills. Returns JSON string of [{name, description}, ...]."""
-    try:
-        if not IDEA_SKILLS_ROOT.exists() or not IDEA_SKILLS_ROOT.is_dir():
-            return orjson.dumps([]).decode("utf-8")
-        skills = []
-        for item in sorted(IDEA_SKILLS_ROOT.iterdir()):
-            if not item.is_dir():
-                continue
-            skill_md = item / "SKILL.md"
-            if not skill_md.is_file():
-                continue
-            try:
-                content = skill_md.read_text(encoding="utf-8", errors="replace")
-                meta = parse_skill_frontmatter(content)
-                name = meta.get("name") or item.name
-                desc = meta.get("description") or ""
-                skills.append({"name": name, "description": desc})
-            except Exception:
-                skills.append({"name": item.name, "description": ""})
-        return orjson.dumps(skills, option=orjson.OPT_INDENT_2).decode("utf-8")
-    except Exception as e:
-        return f"Error listing skills: {e}"
+    return _list_skills(IDEA_SKILLS_ROOT)
 
 
 def _idea_agent_load_skill(name: str) -> str:
     """Load Idea Agent skill SKILL.md content."""
-    try:
-        if not name or ".." in name or "/" in name or "\\" in name:
-            return "Error: invalid skill name"
-        skill_dir = (IDEA_SKILLS_ROOT / name.strip()).resolve()
-        try:
-            skill_dir.relative_to(IDEA_SKILLS_ROOT.resolve())
-        except ValueError:
-            return "Error: invalid skill name"
-        skill_md = skill_dir / "SKILL.md"
-        if not skill_md.exists() or not skill_md.is_file():
-            return f"Error: Skill '{name}' not found (no SKILL.md)"
-        return skill_md.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error loading skill: {e}"
+    return _load_skill(IDEA_SKILLS_ROOT, name)
 
 
 def _idea_agent_read_skill_file(skill: str, path: str) -> str:
     """Read file from Idea Agent skill directory."""
-    try:
-        if not skill or ".." in skill or "/" in skill or "\\" in skill:
-            return "Error: invalid skill name"
-        skill_dir = (IDEA_SKILLS_ROOT / skill.strip()).resolve()
-        try:
-            skill_dir.relative_to(IDEA_SKILLS_ROOT.resolve())
-        except ValueError:
-            return "Error: invalid skill name"
-        path = path.replace("\\", "/").strip()
-        if ".." in path or path.startswith("/"):
-            return "Error: path traversal not allowed"
-        full = (skill_dir / path).resolve()
-        try:
-            full.relative_to(skill_dir)
-        except ValueError:
-            return "Error: path traversal not allowed"
-        if not full.exists():
-            return f"Error: File not found: {path}"
-        if not full.is_file():
-            return "Error: Not a file"
-        return full.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error reading skill file: {e}"
+    return _read_skill_file(IDEA_SKILLS_ROOT, skill, path)
 
 
 # OpenAI function-calling tool definitions
@@ -239,7 +189,7 @@ IDEA_AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "ListSkills",
-            "description": "List available Idea Agent Skills (semantic search, domain templates).",
+            "description": "List available Idea Agent Skills (keyword extraction, paper evaluation, research templates, topic refinement, rag-research-template, literature-grounding, refined-idea quality).",
             "parameters": {"type": "object", "properties": {}},
         },
     },
@@ -273,6 +223,42 @@ IDEA_AGENT_TOOLS = [
         },
     },
 ]
+
+# RAG 工具：仅当 ideaUseRAG=True 时加入
+RAG_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "IndexPapers",
+            "description": "Index filtered papers (from FilterPapers) into PDF vector store for semantic retrieval. Call after FilterPapers when you need to query paper full-text for methodology or experimental details.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "QueryKnowledgeBase",
+            "description": "Semantic search over indexed paper PDF content. Use when RefineIdea needs methodology, experimental setup, or specific details from paper body. Returns [Source ID: i] (Title)\ntext format.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query for methodology, experiments, etc."},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+]
+
+
+def get_idea_agent_tools(api_config: Optional[Dict] = None) -> List[dict]:
+    """返回 Idea Agent 工具列表，ideaUseRAG=True 时包含 IndexPapers 与 QueryKnowledgeBase。"""
+    tools = list(IDEA_AGENT_TOOLS)
+    if api_config and api_config.get("ideaUseRAG") and get_rag_engine:
+        engine = get_rag_engine()
+        if engine is not None:
+            tools = tools + RAG_TOOLS
+    return tools
 
 
 def _parse_json_block(text: str) -> Optional[Dict]:
@@ -375,7 +361,6 @@ async def execute_idea_agent_tool(
 
     idea = idea_state.get("idea", "")
     api_config = api_config or {}
-    use_mock = api_config.get("ideaUseMock", True)
 
     if name == "ExtractKeywords":
         kw_idea = args.get("idea") or idea
@@ -426,6 +411,29 @@ async def execute_idea_agent_tool(
         return False, orjson.dumps(
             {"count": len(filtered), "indices": indices}, option=orjson.OPT_INDENT_2
         ).decode("utf-8")
+
+    if name == "IndexPapers":
+        if not api_config.get("ideaUseRAG"):
+            return False, "Error: RAG not enabled (ideaUseRAG=False)"
+        engine = get_rag_engine() if get_rag_engine else None
+        if not engine:
+            return False, "Error: RAG dependencies not available"
+        papers = idea_state.get("filtered_papers") or []
+        result = await engine.index_papers(papers)
+        return False, result
+
+    if name == "QueryKnowledgeBase":
+        if not api_config.get("ideaUseRAG"):
+            return False, "Error: RAG not enabled (ideaUseRAG=False)"
+        engine = get_rag_engine() if get_rag_engine else None
+        if not engine:
+            return False, "Error: RAG dependencies not available"
+        q = (args.get("query") or "").strip()
+        if not q:
+            return False, "Error: query required"
+        result = await engine.query(q, limit=30)
+        idea_state["rag_context"] = result
+        return False, result
 
     if name == "AnalyzePapers":
         papers_ctx = args.get("papers_context") or _build_papers_context(

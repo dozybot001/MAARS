@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import orjson
 
 from shared.graph import get_ancestor_path, get_parent_id
-from shared.skill_utils import parse_skill_frontmatter
+from shared.skill_utils import list_skills as _list_skills, load_skill as _load_skill, read_skill_file as _read_skill_file
 
 # Plan skills root: MAARS_PLAN_SKILLS_DIR env or backend/plan_agent/skills/
 _PLAN_SKILLS_DIR = os.environ.get("MAARS_PLAN_SKILLS_DIR")
@@ -29,72 +29,17 @@ def _find_task_idx(all_tasks: List[Dict], task_id: str) -> int:
 
 def _plan_agent_list_skills() -> str:
     """List Plan Agent skills. Returns JSON string of [{name, description}, ...]."""
-    try:
-        if not PLAN_SKILLS_ROOT.exists() or not PLAN_SKILLS_ROOT.is_dir():
-            return orjson.dumps([]).decode("utf-8")
-        skills = []
-        for item in sorted(PLAN_SKILLS_ROOT.iterdir()):
-            if not item.is_dir():
-                continue
-            skill_md = item / "SKILL.md"
-            if not skill_md.is_file():
-                continue
-            try:
-                content = skill_md.read_text(encoding="utf-8", errors="replace")
-                meta = parse_skill_frontmatter(content)
-                name = meta.get("name") or item.name
-                desc = meta.get("description") or ""
-                skills.append({"name": name, "description": desc})
-            except Exception:
-                skills.append({"name": item.name, "description": ""})
-        return orjson.dumps(skills, option=orjson.OPT_INDENT_2).decode("utf-8")
-    except Exception as e:
-        return f"Error listing skills: {e}"
+    return _list_skills(PLAN_SKILLS_ROOT)
 
 
 def _plan_agent_load_skill(name: str) -> str:
     """Load Plan Agent skill SKILL.md content."""
-    try:
-        if not name or ".." in name or "/" in name or "\\" in name:
-            return "Error: invalid skill name"
-        skill_dir = (PLAN_SKILLS_ROOT / name.strip()).resolve()
-        try:
-            skill_dir.relative_to(PLAN_SKILLS_ROOT.resolve())
-        except ValueError:
-            return "Error: invalid skill name"
-        skill_md = skill_dir / "SKILL.md"
-        if not skill_md.exists() or not skill_md.is_file():
-            return f"Error: Skill '{name}' not found (no SKILL.md)"
-        return skill_md.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error loading skill: {e}"
+    return _load_skill(PLAN_SKILLS_ROOT, name)
 
 
 def _plan_agent_read_skill_file(skill: str, path: str) -> str:
     """Read file from Plan Agent skill directory."""
-    try:
-        if not skill or ".." in skill or "/" in skill or "\\" in skill:
-            return "Error: invalid skill name"
-        skill_dir = (PLAN_SKILLS_ROOT / skill.strip()).resolve()
-        try:
-            skill_dir.relative_to(PLAN_SKILLS_ROOT.resolve())
-        except ValueError:
-            return "Error: invalid skill name"
-        path = path.replace("\\", "/").strip()
-        if ".." in path or path.startswith("/"):
-            return "Error: path traversal not allowed"
-        full = (skill_dir / path).resolve()
-        try:
-            full.relative_to(skill_dir)
-        except ValueError:
-            return "Error: path traversal not allowed"
-        if not full.exists():
-            return f"Error: File not found: {path}"
-        if not full.is_file():
-            return "Error: Not a file"
-        return full.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error reading skill file: {e}"
+    return _read_skill_file(PLAN_SKILLS_ROOT, skill, path)
 
 
 # OpenAI function-calling tool definitions

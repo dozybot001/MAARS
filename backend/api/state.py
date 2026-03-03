@@ -19,16 +19,30 @@ class IdeaRunState:
     abort_event: Optional[Any] = None
 
 
+class PaperRunState:
+    """Paper Agent 运行状态：run_task、abort_event。供 /api/paper/stop 使用。"""
+    run_task: Optional[Any] = None
+    abort_event: Optional[Any] = None
+
+
 # Set by main.py
 sio: Any = None
 runner: Any = None  # Task Agent Execution 阶段 runner
 plan_run_state: Optional[PlanRunState] = None
 idea_run_state: Optional[IdeaRunState] = None
+paper_run_state: Optional[PaperRunState] = None
 
 
-def init_api_state(sio_instance, run_runner, run_state: PlanRunState, idea_run_state_ref: Optional[IdeaRunState] = None):
-    global sio, runner, plan_run_state, idea_run_state
+def init_api_state(
+    sio_instance,
+    run_runner,
+    run_state: PlanRunState,
+    idea_run_state_ref: Optional[IdeaRunState] = None,
+    paper_run_state_ref: Optional[PaperRunState] = None,
+):
+    global sio, runner, plan_run_state, idea_run_state, paper_run_state
     sio = sio_instance
     runner = run_runner
     plan_run_state = run_state
     idea_run_state = idea_run_state_ref
+    paper_run_state = paper_run_state_ref

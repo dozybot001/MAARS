@@ -5,7 +5,7 @@
 (function () {
     'use strict';
 
-    const EVENTS = ['plan-thinking', 'idea-thinking', 'task-thinking'];
+    const EVENTS = ['plan-thinking', 'idea-thinking', 'task-thinking', 'paper-thinking'];
 
     /** 从事件名推导 source，用于 thinking 区域样式区分 */
     function sourceFromEvent(eventName) {

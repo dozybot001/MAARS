@@ -134,6 +134,12 @@
                                             <button type="button" class="settings-mode-cell" data-row="taskAgent" data-col="agent">Agent</button>
                                         </div>
                                     </div>
+                                    <div class="settings-idea-rag-row">
+                                        <label class="settings-toggle-row">
+                                            <input type="checkbox" id="ideaRAGEnabled" />
+                                            <span>Enable Idea Agent PDF RAG (index paper body for semantic search)</span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="settings-card">
                                     <h3 class="settings-card-title">Self-Reflection</h3>
@@ -210,6 +216,8 @@
                 <button id="stopPlanBtn" class="stop-btn" style="display: none;">Stop</button>
                 <button id="executionBtn">Execute</button>
                 <button id="stopExecutionBtn" class="stop-btn" style="display: none;">Stop</button>
+                <button id="generatePaperBtn">Paper</button>
+                <button id="stopPaperBtn" class="stop-btn" style="display: none;">Stop</button>
             </div>
             <div class="plan-agent-thinking-tree-row">
                 <div class="plan-agent-tree-area" data-tree-area="plan">
@@ -275,6 +283,7 @@
     <script src="js/flows/idea.js"></script>
     <script src="js/flows/plan.js"></script>
     <script src="js/flows/task.js"></script>
+    <script src="js/flows/paper.js"></script>
     <script src="js/regions/output.js"></script>
     <script src="js/regions/thinking.js"></script>
     <script src="js/ws/handlers/thinking-handler.js"></script>

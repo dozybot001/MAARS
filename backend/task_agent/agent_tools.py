@@ -12,7 +12,12 @@ from typing import Any, List, Optional, Tuple
 import orjson
 
 from db import DB_DIR, _validate_idea_id, _validate_plan_id, get_sandbox_dir, get_task_artifact
-from shared.skill_utils import parse_skill_frontmatter
+from shared.skill_utils import (
+    list_skills as _list_skills,
+    load_skill as _load_skill,
+    parse_skill_frontmatter,
+    read_skill_file as _read_skill_file,
+)
 
 from . import web_tools
 
@@ -307,48 +312,12 @@ async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, ta
 
 def run_list_skills() -> str:
     """Execute ListSkills. Returns JSON string of [{name, description}, ...] or error."""
-    try:
-        if not SKILLS_ROOT.exists() or not SKILLS_ROOT.is_dir():
-            return orjson.dumps([]).decode("utf-8")
-        skills = []
-        for item in sorted(SKILLS_ROOT.iterdir()):
-            if not item.is_dir():
-                continue
-            skill_md = item / "SKILL.md"
-            if not skill_md.is_file():
-                continue
-            try:
-                content = skill_md.read_text(encoding="utf-8", errors="replace")
-                meta = parse_skill_frontmatter(content)
-                name = meta.get("name") or item.name
-                desc = meta.get("description") or ""
-                skills.append({"name": name, "description": desc})
-            except Exception:
-                skills.append({"name": item.name, "description": ""})
-        return orjson.dumps(skills, option=orjson.OPT_INDENT_2).decode("utf-8")
-    except Exception as e:
-        return f"Error listing skills: {e}"
+    return _list_skills(SKILLS_ROOT)
 
 
 def run_load_skill(name: str) -> str:
     """Execute LoadSkill. Returns SKILL.md full content or error."""
-    try:
-        if not name or not isinstance(name, str):
-            return "Error: skill name must be a non-empty string"
-        # Prevent path traversal: name must be safe (no .., /, \)
-        if ".." in name or "/" in name or "\\" in name:
-            return "Error: invalid skill name"
-        skill_dir = (SKILLS_ROOT / name.strip()).resolve()
-        try:
-            skill_dir.relative_to(SKILLS_ROOT.resolve())
-        except ValueError:
-            return "Error: invalid skill name"
-        skill_md = skill_dir / "SKILL.md"
-        if not skill_md.exists() or not skill_md.is_file():
-            return f"Error: Skill '{name}' not found (no SKILL.md)"
-        return skill_md.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error loading skill: {e}"
+    return _load_skill(SKILLS_ROOT, name)
 
 
 def _get_skill_dir(skill_name: str) -> Tuple[Optional[Path], str]:
@@ -369,25 +338,7 @@ def _get_skill_dir(skill_name: str) -> Tuple[Optional[Path], str]:
 
 def run_read_skill_file(skill: str, path: str) -> str:
     """Execute ReadSkillFile. Returns file content or error."""
-    try:
-        skill_dir, err = _get_skill_dir(skill)
-        if err:
-            return err
-        path = path.replace("\\", "/").strip()
-        if ".." in path or path.startswith("/"):
-            return "Error: path traversal not allowed"
-        full = (skill_dir / path).resolve()
-        try:
-            full.relative_to(skill_dir)
-        except ValueError:
-            return "Error: path traversal not allowed"
-        if not full.exists():
-            return f"Error: File not found: {path}"
-        if not full.is_file():
-            return f"Error: Not a file: {path}"
-        return full.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        return f"Error reading skill file: {e}"
+    return _read_skill_file(SKILLS_ROOT, skill, path)
 
 
 async def run_run_skill_script(

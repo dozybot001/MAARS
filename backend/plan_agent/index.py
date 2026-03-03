@@ -105,10 +105,11 @@ async def run_plan(
     idea = plan.get("idea") or root_task.get("description") or ""
 
     if api_config and api_config.get("planAgentMode"):
-        await run_plan_agent(
+        result = await run_plan_agent(
             plan, on_thinking_fn, abort_event, on_tasks_batch,
-            use_mock=use_mock, api_config=api_config, idea_id=idea_id, plan_id=plan_id,
+            api_config=api_config, idea_id=idea_id, plan_id=plan_id,
         )
+        all_tasks = result.get("tasks", all_tasks)
     else:
         await _atomicity_and_decompose_recursive(
             root_task, all_tasks, on_task, on_thinking_fn, 0, check_aborted, abort_event, on_tasks_batch,

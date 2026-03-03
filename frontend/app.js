@@ -10,6 +10,7 @@
         const idea = window.MAARS?.idea;
         const plan = window.MAARS?.plan;
         const task = window.MAARS?.task;
+        const paper = window.MAARS?.paper;
         const ws = window.MAARS?.ws;
 
         if (theme) theme.initTheme().catch(() => {});
@@ -19,6 +20,7 @@
         if (idea) idea.init();
         if (plan) plan.init();
         if (task) task.init();
+        if (paper) paper.init();
         if (ws) ws.init();
 
         const taskTree = window.MAARS?.taskTree;

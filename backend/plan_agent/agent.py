@@ -1,25 +1,11 @@
 """
-Plan Agent - ReAct-style agent loop (planAgentMode=True).
-Uses CheckAtomicity, Decompose, FormatTask, etc. via PLAN_AGENT_TOOLS.
-Multi Agent: Plan Agent (plan_agent) + Task Agent (task_agent).
-Agent 实现放在 plan_agent/，单轮 LLM 放在 plan_agent/llm/。
+Plan Agent - Google ADK 驱动 (planAgentMode=True)。
+替代自实现 ReAct 循环，使用 backend/plan_agent/adk_runner.py。
 """
 
-import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
-from shared.constants import PLAN_AGENT_MAX_TURNS, TEMP_AGENT_LOOP
-from shared.llm_client import chat_completion as real_chat_completion, merge_phase_config
-from shared.utils import format_tool_args_preview
-
-from .agent_tools import PLAN_AGENT_TOOLS, execute_plan_agent_tool
-from .llm.executor import (
-    _get_prompt_cached,
-    check_atomicity,
-    decompose_task,
-    format_task,
-    raise_if_aborted,
-)
+from . import adk_runner
 
 
 async def run_plan_agent(
@@ -27,157 +13,20 @@ async def run_plan_agent(
     on_thinking: Callable[[str], None],
     abort_event: Optional[Any],
     on_tasks_batch: Optional[Callable[[List[Dict], Dict, List[Dict]], None]],
-    use_mock: bool,
     api_config: Optional[Dict],
     idea_id: Optional[str] = None,
     plan_id: Optional[str] = None,
 ) -> Dict:
-    """ReAct-style Agent loop for Plan Agent. Uses CheckAtomicity, Decompose, FormatTask, AddTasks, UpdateTask, GetPlan, GetNextTask, FinishPlan."""
-    tasks = plan.get("tasks") or []
-    root_task = next((t for t in tasks if t.get("task_id") == "0"), None)
-    if not root_task:
-        root_task = next(
-            (t for t in tasks if t.get("task_id") and not (t.get("dependencies") or [])),
-            tasks[0] if tasks else None,
-        )
-    if not root_task:
-        raise ValueError("No decomposable task found. Generate plan first.")
-
-    all_tasks = list(tasks)
-    idea = plan.get("idea") or root_task.get("description") or ""
-    plan_state: Dict[str, Any] = {
-        "all_tasks": all_tasks,
-        "pending_queue": ["0"],
-        "idea": idea,
-    }
-
-    system_prompt = _get_prompt_cached("plan-agent-prompt.txt")
-    user_message = f"**Idea:** {idea}\n\n**Root task:** task_id \"0\", description \"{root_task.get('description', '')}\"\n\nProcess all tasks until GetNextTask returns null, then call FinishPlan."
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ]
-
-    cfg = merge_phase_config(api_config, "atomicity")
-    max_turns = PLAN_AGENT_MAX_TURNS
-    temperature = TEMP_AGENT_LOOP
-    on_thinking_fn = on_thinking or (lambda *a, **_: None)
-
-    turn = 0
-    while turn < max_turns:
-        turn += 1
-        raise_if_aborted(abort_event)
-
-        result = await real_chat_completion(
-            messages,
-            cfg,
-            on_chunk=None,
-            abort_event=abort_event,
-            stream=False,
-            temperature=temperature,
-            response_format=None,
-            tools=PLAN_AGENT_TOOLS,
-        )
-
-        content: str = ""
-        if isinstance(result, dict):
-            raw_content = result.get("content") or ""
-            content = raw_content if isinstance(raw_content, str) else str(raw_content)
-        else:
-            content = result or ""
-
-        schedule_info = {"turn": turn, "max_turns": max_turns, "operation": "Decompose"}
-        if on_thinking_fn and content:
-            r = on_thinking_fn(content, task_id=None, operation="Decompose", schedule_info=schedule_info)
-            if asyncio.iscoroutine(r):
-                await r
-
-        if isinstance(result, dict) and result.get("finish_reason") == "tool_calls":
-            tool_calls = result.get("tool_calls") or []
-            if not tool_calls:
-                continue
-
-            sig_from_any = None
-            for tc in tool_calls:
-                s = tc.get("thought_signature") or tc.get("thoughtSignature")
-                if s is not None:
-                    sig_from_any = s
-                    break
-
-            assistant_msg = {"role": "assistant", "content": content or None}
-            tool_calls_for_msg = []
-            for i, tc in enumerate(tool_calls):
-                entry = {
-                    "id": tc.get("id", f"tc_{i}"),
-                    "type": tc.get("type", "function"),
-                    "function": tc.get("function", {}),
-                }
-                sig = tc.get("thought_signature") or tc.get("thoughtSignature") or (sig_from_any if i == 0 else None)
-                if sig is not None:
-                    entry["thought_signature"] = sig
-                tool_calls_for_msg.append(entry)
-            tool_calls_for_msg = [tc for tc in tool_calls_for_msg if tc.get("function")]
-            if tool_calls_for_msg:
-                assistant_msg["tool_calls"] = tool_calls_for_msg
-            if result.get("gemini_model_content") is not None:
-                assistant_msg["gemini_model_content"] = result["gemini_model_content"]
-            messages.append(assistant_msg)
-
-            finished = False
-            for tc in tool_calls:
-                fn = tc.get("function") or {}
-                name = fn.get("name") or ""
-                args = fn.get("arguments") or "{}"
-                if on_thinking_fn:
-                    tool_args_raw = (args[:200] + "...") if len(args) > 200 else args
-                    tool_args_preview = format_tool_args_preview(name, args)
-                    tool_schedule = {
-                        "turn": turn,
-                        "max_turns": max_turns,
-                        "tool_name": name,
-                        "tool_args": tool_args_raw,
-                        "tool_args_preview": tool_args_preview,
-                        "operation": "Decompose",
-                    }
-                    r = on_thinking_fn("", task_id=None, operation="Decompose", schedule_info=tool_schedule)
-                    if asyncio.iscoroutine(r):
-                        await r
-                try:
-                    is_finish, tool_result = await execute_plan_agent_tool(
-                        name,
-                        args,
-                        plan_state,
-                        check_atomicity_fn=check_atomicity,
-                        decompose_fn=decompose_task,
-                        format_fn=format_task,
-                        on_thinking=on_thinking_fn,
-                        on_tasks_batch=on_tasks_batch,
-                        abort_event=abort_event,
-                        use_mock=use_mock,
-                        api_config=api_config,
-                        idea_id=idea_id,
-                        plan_id=plan_id,
-                    )
-                except Exception as e:
-                    tool_result = f"Error: {e}"
-                    is_finish = False
-
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": tool_result,
-                })
-
-                if is_finish:
-                    finished = True
-                    break
-
-            if finished:
-                break
-            continue
-
-        break
-
-    plan["tasks"] = plan_state["all_tasks"]
-    return {"tasks": plan_state["all_tasks"]}
+    """
+    Plan Agent 入口。使用 Google ADK 驱动。
+    返回 {tasks}。
+    """
+    return await adk_runner.run_plan_agent_adk(
+        plan=plan,
+        on_thinking=on_thinking,
+        abort_event=abort_event,
+        on_tasks_batch=on_tasks_batch,
+        api_config=api_config,
+        idea_id=idea_id,
+        plan_id=plan_id,
+    )

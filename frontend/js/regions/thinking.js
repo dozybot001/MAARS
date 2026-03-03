@@ -42,6 +42,8 @@
     state[`${PREFIX}PlanStreamingKey`] = state[`${PREFIX}PlanStreamingKey`] ?? '';
     state[`${PREFIX}IdeaCounter`] = state[`${PREFIX}IdeaCounter`] ?? 0;
     state[`${PREFIX}IdeaStreamingKey`] = state[`${PREFIX}IdeaStreamingKey`] ?? '';
+    state[`${PREFIX}PaperCounter`] = state[`${PREFIX}PaperCounter`] ?? 0;
+    state[`${PREFIX}PaperStreamingKey`] = state[`${PREFIX}PaperStreamingKey`] ?? '';
     window.MAARS.state = state;
 
     let _renderScheduled = null;
@@ -154,6 +156,8 @@
         state[`${PREFIX}PlanStreamingKey`] = '';
         state[`${PREFIX}IdeaCounter`] = 0;
         state[`${PREFIX}IdeaStreamingKey`] = '';
+        state[`${PREFIX}PaperCounter`] = 0;
+        state[`${PREFIX}PaperStreamingKey`] = '';
         const el = document.getElementById(CONTENT_EL);
         const area = document.getElementById(AREA_EL);
         if (el) el.innerHTML = '';
@@ -164,11 +168,13 @@
         const blocksKey = `${PREFIX}ThinkingBlocks`;
         const planStreamingKey = `${PREFIX}PlanStreamingKey`;
         const ideaStreamingKey = `${PREFIX}IdeaStreamingKey`;
+        const paperStreamingKey = `${PREFIX}PaperStreamingKey`;
         const scheduleCounterKey = `${PREFIX}ScheduleCounter`;
         const planCounterKey = `${PREFIX}PlanCounter`;
         const ideaCounterKey = `${PREFIX}IdeaCounter`;
         const lastUpdatedKey = `${PREFIX}LastUpdatedBlockKey`;
         const isIdea = source === 'idea' || operation === 'Refine';
+        const isPaper = source === 'paper' || operation === 'Paper';
 
         if (!chunk && scheduleInfo != null) {
             state[planStreamingKey] = '';
@@ -189,9 +195,30 @@
             }
             return;
         }
+        if (taskId == null && isPaper && chunk) {
+            const paperCounterKey = `${PREFIX}PaperCounter`;
+            let block = state[paperStreamingKey] ? state[blocksKey].find((b) => b.key === state[paperStreamingKey]) : null;
+            state[planStreamingKey] = '';
+            state[ideaStreamingKey] = '';
+            if (block) {
+                block.content += chunk;
+                if (scheduleInfo != null) block.scheduleInfo = scheduleInfo;
+                state[lastUpdatedKey] = block.key;
+            } else {
+                state[paperCounterKey] = (state[paperCounterKey] || 0) + 1;
+                const key = `paper_${state[paperCounterKey]}`;
+                block = { key, taskId: null, operation: operation || 'Paper', content: chunk, scheduleInfo: scheduleInfo || null, source: 'paper' };
+                state[blocksKey].push(block);
+                state[paperStreamingKey] = key;
+                state[lastUpdatedKey] = key;
+            }
+            scheduleRender();
+            return;
+        }
         if (taskId == null && isIdea && chunk) {
             let block = state[ideaStreamingKey] ? state[blocksKey].find((b) => b.key === state[ideaStreamingKey]) : null;
             state[planStreamingKey] = '';
+            state[paperStreamingKey] = '';
             if (block && block.operation !== operation) {
                 block = null;
                 state[ideaStreamingKey] = '';
@@ -214,6 +241,7 @@
         if (taskId == null && chunk) {
             let block = state[planStreamingKey] ? state[blocksKey].find((b) => b.key === state[planStreamingKey]) : null;
             state[ideaStreamingKey] = '';
+            state[paperStreamingKey] = '';
             if (block && block.operation !== operation) {
                 block = null;
                 state[planStreamingKey] = '';
@@ -235,6 +263,7 @@
         }
         state[planStreamingKey] = '';
         state[ideaStreamingKey] = '';
+        state[paperStreamingKey] = '';
         const key = (taskId != null && operation != null) ? `${String(taskId)}::${String(operation)}` : '_default';
         let block = state[blocksKey].find((b) => b.key === key);
         if (!block) {
@@ -280,6 +309,7 @@
         document.addEventListener('maars:idea-start', onFlowStart);
         document.addEventListener('maars:plan-start', onFlowStart);
         document.addEventListener('maars:task-start', onFlowStart);
+        document.addEventListener('maars:paper-start', onFlowStart);
         document.addEventListener('maars:restore-start', onFlowStart);
     })();
 
@@ -288,6 +318,7 @@
         document.addEventListener('maars:idea-complete', onFlowComplete);
         document.addEventListener('maars:plan-complete', onFlowComplete);
         document.addEventListener('maars:task-complete', onFlowComplete);
+        document.addEventListener('maars:paper-complete', onFlowComplete);
     })();
 
     window.MAARS.thinking = { clear, appendChunk, applyHighlight };

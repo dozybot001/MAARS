@@ -68,6 +68,3 @@ skills-lock.json
 
 # Ruff
 .ruff_cache/
-
-# ARL
-FROM-ARL

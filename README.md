@@ -38,35 +38,37 @@ python -m uvicorn main:asgi_app --host 0.0.0.0 --port 3001 --loop asyncio --http
 
 Task Agent 池并行执行就绪任务，每个任务执行后 Validate，实时状态推送。Thinking 区域展示 Refine/Plan/Execute 阶段、轮次、工具调用及参数摘要（如 `ReadFile(path: sandbox/notes.txt)`）。
 
-## 三 Agent 工作流程
+## 四 Agent 工作流程
 
-统一流程模型：**用户点击 → HTTP POST 触发 → 后端后台任务 → WebSocket 数据回传 → 前端更新 UI**。三个 Agent 均采用相同模式：HTTP 仅用于触发并立即返回 `{success, id}`，所有流式数据（thinking、tree、output）、完成状态与错误均通过 WebSocket 推送；前端不依赖 HTTP 响应，仅用 WebSocket 事件更新 UI。
+统一流程模型：**用户点击 → HTTP POST 触发 → 后端后台任务 → WebSocket 数据回传 → 前端更新 UI**。四个 Agent 均采用相同模式：HTTP 仅用于触发并立即返回 `{success, id}`，所有流式数据（thinking、tree、output）、完成状态与错误均通过 WebSocket 推送；前端不依赖 HTTP 响应，仅用 WebSocket 事件更新 UI。
 
 | Agent | 职责 | 触发 | 事件 |
 |-------|------|------|------|
 | **Idea Agent** | 关键词提取、arXiv 检索、Refined Idea 生成 | Refine 按钮 | idea-start / idea-thinking / idea-complete |
 | **Plan Agent** | 任务分解（atomicity → decompose → format → quality） | Plan 按钮 | plan-start / plan-thinking / plan-tree-update / plan-complete |
 | **Task Agent** | 原子任务执行与验证 | Execute 启动 | task-start / task-thinking / task-states-update / task-output / task-complete |
+| **Paper Agent** | 根据 Plan 与 Task 产出生成论文草稿 | 生成论文 按钮 | paper-start / paper-thinking / paper-complete |
 
-三个 Agent 均支持 Stop 中止、流式 thinking、error 时按钮重置、Self-Reflection（自迭代：评估输出质量 → 生成 skill → 重执行）。
+Idea / Plan / Task 均支持 Stop 中止、流式 thinking、error 时按钮重置、Self-Reflection（自迭代：评估输出质量 → 生成 skill → 重执行）。
 
-## LLM / Agent 模式实现进度
+## 三模式架构（Mock / LLM / Agent）
 
-**AI Mode** 可选 Mock LLM / Mock Agent / LLM / Hybrid / Agent。
+每个 Agent（Idea、Plan、Task）可选 **Mock**、**LLM**、**Agent** 三种模式；Paper Agent 当前仅 LLM 管道（Agent 模式待开发）。
 
-| Agent | LLM 模式 | Agent 模式 |
-|-------|----------|------------|
-| **Idea Agent** | ✅ 单轮（关键词 + Refine），Mock 可用 | ✅ ReAct 循环（ExtractKeywords、SearchArxiv、FilterPapers、RefineIdea、ValidateRefinedIdea、自检） |
-| **Plan Agent** | ✅ 单轮 atomicity/decompose/format/quality | ✅ ReAct 循环（CheckAtomicity、Decompose、FormatTask 等工具） |
-| **Task Agent** | ✅ 单轮执行 + LLM 验证 | ✅ ReAct 循环（ReadFile、WriteFile、WebSearch、Finish 等工具，task-output-validator 自检） |
+| 模式 | 说明 | 数据流 |
+|------|------|--------|
+| **Mock** | 模拟输出，不调用真实 LLM | 与 LLM 共用管道，`*UseMock=True` 时走 mock_chat_completion |
+| **LLM** | 固定步骤 + 单轮 chat_completion | Idea: collect_literature；Plan: _atomicity_and_decompose_recursive；Task: execute_task |
+| **Agent** | Google ADK 驱动，工具循环 | Idea/Plan/Task: adk_runner.run_*_agent_adk |
 
-| AI Mode | Idea | Plan | Task |
-|---------|------|------|------|
-| Mock LLM | Mock | Mock LLM | Mock LLM |
-| Mock Agent | Mock | Mock | Mock Agent |
-| LLM | LLM | LLM | LLM |
-| Hybrid (LLM+Agent) | Agent | LLM | Agent |
-| Agent | Agent | Agent | Agent |
+Mock 与 LLM 均走 LLM 管道，仅 `*UseMock` 区分；Agent 模式单独走 Google ADK，无 Mock 分支。
+
+| Agent | Mock | LLM | Agent |
+|-------|------|-----|-------|
+| **Idea Agent** | ✅ collect_literature (mock) | ✅ collect_literature (LLM) | ✅ adk_runner（ExtractKeywords、SearchArxiv、FilterPapers、RefineIdea 等） |
+| **Plan Agent** | ✅ 递归分解 (mock) | ✅ 递归分解 (LLM) | ✅ adk_runner（CheckAtomicity、Decompose、FormatTask 等） |
+| **Task Agent** | ✅ execute_task (mock) | ✅ execute_task (LLM) | ✅ adk_runner（ReadFile、WebSearch、Finish 等） |
+| **Paper Agent** | — | ✅ 单轮 LLM 生成论文 | 待开发 |
 
 ## Agent 工作流（详细）
 
@@ -104,6 +106,10 @@ Refine 按钮触发，从模糊 idea 提取关键词并检索 arXiv 文献。LLM
 
 **引用与来源**：调研/对比类报告需包含 `## References` 小节；Format 阶段会为研究任务自动加入引用校验。可选加载 source-attribution 技能强化引用规范。
 
+### Paper Agent
+
+根据 Plan 与 Task 产出生成论文草稿。当前仅 LLM 管道（单轮生成），支持 Markdown / LaTeX 格式。Agent 模式（工具调用、多轮推理）待开发。
+
 ## 项目结构
 
 ```
@@ -126,6 +132,7 @@ maars/
 │   │   ├── agent.py     # Task Agent ReAct 模式
 │   │   ├── prompts/     # reflect-prompt.txt
 │   │   └── skills/      # task-output-validator、markdown-reporter 等
+│   ├── paper_agent/     # Paper Agent：单轮 LLM 论文生成
 │   ├── visualization/   # 分解树、执行图布局
 │   ├── shared/          # 共享模块：graph、llm_client、reflection、constants、skill_utils
 │   ├── db/              # 文件存储：db/{plan_id}/、settings.json
@@ -135,7 +142,7 @@ maars/
 
 ## 配置
 
-按 **Alt+Shift+S** 打开 **Settings**：Theme、DB Operation（Restore/Clear）、AI Mode（Mock / LLM / Agent）、Self-Reflection（开关、迭代次数、质量阈值）、Preset（Base URL、API Key、Model）。
+按 **Alt+Shift+S** 打开 **Settings**：Theme、DB Operation（Restore/Clear）、Agent Mode（Idea/Plan/Task 各选 Mock / LLM / Agent）、Idea Agent PDF RAG（可选，启用后 Refine 可检索论文正文）、Self-Reflection（开关、迭代次数、质量阈值）、Preset（Base URL、API Key、Model）。
 
 ## 文档
 

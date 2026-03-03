@@ -6,7 +6,7 @@
     const cfg = window.MAARS?.config;
     if (!cfg) return;
 
-    const DEFAULT_AGENT_MODE = { ideaAgent: 'mock', planAgent: 'mock', taskAgent: 'mock' };
+    const DEFAULT_AGENT_MODE = { ideaAgent: 'mock', planAgent: 'mock', taskAgent: 'mock', ideaRAG: false };
     const DEFAULT_REFLECTION = { enabled: false, maxIterations: 2, qualityThreshold: 70 };
     const PANELS = ['settingsPanelTheme', 'settingsPanelAi', 'settingsPanelDb'];
     let _configState = { agentMode: { ...DEFAULT_AGENT_MODE }, reflection: { ...DEFAULT_REFLECTION }, current: '', presets: {} };
@@ -55,6 +55,18 @@
         if (cb) cb.checked = !!r.enabled;
         if (mi) mi.value = r.maxIterations ?? 2;
         if (qt) qt.value = r.qualityThreshold ?? 70;
+    }
+
+    function _syncIdeaRAGUI() {
+        const am = _configState.agentMode || {};
+        const cb = document.getElementById('ideaRAGEnabled');
+        if (cb) cb.checked = !!am.ideaRAG;
+    }
+
+    function _readIdeaRAGFromUI() {
+        const cb = document.getElementById('ideaRAGEnabled');
+        _configState.agentMode = _configState.agentMode || { ...DEFAULT_AGENT_MODE };
+        _configState.agentMode.ideaRAG = cb ? cb.checked : false;
     }
 
     function _readReflectionFromUI() {
@@ -133,6 +145,7 @@
         const reflection = raw.reflection && typeof raw.reflection === 'object'
             ? { ...DEFAULT_REFLECTION, ...raw.reflection }
             : { ...DEFAULT_REFLECTION };
+        if (agentMode.ideaRAG === undefined) agentMode.ideaRAG = false;
         _configState = { theme, agentMode, reflection, current, presets };
         _activePresetKey = current || Object.keys(presets)[0];
     }
@@ -175,6 +188,7 @@
             _syncThemeCardsActive();
             _syncMatrixActive();
             _syncReflectionUI();
+            _syncIdeaRAGUI();
             _renderPresetSelectItems();
             const keys = Object.keys(_configState.presets);
             const current = _configState.current && keys.includes(_configState.current) ? _configState.current : keys[0];
@@ -207,6 +221,7 @@
             } else if (id === 'ai') {
                 _showPanel('settingsPanelAi');
                 _syncMatrixActive();
+                _syncIdeaRAGUI();
                 _renderPresetSelectItems();
             } else if (id === 'db') {
                 _showPanel('settingsPanelDb');
@@ -288,6 +303,7 @@
         document.getElementById('settingsSaveBtn')?.addEventListener('click', async () => {
             _readFormIntoState();
             _readReflectionFromUI();
+            _readIdeaRAGFromUI();
             _configState.theme = document.documentElement.getAttribute('data-theme') || 'light';
             try {
                 await cfg.saveSettings(_configState);

@@ -133,7 +133,7 @@
      * @param {'idea'|'plan'|'task'} agent - idea=Refine, plan=Plan, task=Execution
      */
     async function stopAgent(agent) {
-        const routes = { idea: '/idea/stop', plan: '/plan/stop', task: '/execution/stop' };
+        const routes = { idea: '/idea/stop', plan: '/plan/stop', task: '/execution/stop', paper: '/paper/stop' };
         const path = routes[agent];
         if (!path) return;
         const res = await fetch(`${cfg.API_BASE_URL}${path}`, { method: 'POST' });
