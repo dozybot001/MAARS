@@ -23,6 +23,21 @@ def _isolate_logs_dir(tmp_path_factory):
     yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _speed_up_mock_ai_streaming():
+    """Make mock AI streaming deterministic and fast for tests.
+
+    This reduces end-to-end integration test time substantially by removing
+    per-chunk sleeps during mock streaming and avoiding random mock validation failures.
+    """
+    os.environ.setdefault("MAARS_MOCK_STREAM_DELAY_MS", "0")
+    os.environ.setdefault("MAARS_MOCK_STREAM_CHUNK_SIZE", "512")
+    os.environ.setdefault("MAARS_MOCK_VALIDATOR_CHUNK_DELAY", "0")
+    os.environ.setdefault("MAARS_MOCK_EXECUTION_PASS_PROBABILITY", "1.0")
+    os.environ.setdefault("MAARS_MOCK_VALIDATION_PASS_PROBABILITY", "1.0")
+    yield
+
+
 @pytest.fixture(scope="session")
 def logs_dir() -> Path:
     return Path(os.environ["MAARS_LOGS_DIR"]).resolve()

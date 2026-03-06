@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAARS</title>
+    <title>MAARS · Research Detail</title>
     <script>
         (function() {
             document.documentElement.setAttribute('data-theme', 'black');
@@ -226,20 +226,55 @@
                 </div>
             </div>
         </div>
-        
+
         <main class="main-content">
-            <section id="homeView" class="home-view">
-                <div class="home-view-inner">
-                    <div class="home-view-prompt">
-                        <input type="text" id="researchPromptInput" class="idea-input home-view-input" placeholder="Ask anything to start a new research..." />
-                        <button id="createResearchBtn" type="button">Create</button>
+            <section id="researchView" class="research-view">
+                <div class="research-topbar">
+                    <div class="research-breadcrumb" id="researchBreadcrumb">Research</div>
+                    <h2 class="research-title" id="researchTitle">Research</h2>
+                    <nav class="research-stage-progress" aria-label="Research stages">
+                        <button type="button" class="research-stage-btn" id="stageBtnRefine" data-stage="refine" aria-disabled="true" disabled>Refine</button>
+                        <button type="button" class="research-stage-btn" id="stageBtnPlan" data-stage="plan" aria-disabled="true" disabled>Plan</button>
+                        <button type="button" class="research-stage-btn" id="stageBtnExecute" data-stage="execute" aria-disabled="true" disabled>Execute</button>
+                        <button type="button" class="research-stage-btn" id="stageBtnPaper" data-stage="paper" aria-disabled="true" disabled>Paper</button>
+                    </nav>
+                </div>
+
+                <div class="plan-agent-thinking-tree-row" id="researchDetailHost">
+                    <div class="plan-agent-tree-area" data-tree-area="plan">
+                        <div class="tree-view-tabs">
+                            <button type="button" class="tree-view-tab active" data-view="decomposition" aria-pressed="true">Decomposition</button>
+                            <button type="button" class="tree-view-tab" data-view="execution" aria-pressed="false">Execution</button>
+                            <button type="button" class="tree-view-tab" data-view="output" aria-pressed="false">Output</button>
+                        </div>
+                        <div class="tree-view-panel view-decomposition active" data-view-panel="decomposition">
+                            <div class="plan-agent-quality-badge" id="planAgentQualityBadge" title="" style="display: none;"></div>
+                            <div class="tree-container">
+                                <div class="tasks-tree plan-agent-tasks-tree"></div>
+                            </div>
+                        </div>
+                        <div class="tree-view-panel view-execution" data-view-panel="execution">
+                            <div class="plan-agent-execution-tree-area" data-tree-area="execution">
+                                <div class="tree-container">
+                                    <div class="tasks-tree plan-agent-execution-tree"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tree-view-panel view-output" data-view-panel="output">
+                            <div class="task-agent-output-area plan-agent-output-area" id="taskAgentOutputArea">
+                                <div class="task-agent-output-content markdown-body" id="taskAgentOutputContent"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="plan-agent-thinking-area" id="planAgentThinkingArea">
+                        <div class="plan-agent-thinking-content markdown-body" id="planAgentThinkingContent"></div>
+                        <div class="plan-agent-thinking-placeholder" id="planAgentThinkingPlaceholder">Thinking shows reasoning; Output shows final artifacts.</div>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Task Output modal -->
     <div id="taskAgentOutputModal" class="task-agent-output-modal" aria-hidden="true">
         <div class="task-agent-output-modal-backdrop"></div>
         <div class="task-agent-output-modal-dialog">
@@ -264,7 +299,6 @@
     <script src="js/core/state.js"></script>
     <script src="js/regions/tree/task-tree.js"></script>
     <script src="js/ui/theme.js"></script>
-
     <script src="js/api/api.js"></script>
     <script src="js/flows/task.js"></script>
     <script src="js/flows/research.js"></script>

@@ -4,6 +4,8 @@ MAARS 内部可调参数集中定义。
 用户侧不暴露这些参数。
 """
 
+import os
+
 # ── LLM Temperature ──────────────────────────────────────────────
 # 结构化提取 / 工具调用：低温保证确定性
 TEMP_EXTRACT = 0.2
@@ -36,8 +38,8 @@ MAX_FAILURES = 3
 MAX_EXECUTION_CONCURRENCY = 7
 
 # ── Mock 模式概率 ────────────────────────────────────────────────
-MOCK_EXECUTION_PASS_PROBABILITY = 0.95
-MOCK_VALIDATION_PASS_PROBABILITY = 0.95
+MOCK_EXECUTION_PASS_PROBABILITY = float(os.getenv("MAARS_MOCK_EXECUTION_PASS_PROBABILITY", "0.95"))
+MOCK_VALIDATION_PASS_PROBABILITY = float(os.getenv("MAARS_MOCK_VALIDATION_PASS_PROBABILITY", "0.95"))
 
 # ── LLM 超时（秒） ──────────────────────────────────────────────
 # 非流式单次调用（含 tool-use）

@@ -5,6 +5,7 @@ Task Agent 含两阶段：Execution（执行原子任务）→ Validation（验�
 """
 
 import asyncio
+import os
 import random
 from typing import Any, Dict, List, Optional, Set
 
@@ -26,7 +27,18 @@ from .llm.executor import execute_task
 from .llm.validation import validate_task_output_with_llm
 from shared.reflection import self_evaluate, generate_skill_from_reflection, save_learned_skill
 
-_MOCK_VALIDATOR_CHUNK_DELAY = 0.03
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+_MOCK_VALIDATOR_CHUNK_DELAY = _env_float("MAARS_MOCK_VALIDATOR_CHUNK_DELAY", 0.03)
 
 
 class ExecutionRunner:
@@ -197,7 +209,11 @@ class ExecutionRunner:
 
     async def _execute_tasks(self) -> None:
         initial_ready = self._get_ready_tasks()
-        logger.info("Found %d initial ready tasks out of %d total tasks", len(initial_ready), len(self.chain_cache))
+        logger.info(
+            "Found {} initial ready tasks out of {} total tasks",
+            len(initial_ready),
+            len(self.chain_cache),
+        )
 
         for task in initial_ready:
             async def run_with_error_handling(t=task):
@@ -212,7 +228,11 @@ class ExecutionRunner:
         while self.is_running and (len(self.completed_tasks) < len(self.chain_cache) or len(self.running_tasks) > 0):
             await asyncio.sleep(0.1)
 
-        logger.info("Final state: %d/%d tasks completed", len(self.completed_tasks), len(self.chain_cache))
+        logger.info(
+            "Final state: {}/{} tasks completed",
+            len(self.completed_tasks),
+            len(self.chain_cache),
+        )
         if self.is_running:
             self._emit("task-complete", {"completed": len(self.completed_tasks), "total": len(self.chain_cache)})
         else:

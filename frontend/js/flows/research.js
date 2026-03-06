@@ -1,5 +1,5 @@
 /**
- * MAARS Research flow - Home (create) + Research page (auto pipeline).
+ * MAARS Research flow - Create page + Research detail page (auto pipeline).
  */
 (function () {
     'use strict';
@@ -47,27 +47,34 @@
         });
     }
 
-    function showHome() {
-        currentResearchId = null;
-        try { cfg.setCurrentResearchId?.(''); } catch (_) {}
-        if (homeView) homeView.hidden = false;
-        if (researchView) researchView.hidden = true;
+    function _getQueryParam(name) {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            return (params.get(name) || '').trim();
+        } catch (_) {
+            return '';
+        }
     }
 
-    function showResearch() {
-        if (homeView) homeView.hidden = true;
-        if (researchView) researchView.hidden = false;
-    }
-
-    function parseHash() {
+    function _getResearchIdFromUrl() {
+        // New routing: research_detail.html?researchId=...
+        const byQuery = _getQueryParam('researchId') || _getQueryParam('rid');
+        if (byQuery) return byQuery;
+        // Back-compat: old hash route #/r/<id>
         const hash = (window.location.hash || '').replace(/^#/, '');
         const m = hash.match(/^\/r\/(.+)$/);
-        if (m) return { view: 'research', researchId: decodeURIComponent(m[1]) };
-        return { view: 'home' };
+        if (m) return decodeURIComponent(m[1]);
+        return '';
+    }
+
+    function navigateToCreateResearch() {
+        // Dedicated create page
+        window.location.href = 'research.html';
     }
 
     function navigateToResearch(researchId) {
-        window.location.hash = `#/r/${encodeURIComponent(researchId)}`;
+        if (!researchId) return;
+        window.location.href = `research_detail.html?researchId=${encodeURIComponent(researchId)}`;
     }
 
     function _scrollToDetails() {
@@ -108,7 +115,6 @@
     async function loadResearch(researchId) {
         currentResearchId = researchId;
         cfg.setCurrentResearchId?.(researchId);
-        showResearch();
 
         // clear UI, then restore from DB snapshot
         document.dispatchEvent(new CustomEvent('maars:restore-start'));
@@ -192,21 +198,6 @@
         }
     }
 
-    async function onRouteChange() {
-        const route = parseHash();
-        if (route.view === 'research' && route.researchId) {
-            try {
-                await loadResearch(route.researchId);
-            } catch (e) {
-                console.error(e);
-                alert(e?.message || 'Failed to load research');
-                showHome();
-            }
-            return;
-        }
-        showHome();
-    }
-
     function initEventBridges() {
         // Update stage state based on live pipeline events.
         document.addEventListener('maars:idea-start', () => setStageStarted('refine', true));
@@ -240,21 +231,39 @@
         initStageNav();
         initEventBridges();
 
-        createBtn?.addEventListener('click', createResearchFromHome);
-        promptInput?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                createResearchFromHome();
+        // Create page (index.html / research.html)
+        if (homeView && promptInput && createBtn) {
+            createBtn.addEventListener('click', createResearchFromHome);
+            promptInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    createResearchFromHome();
+                }
+            });
+            // Prefer focusing the prompt on the dedicated research create page.
+            try {
+                if (/research\.html$/.test(window.location.pathname || '')) {
+                    promptInput.focus();
+                }
+            } catch (_) {}
+        }
+
+        // Detail page (research_detail.html)
+        if (researchView) {
+            const rid = _getResearchIdFromUrl();
+            if (rid) {
+                loadResearch(rid).catch((e) => {
+                    console.error(e);
+                    alert(e?.message || 'Failed to load research');
+                    navigateToCreateResearch();
+                });
+            } else {
+                // No id - send user to create page
+                navigateToCreateResearch();
             }
-        });
-
-        window.addEventListener('hashchange', () => {
-            onRouteChange().catch(() => {});
-        });
-
-        onRouteChange().catch(() => {});
+        }
     }
 
     window.MAARS = window.MAARS || {};
-    window.MAARS.research = { init, navigateToResearch };
+    window.MAARS.research = { init, navigateToResearch, navigateToCreateResearch };
 })();

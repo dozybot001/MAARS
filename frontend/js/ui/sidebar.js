@@ -68,6 +68,10 @@
                     <div class="app-sidebar-body" aria-hidden="true">
                         <div class="app-sidebar-section">
                             <div class="app-sidebar-section-title">Research</div>
+                            <button type="button" class="app-sidebar-settings-item" id="appSidebarNewResearchBtn">
+                                <span class="app-sidebar-settings-glyph" aria-hidden="true">＋</span>
+                                <span>新建 research</span>
+                            </button>
                             <div id="appSidebarResearchList" class="app-sidebar-list"></div>
                         </div>
                     </div>
@@ -79,6 +83,13 @@
             `;
             contentHost.hidden = false;
             contentHost.dataset.rendered = 'true';
+
+            const newResearchBtn = document.getElementById('appSidebarNewResearchBtn');
+            newResearchBtn?.addEventListener('click', () => {
+                window.MAARS?.research?.navigateToCreateResearch?.();
+                closeSidebar();
+            });
+
             const settingsBtn = document.getElementById('appSidebarSettingsBtn');
             settingsBtn?.addEventListener('click', () => {
                 openSettingsPage();

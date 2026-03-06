@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAARS</title>
+    <title>MAARS · Research</title>
     <script>
         (function() {
             document.documentElement.setAttribute('data-theme', 'black');
@@ -226,7 +226,7 @@
                 </div>
             </div>
         </div>
-        
+
         <main class="main-content">
             <section id="homeView" class="home-view">
                 <div class="home-view-inner">
@@ -239,21 +239,6 @@
         </main>
     </div>
 
-    <!-- Task Output modal -->
-    <div id="taskAgentOutputModal" class="task-agent-output-modal" aria-hidden="true">
-        <div class="task-agent-output-modal-backdrop"></div>
-        <div class="task-agent-output-modal-dialog">
-            <div class="task-agent-output-modal-header">
-                <span class="task-agent-output-modal-title" id="taskAgentOutputModalTitle">Task Output</span>
-                <span class="task-agent-output-modal-actions">
-                    <button type="button" class="task-agent-output-modal-download" id="taskAgentOutputModalDownload" aria-label="Download" title="Download"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M7 15l5 5 5-5"/></svg></button>
-                    <button type="button" class="task-agent-output-modal-close" id="taskAgentOutputModalClose" aria-label="Close">×</button>
-                </span>
-            </div>
-            <div class="task-agent-output-modal-body markdown-body" id="taskAgentOutputModalBody"></div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -262,14 +247,9 @@
     <script src="js/core/config.js"></script>
     <script src="js/core/logger.js"></script>
     <script src="js/core/state.js"></script>
-    <script src="js/regions/tree/task-tree.js"></script>
-    <script src="js/ui/theme.js"></script>
-
     <script src="js/api/api.js"></script>
-    <script src="js/flows/task.js"></script>
     <script src="js/flows/research.js"></script>
-    <script src="js/regions/output.js"></script>
-    <script src="js/regions/thinking.js"></script>
+    <script src="js/ui/theme.js"></script>
     <script src="js/ws/handlers/thinking-handler.js"></script>
     <script src="js/ws/websocket.js"></script>
     <script src="js/ui/settings.js"></script>
