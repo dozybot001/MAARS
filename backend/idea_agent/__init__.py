@@ -68,12 +68,26 @@ async def collect_literature(
         )
     logger.info("Idea collect papers retrieved count={} first_title='{}'", len(papers), (papers[0].get("title") or "")[:120])
     # 3. Refine：基于 idea + papers 生成可执行 refined idea
-    if on_thinking is not None:
+    used_streaming_refine = on_thinking is not None
+    if used_streaming_refine:
         refined_idea = await refine_idea_from_papers_stream(
             idea, papers, api_config, on_chunk=on_thinking, abort_event=abort_event
         )
     else:
         refined_idea = await refine_idea_from_papers(idea, papers, api_config, abort_event=abort_event)
+
+    if used_streaming_refine and not (refined_idea or "").strip():
+        logger.warning(
+            "Idea collect refine returned empty in streaming mode; retrying non-streaming refine query='{}' papers={}",
+            query,
+            len(papers),
+        )
+        refined_idea = await refine_idea_from_papers(
+            idea,
+            papers,
+            api_config,
+            abort_event=abort_event,
+        )
 
     if not (refined_idea or "").strip():
         logger.warning("Idea collect blocked: refine returned empty output for query='{}' papers={}", query, len(papers))

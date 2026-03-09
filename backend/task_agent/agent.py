@@ -19,6 +19,8 @@ async def run_task_agent(
     on_thinking: Optional[Callable[[str, Optional[str], Optional[str]], None]],
     idea_id: str,
     plan_id: str,
+    execution_run_id: str = "",
+    docker_container_name: str = "",
     validation_spec: Optional[Dict[str, Any]] = None,
     idea_context: str = "",
 ) -> Any:
@@ -34,6 +36,8 @@ async def run_task_agent(
         on_thinking=on_thinking,
         idea_id=idea_id,
         plan_id=plan_id,
+        execution_run_id=execution_run_id,
+        docker_container_name=docker_container_name,
         validation_spec=validation_spec,
         idea_context=idea_context,
     )

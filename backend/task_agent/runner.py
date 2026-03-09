@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from loguru import logger
 
-from db import delete_task_artifact, get_idea, save_execution, save_task_artifact, save_validation_report
+from db import delete_task_artifact, ensure_execution_run_dir, get_idea, save_execution, save_task_artifact, save_validation_report
 from shared.constants import (
     MAX_EXECUTION_CONCURRENCY,
     MAX_FAILURES,
@@ -24,6 +24,8 @@ from shared.utils import chunk_string
 from .pools import worker_manager
 from .artifact_resolver import resolve_artifacts
 from .agent import run_task_agent
+from .agent_tools import SKILLS_ROOT
+from .docker_runtime import ensure_execution_container, get_local_docker_status, stop_execution_container
 from .llm.executor import execute_task
 from .llm.validation import validate_task_output_with_llm
 from shared.reflection import self_evaluate, generate_skill_from_reflection, save_learned_skill
@@ -67,6 +69,16 @@ class ExecutionRunner:
         self._idea_text: str = ""
         self._persist_lock = asyncio.Lock()
         self._start_lock = asyncio.Lock()
+        self.execution_run_id: str = ""
+        self.docker_container_name: str = ""
+        self.docker_runtime_status: Dict[str, Any] = {"enabled": False, "available": False, "connected": False}
+
+    def _emit_runtime_status(self) -> None:
+        payload = dict(self.docker_runtime_status or {})
+        payload["executionRunId"] = self.execution_run_id
+        payload["ideaId"] = self.idea_id or ""
+        payload["planId"] = self.plan_id or ""
+        self._emit("execution-runtime-status", payload)
 
     def _persist_execution(self) -> None:
         """Persist chain_cache to execution.json. Serialized via _persist_lock to avoid concurrent write races."""
@@ -134,6 +146,9 @@ class ExecutionRunner:
             self.is_running = True
         self.abort_event = asyncio.Event()
         self._idea_text = ""
+        self.execution_run_id = f"exec_{int(time.time() * 1000)}"
+        self.docker_container_name = ""
+        self.docker_runtime_status = {"enabled": False, "available": False, "connected": False}
         if self.idea_id:
             try:
                 idea_data = await get_idea(self.idea_id)
@@ -146,6 +161,24 @@ class ExecutionRunner:
             max_conc = MAX_EXECUTION_CONCURRENCY
             worker_manager["initialize_workers"](max_conc)
             self._broadcast_worker_states()
+
+            api_cfg = self.api_config or {}
+            docker_enabled = bool(api_cfg.get("taskAgentMode"))
+            if self.idea_id and self.plan_id and self.execution_run_id:
+                run_dir = await ensure_execution_run_dir(self.idea_id, self.plan_id, self.execution_run_id)
+                if docker_enabled:
+                    runtime = await ensure_execution_container(
+                        execution_run_id=self.execution_run_id,
+                        run_dir=run_dir,
+                        plan_dir=run_dir.parent,
+                        skills_dir=SKILLS_ROOT,
+                        image=api_cfg.get("taskDockerImage"),
+                    )
+                    self.docker_container_name = runtime.get("containerName") or ""
+                    self.docker_runtime_status = {**runtime, "enabled": True}
+                else:
+                    self.docker_runtime_status = await get_local_docker_status(enabled=False)
+                self._emit_runtime_status()
 
             execution_layout = self.execution_layout
             self.running_tasks.clear()
@@ -195,6 +228,14 @@ class ExecutionRunner:
             raise
         finally:
             self.is_running = False
+            if self.docker_container_name:
+                try:
+                    await stop_execution_container(self.docker_container_name)
+                except Exception:
+                    logger.exception("Failed to stop Docker execution container")
+                self.docker_container_name = ""
+            self.docker_runtime_status = await get_local_docker_status(enabled=bool((self.api_config or {}).get("taskAgentMode")))
+            self._emit_runtime_status()
             worker_manager["initialize_workers"]()
             self._broadcast_worker_states()
 
@@ -330,6 +371,8 @@ class ExecutionRunner:
                         on_thinking=_on_thinking,
                         idea_id=self.idea_id or "",
                         plan_id=self.plan_id or "",
+                        execution_run_id=self.execution_run_id,
+                        docker_container_name=self.docker_container_name,
                         validation_spec=task.get("validation"),
                         idea_context=self._idea_text,
                     )
@@ -710,4 +753,12 @@ class ExecutionRunner:
                 worker_manager["release_worker_by_task_id"](task_id)
         self.task_tasks.clear()
         self.running_tasks.clear()
+        if self.docker_container_name:
+            try:
+                await stop_execution_container(self.docker_container_name)
+            except Exception:
+                logger.exception("Failed to stop Docker execution container during stop_async")
+            self.docker_container_name = ""
+        self.docker_runtime_status = await get_local_docker_status(enabled=bool((self.api_config or {}).get("taskAgentMode")))
+        self._emit_runtime_status()
         self._broadcast_worker_states()

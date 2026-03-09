@@ -105,6 +105,10 @@
     async function runExecution() {
         if (!executionBtn) return;
         const { ideaId, planId } = await cfg.resolvePlanIds();
+        if (!ideaId || !planId) {
+            alert('Current research has no valid plan yet. Please finish Refine/Plan first.');
+            return;
+        }
         const btn = executionBtn;
         const originalText = btn.textContent;
         document.dispatchEvent(new CustomEvent('maars:task-start'));
@@ -148,13 +152,21 @@
         if (stopExecutionBtn) stopExecutionBtn.style.display = 'none';
     }
 
-    async function generateExecutionLayout() {
+    async function generateExecutionLayout(explicitIds) {
         try {
             if (state.executionRunning) {
                 console.warn('Skip layout update: execution is running');
                 return;
             }
-            const { ideaId, planId } = await cfg.resolvePlanIds();
+            const ids = explicitIds && explicitIds.ideaId && explicitIds.planId
+                ? explicitIds
+                : await cfg.resolvePlanIds();
+            const ideaId = ids?.ideaId || '';
+            const planId = ids?.planId || '';
+            if (!ideaId || !planId) {
+                console.warn('Skip execution layout generation: missing ideaId/planId', { ideaId, planId });
+                return;
+            }
             const genRes = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/execution/generate-from-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -316,7 +328,13 @@
         if (!data) return;
         if (state.executionRunning) return;
         if (state.executionLayout) return;
-        if (generateExecutionLayout) generateExecutionLayout();
+        const ideaId = String(data.ideaId || '').trim();
+        const planId = String(data.planId || '').trim();
+        if (!ideaId || !planId) {
+            console.warn('Skip plan-complete layout generation: missing plan identifiers', data);
+            return;
+        }
+        if (generateExecutionLayout) generateExecutionLayout({ ideaId, planId });
     }
 
     function onTaskRetry(e) {

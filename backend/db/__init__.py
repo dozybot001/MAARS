@@ -80,6 +80,44 @@ async def ensure_sandbox_dir(idea_id: str, plan_id: str, task_id: str) -> Path:
     return sandbox
 
 
+def get_execution_runs_dir(idea_id: str, plan_id: str) -> Path:
+    """Return db/{idea_id}/{plan_id}/execution_runs/."""
+    _validate_idea_id(idea_id)
+    _validate_plan_id(plan_id)
+    return _get_plan_dir(idea_id, plan_id) / "execution_runs"
+
+
+def get_execution_run_dir(idea_id: str, plan_id: str, execution_run_id: str) -> Path:
+    """Return db/{idea_id}/{plan_id}/execution_runs/{execution_run_id}/."""
+    _validate_idea_id(idea_id)
+    _validate_plan_id(plan_id)
+    if not execution_run_id or not isinstance(execution_run_id, str):
+        raise ValueError("execution_run_id must be a non-empty string")
+    if ".." in execution_run_id or "/" in execution_run_id or "\\" in execution_run_id:
+        raise ValueError("execution_run_id must not contain path separators")
+    return get_execution_runs_dir(idea_id, plan_id) / execution_run_id
+
+
+async def ensure_execution_run_dir(idea_id: str, plan_id: str, execution_run_id: str) -> Path:
+    """Create execution run dir if not exists. Returns the run path."""
+    run_dir = get_execution_run_dir(idea_id, plan_id, execution_run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def get_task_workspace_dir(idea_id: str, plan_id: str, execution_run_id: str, task_id: str) -> Path:
+    """Return db/{idea_id}/{plan_id}/execution_runs/{execution_run_id}/{task_id}/workspace/."""
+    _validate_task_id(task_id)
+    return get_execution_run_dir(idea_id, plan_id, execution_run_id) / task_id / "workspace"
+
+
+async def ensure_task_workspace_dir(idea_id: str, plan_id: str, execution_run_id: str, task_id: str) -> Path:
+    """Create task workspace dir if not exists. Returns the workspace path."""
+    workspace = get_task_workspace_dir(idea_id, plan_id, execution_run_id, task_id)
+    workspace.mkdir(parents=True, exist_ok=True)
+    return workspace
+
+
 async def get_task_artifact(idea_id: str, plan_id: str, task_id: str):
     """Read task artifact. Returns dict or None."""
     _validate_idea_id(idea_id)

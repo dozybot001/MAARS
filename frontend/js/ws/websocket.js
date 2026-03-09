@@ -15,6 +15,7 @@
         if (!cfg?.resolvePlanIds) return;
         try {
             const { ideaId, planId } = await cfg.resolvePlanIds();
+            if (!ideaId || !planId) return;
             const res = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/execution/status?ideaId=${encodeURIComponent(ideaId)}&planId=${encodeURIComponent(planId)}`);
             const data = await res.json();
             if (!data.tasks?.length) return;
@@ -81,6 +82,10 @@
 
         onJsonEvent('execution-layout', (data) => {
             document.dispatchEvent(new CustomEvent('maars:execution-layout', { detail: data || {} }));
+        });
+
+        onJsonEvent('execution-runtime-status', (data) => {
+            document.dispatchEvent(new CustomEvent('maars:execution-runtime-status', { detail: data || {} }));
         });
 
         onJsonEvent('task-states-update', (data) => {

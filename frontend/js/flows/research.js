@@ -37,6 +37,8 @@
 
     const executeStreamEl = document.getElementById('researchExecuteStream');
     const executeStreamBodyEl = document.getElementById('researchExecuteStreamBody');
+    const executeRuntimeBadgeEl = document.getElementById('researchExecutionRuntimeBadge');
+    const executeRuntimeMetaEl = document.getElementById('researchExecutionRuntimeMeta');
 
     const treeTabsHost = panelWorkbench?.querySelector?.('.tree-view-tabs');
     const treeTabButtons = treeTabsHost ? Array.from(treeTabsHost.querySelectorAll('.tree-view-tab')) : [];
@@ -62,6 +64,8 @@
         taskMetaById: new Map(),
         messages: [],
     };
+    let executionRuntimeStatus = null;
+    let runtimeStatusRequestId = 0;
     let executeSplitRatio = 80;
     let currentStageState = {
         refine: { started: false },
@@ -205,6 +209,7 @@
                 window.MAARS?.taskTree?.renderExecutionTree?.(executionGraphPayload.treeData, executionGraphPayload.layout);
             }
             renderExecuteStream();
+            refreshExecutionRuntimeStatus();
         }
 
         if (s === 'refine') _renderRefinePanel();
@@ -293,6 +298,77 @@
         if (s === 'done') return 'done';
         if (s === 'execution-failed' || s === 'validation-failed') return 'failed';
         return 'pending';
+    }
+
+    function renderExecutionRuntimeStatus(status) {
+        executionRuntimeStatus = status && typeof status === 'object' ? status : null;
+        if (!executeRuntimeBadgeEl || !executeRuntimeMetaEl) return;
+
+        const next = executionRuntimeStatus || {};
+        const enabled = !!next.enabled;
+        const connected = !!next.connected;
+        const containerRunning = !!next.containerRunning;
+        const running = !!next.running;
+
+        let badgeText = 'Docker: checking…';
+        let tone = 'is-warn';
+        if (!enabled) {
+            badgeText = 'Docker: disabled';
+            tone = 'is-warn';
+        } else if (!next.available) {
+            badgeText = 'Docker: not found';
+            tone = 'is-error';
+        } else if (!connected) {
+            badgeText = 'Docker: disconnected';
+            tone = 'is-error';
+        } else if (containerRunning && running) {
+            badgeText = 'Docker: running';
+            tone = 'is-ok';
+        } else if (containerRunning) {
+            badgeText = 'Docker: connected';
+            tone = 'is-ok';
+        } else {
+            badgeText = 'Docker: ready';
+            tone = 'is-warn';
+        }
+
+        executeRuntimeBadgeEl.textContent = badgeText;
+        executeRuntimeBadgeEl.classList.remove('is-ok', 'is-warn', 'is-error');
+        executeRuntimeBadgeEl.classList.add(tone);
+
+        const metaParts = [];
+        if (next.serverVersion) metaParts.push(`Engine ${next.serverVersion}`);
+        if (next.image) metaParts.push(`Image ${next.image}`);
+        if (next.executionRunId) metaParts.push(`Run ${next.executionRunId}`);
+        if (next.error) metaParts.push(String(next.error).trim());
+        if (!metaParts.length && !enabled) metaParts.push('Enable Task Agent mode to use Docker-backed execution.');
+        executeRuntimeMetaEl.textContent = metaParts.join(' · ');
+    }
+
+    async function refreshExecutionRuntimeStatus(explicitIds) {
+        if (!executeRuntimeBadgeEl) return null;
+        const requestId = ++runtimeStatusRequestId;
+        if (!executionRuntimeStatus) {
+            renderExecutionRuntimeStatus({ enabled: true, available: true, connected: false });
+        }
+        try {
+            const ids = explicitIds && (explicitIds.ideaId || explicitIds.planId)
+                ? explicitIds
+                : await cfg.resolvePlanIds();
+            const status = await api.getExecutionRuntimeStatus?.(ids?.ideaId || '', ids?.planId || '');
+            if (requestId !== runtimeStatusRequestId) return null;
+            renderExecutionRuntimeStatus(status || {});
+            return status || null;
+        } catch (error) {
+            if (requestId !== runtimeStatusRequestId) return null;
+            renderExecutionRuntimeStatus({
+                enabled: true,
+                available: true,
+                connected: false,
+                error: error?.message || 'Failed to load Docker runtime status',
+            });
+            return null;
+        }
     }
 
     function _appendExecuteMessage(message) {
@@ -653,6 +729,7 @@
             window.MAARS?.taskTree?.renderExecutionTree?.(executionGraphPayload.treeData, executionGraphPayload.layout);
         }
         if (activeStage === 'execute') renderExecuteStream();
+        refreshExecutionRuntimeStatus({ ideaId, planId });
 
         // Restore refine + paper output using their normal event paths.
         if (idea && (idea.keywords || idea.papers || idea.refined_idea)) {
@@ -730,6 +807,7 @@
         document.addEventListener('maars:plan-start', () => setStageStarted('plan', true));
         document.addEventListener('maars:task-start', () => setStageStarted('execute', true));
         document.addEventListener('maars:paper-start', () => setStageStarted('paper', true));
+        document.addEventListener('maars:task-start', () => refreshExecutionRuntimeStatus());
 
         document.addEventListener('maars:research-stage', (e) => {
             const d = e?.detail || {};
@@ -853,6 +931,7 @@
             if (activeStage === 'execute') {
                 renderExecuteStream();
             }
+            refreshExecutionRuntimeStatus();
         });
 
         document.addEventListener('maars:task-complete', (e) => {
@@ -870,6 +949,7 @@
             });
             executeState.statuses.set(taskId, 'done');
             if (activeStage === 'execute') renderExecuteStream();
+            refreshExecutionRuntimeStatus();
         });
 
         document.addEventListener('maars:task-error', (e) => {
@@ -887,6 +967,11 @@
             });
             if (taskId) executeState.statuses.set(taskId, 'execution-failed');
             if (activeStage === 'execute') renderExecuteStream();
+            refreshExecutionRuntimeStatus();
+        });
+
+        document.addEventListener('maars:execution-runtime-status', (e) => {
+            renderExecutionRuntimeStatus(e?.detail || {});
         });
 
         document.addEventListener('maars:execution-layout', (e) => {
@@ -927,6 +1012,7 @@
                 initDetailControls(rid);
                 // Default to Refine view on entry.
                 setActiveStage('refine');
+                renderExecutionRuntimeStatus({ enabled: true, available: true, connected: false });
                 loadResearch(rid).catch((e) => {
                     console.error(e);
                     alert(e?.message || 'Failed to load research');

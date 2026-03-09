@@ -14,6 +14,7 @@
     async function loadExecution() {
         try {
             const { ideaId, planId } = await cfg.resolvePlanIds();
+            if (!ideaId || !planId) return null;
             const response = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/execution?ideaId=${encodeURIComponent(ideaId)}&planId=${encodeURIComponent(planId)}`);
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to load execution');
@@ -22,6 +23,18 @@
             console.error('Error loading execution:', error);
             return null;
         }
+    }
+
+    async function getExecutionRuntimeStatus(ideaId, planId) {
+        const params = new URLSearchParams();
+        if (ideaId) params.set('ideaId', ideaId);
+        if (planId) params.set('planId', planId);
+
+        const query = params.toString();
+        const response = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/execution/runtime-status${query ? `?${query}` : ''}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Failed to load execution runtime status');
+        return data;
     }
 
     async function fetchStatus() {
@@ -226,6 +239,7 @@
     window.MAARS.api = {
         loadExampleIdea,
         loadExecution,
+        getExecutionRuntimeStatus,
         clearDb,
         fetchStatus,
         restoreRecentPlan,

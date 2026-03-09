@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional
 
 import json_repair
 
-from db import ensure_sandbox_dir
+from db import ensure_sandbox_dir, ensure_task_workspace_dir
 from shared.adk_bridge import (
     create_executor_tools,
     get_model_for_adk,
@@ -71,8 +71,8 @@ Rules:
 3. Before calling any tool, briefly explain your reasoning: what you know, what you need, and why you are choosing this tool. This reasoning will be shown as your thinking process.
 4. For JSON: output valid JSON when calling Finish; for Markdown, pass the document content.{validation_rule}{idea_block}
 
-You have tools: ReadArtifact (read dependency task output), ReadFile (read files; use 'sandbox/X' for this task's sandbox), WriteFile (write to sandbox only), ListSkills, LoadSkill, ReadSkillFile (read skill's scripts/references), RunSkillScript (execute skill scripts, use {{sandbox}}/file for sandbox paths), WebSearch (search the web for research—use for benchmarks, docs, current data), WebFetch (fetch URL content for citations), Finish (submit final output).
-Use ListSkills to discover skills, LoadSkill when relevant. Common task types: literature synthesis → literature-synthesis; comparison report → comparison-report; validation required → task-output-validator. ReadSkillFile and RunSkillScript let you use skill capabilities (e.g. docx validate, pptx convert). When your output satisfies the output spec, you MUST call Finish with the result—do not output inline. For JSON format pass a valid JSON string; for Markdown pass the content string. All file I/O is scoped to the plan dir and this task's sandbox."""
+You have tools: ReadArtifact (read dependency task output), ReadFile (read files; use 'sandbox/X' for this task's workspace), WriteFile (write to sandbox/workspace only), RunCommand (run shell commands inside the local Docker execution container using the current task workspace), ListSkills, LoadSkill, ReadSkillFile (read skill's scripts/references), RunSkillScript (execute skill scripts, use {{sandbox}}/file for workspace paths), WebSearch (search the web for research—use for benchmarks, docs, current data), WebFetch (fetch URL content for citations), Finish (submit final output).
+Use ListSkills to discover skills, LoadSkill when relevant. Common task types: literature synthesis → literature-synthesis; comparison report → comparison-report; validation required → task-output-validator. ReadSkillFile and RunSkillScript let you use skill capabilities (e.g. docx validate, pptx convert). Use RunCommand when you need to create files, run Python or shell scripts, or inspect generated artifacts inside Docker. When your output satisfies the output spec, you MUST call Finish with the result—do not output inline. For JSON format pass a valid JSON string; for Markdown pass the content string. All file I/O is scoped to the plan dir and this task's sandbox/workspace."""
 
 
 async def run_task_agent_adk(
@@ -86,6 +86,8 @@ async def run_task_agent_adk(
     on_thinking: Optional[Callable[[str, Optional[str], Optional[str]], None]],
     idea_id: str,
     plan_id: str,
+    execution_run_id: str = "",
+    docker_container_name: str = "",
     validation_spec: Optional[Dict[str, Any]] = None,
     idea_context: str = "",
 ) -> Any:
@@ -95,7 +97,9 @@ async def run_task_agent_adk(
     """
     prepare_api_env(api_config)
 
-    if idea_id and plan_id and task_id:
+    if idea_id and plan_id and task_id and execution_run_id:
+        await ensure_task_workspace_dir(idea_id, plan_id, execution_run_id, task_id)
+    elif idea_id and plan_id and task_id:
         await ensure_sandbox_dir(idea_id, plan_id, task_id)
 
     output_format = output_spec.get("format") or ""
@@ -107,7 +111,13 @@ async def run_task_agent_adk(
     async def executor_fn(name: str, args: dict) -> tuple[bool, str]:
         args_str = json.dumps(args, ensure_ascii=False)
         out, tool_result = await execute_tool(
-            name, args_str, idea_id, plan_id, task_id
+            name,
+            args_str,
+            idea_id,
+            plan_id,
+            task_id,
+            execution_run_id=execution_run_id,
+            docker_container_name=docker_container_name,
         )
         if out is not None:
             task_output[0] = out

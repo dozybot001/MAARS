@@ -258,6 +258,48 @@
     gap: 0;
 }
 
+.research-execution-runtime {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 0;
+    flex-wrap: wrap;
+}
+
+.research-execution-runtime-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-area-secondary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.research-execution-runtime-badge.is-ok {
+    border-color: rgba(28, 177, 88, 0.35);
+    color: #1cb158;
+}
+
+.research-execution-runtime-badge.is-warn {
+    border-color: rgba(224, 167, 0, 0.35);
+    color: #d39d00;
+}
+
+.research-execution-runtime-badge.is-error {
+    border-color: rgba(215, 58, 73, 0.35);
+    color: #d73a49;
+}
+
+.research-execution-runtime-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
 #researchDetailHost.research-workbench--plan .view-execution,
 #researchDetailHost.research-workbench--plan .view-output {
     display: none;

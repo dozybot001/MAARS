@@ -6,12 +6,13 @@ OpenAI function-calling format.
 import asyncio
 import json
 import os
+import shlex
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 import orjson
 
-from db import DB_DIR, _validate_idea_id, _validate_plan_id, get_sandbox_dir, get_task_artifact
+from db import DB_DIR, _validate_idea_id, _validate_plan_id, get_sandbox_dir, get_task_artifact, get_task_workspace_dir
 from shared.skill_utils import (
     list_skills as _list_skills,
     load_skill as _load_skill,
@@ -20,6 +21,7 @@ from shared.skill_utils import (
 )
 
 from . import web_tools
+from .docker_runtime import run_command_in_container, run_skill_script_in_container
 
 # RunSkillScript: allowed extensions, timeout (seconds, configurable via env)
 _RUN_SCRIPT_ALLOWED_EXT = (".py", ".sh", ".js")
@@ -39,6 +41,12 @@ def _get_plan_dir_path(idea_id: str, plan_id: str) -> Path:
     _validate_idea_id(idea_id)
     _validate_plan_id(plan_id)
     return (DB_DIR / idea_id / plan_id).resolve()
+
+
+def _get_task_root_dir(idea_id: str, plan_id: str, task_id: str, execution_run_id: str = "") -> Path:
+    if execution_run_id:
+        return get_task_workspace_dir(idea_id, plan_id, execution_run_id, task_id)
+    return get_sandbox_dir(idea_id, plan_id, task_id)
 
 
 # OpenAI function-calling tool definitions
@@ -95,6 +103,28 @@ TOOLS = [
                     },
                 },
                 "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "RunCommand",
+            "description": "Run a shell command inside the local Docker execution container using the current task workspace as the working directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Shell command to run inside Docker, e.g. 'python script.py' or 'ls -la'",
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Optional timeout in seconds (default 120)",
+                        "default": 120,
+                    },
+                },
+                "required": ["command"],
             },
         },
     },
@@ -247,7 +277,7 @@ async def run_read_artifact(idea_id: str, plan_id: str, task_id: str) -> str:
         return f"Error reading artifact: {e}"
 
 
-async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = "") -> str:
+async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = "", execution_run_id: str = "") -> str:
     """Execute ReadFile. Path: 'sandbox/X' for sandbox, or 'X' for plan dir. Returns content or error."""
     try:
         if not path or not isinstance(path, str):
@@ -259,7 +289,7 @@ async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = ""
         if path.startswith("sandbox/"):
             if not task_id:
                 return "Error: sandbox path requires task context"
-            sandbox_dir = get_sandbox_dir(idea_id, plan_id, task_id)
+            sandbox_dir = _get_task_root_dir(idea_id, plan_id, task_id, execution_run_id)
             subpath = path[7:].lstrip("/")  # after "sandbox/"
             if not subpath:
                 return "Error: sandbox path must include filename"
@@ -284,7 +314,7 @@ async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = ""
         return f"Error reading file: {e}"
 
 
-async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, task_id: str = "") -> str:
+async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, task_id: str = "", execution_run_id: str = "") -> str:
     """Execute WriteFile. Path must be under sandbox. Returns success or error."""
     try:
         if not task_id:
@@ -294,7 +324,7 @@ async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, ta
         path = path.replace("\\", "/").strip()
         if ".." in path or not path.startswith("sandbox/"):
             return "Error: path must be under sandbox (e.g. sandbox/notes.txt)"
-        sandbox_dir = get_sandbox_dir(idea_id, plan_id, task_id)
+        sandbox_dir = _get_task_root_dir(idea_id, plan_id, task_id, execution_run_id)
         subpath = path[7:].lstrip("/")
         if not subpath:
             return "Error: path must include filename"
@@ -342,7 +372,14 @@ def run_read_skill_file(skill: str, path: str) -> str:
 
 
 async def run_run_skill_script(
-    skill: str, script: str, args: List[str], idea_id: str, plan_id: str, task_id: str
+    skill: str,
+    script: str,
+    args: List[str],
+    idea_id: str,
+    plan_id: str,
+    task_id: str,
+    execution_run_id: str = "",
+    docker_container_name: str = "",
 ) -> str:
     """Execute RunSkillScript. Runs script from skill dir. {{sandbox}} in args replaced with sandbox path."""
     try:
@@ -363,12 +400,27 @@ async def run_run_skill_script(
         if ext not in _RUN_SCRIPT_ALLOWED_EXT:
             return f"Error: Script extension .{ext} not allowed (use .py, .sh, .js)"
 
-        sandbox_dir = get_sandbox_dir(idea_id, plan_id, task_id)
+        sandbox_dir = _get_task_root_dir(idea_id, plan_id, task_id, execution_run_id)
         sandbox_str = str(sandbox_dir.resolve())
         resolved_args = [
             a.replace("{{sandbox}}", sandbox_str) if isinstance(a, str) else str(a)
             for a in (args or [])
         ]
+
+        if execution_run_id and docker_container_name:
+            result = await run_skill_script_in_container(
+                container_name=docker_container_name,
+                task_id=task_id,
+                skill=skill,
+                script_rel_path=script,
+                args=resolved_args,
+                timeout_seconds=_RUN_SCRIPT_TIMEOUT,
+            )
+            out = result.get("stdout", "")
+            err = result.get("stderr", "")
+            if result.get("code") != 0:
+                return f"Exit code {result.get('code')}\nstdout:\n{out}\nstderr:\n{err}"
+            return out + (f"\n{err}" if err else "")
 
         if ext == ".py":
             cmd = ["python", str(script_path)] + resolved_args
@@ -403,6 +455,37 @@ async def run_run_skill_script(
         return f"Error running script: {e}"
 
 
+async def run_run_command(
+    command: str,
+    task_id: str,
+    *,
+    docker_container_name: str = "",
+    timeout_seconds: int | None = None,
+) -> str:
+    try:
+        cmd = (command or "").strip()
+        if not cmd:
+            return "Error: command must be a non-empty string"
+        if not docker_container_name:
+            return "Error: Docker execution container is not connected for this task"
+        result = await run_command_in_container(
+            container_name=docker_container_name,
+            command=cmd,
+            workdir=f"/workdir/{task_id}/workspace",
+            timeout_seconds=timeout_seconds or _RUN_SCRIPT_TIMEOUT,
+        )
+        stdout = result.get("stdout", "")
+        stderr = result.get("stderr", "")
+        if result.get("code") != 0:
+            return f"Exit code {result.get('code')}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        body = stdout.strip()
+        if stderr.strip():
+            body = (body + "\n" if body else "") + stderr.strip()
+        return body or "OK"
+    except Exception as e:
+        return f"Error running command: {e}"
+
+
 def run_finish(output: str) -> Tuple[bool, Any]:
     """
     Execute Finish. Returns (True, parsed_output) on success; (False, error_msg) on parse failure.
@@ -424,7 +507,14 @@ def run_finish(output: str) -> Tuple[bool, Any]:
 
 
 async def execute_tool(
-    name: str, arguments: str, idea_id: str, plan_id: str, task_id: str
+    name: str,
+    arguments: str,
+    idea_id: str,
+    plan_id: str,
+    task_id: str,
+    *,
+    execution_run_id: str = "",
+    docker_container_name: str = "",
 ) -> Tuple[Optional[Any], str]:
     """
     Execute a tool by name. Returns (finished_output, tool_result_str).
@@ -443,13 +533,24 @@ async def execute_tool(
 
     if name == "ReadFile":
         path = args.get("path", "")
-        result = await run_read_file(idea_id, plan_id, path, task_id)
+        result = await run_read_file(idea_id, plan_id, path, task_id, execution_run_id)
         return None, result
 
     if name == "WriteFile":
         path = args.get("path", "")
         content = args.get("content", "")
-        result = await run_write_file(idea_id, plan_id, path, content, task_id)
+        result = await run_write_file(idea_id, plan_id, path, content, task_id, execution_run_id)
+        return None, result
+
+    if name == "RunCommand":
+        command = args.get("command", "")
+        timeout_seconds = args.get("timeout_seconds")
+        result = await run_run_command(
+            command,
+            task_id,
+            docker_container_name=docker_container_name,
+            timeout_seconds=timeout_seconds,
+        )
         return None, result
 
     if name == "ListSkills":
@@ -476,7 +577,16 @@ async def execute_tool(
                 script_args = json.loads(script_args) if script_args else []
             except json.JSONDecodeError:
                 script_args = [script_args]
-        result = await run_run_skill_script(skill, script, script_args, idea_id, plan_id, task_id)
+        result = await run_run_skill_script(
+            skill,
+            script,
+            script_args,
+            idea_id,
+            plan_id,
+            task_id,
+            execution_run_id=execution_run_id,
+            docker_container_name=docker_container_name,
+        )
         return None, result
 
     if name == "Finish":
