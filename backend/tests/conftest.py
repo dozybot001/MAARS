@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.data_manager import FixtureDataManager
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _isolate_sqlite_db(tmp_path_factory):
@@ -101,3 +103,21 @@ def use_mock_agents(client):
     r = client.post("/api/settings", json=_mock_settings_payload())
     assert r.status_code == 200
     yield
+
+
+@pytest.fixture(scope="session")
+def test_data_manager() -> FixtureDataManager:
+    fixtures_root = Path(__file__).resolve().parent / "fixtures"
+    return FixtureDataManager(fixtures_root)
+
+
+@pytest.fixture(scope="session")
+def real_refine_plan_sample(test_data_manager: FixtureDataManager) -> dict:
+    return test_data_manager.load_refine_plan_sample("real_refine_plan_sample")
+
+
+@pytest.fixture()
+def seed_real_refine_plan(test_data_manager: FixtureDataManager):
+    import anyio
+
+    return anyio.run(test_data_manager.seed_refine_plan_sample, "real_refine_plan_sample")

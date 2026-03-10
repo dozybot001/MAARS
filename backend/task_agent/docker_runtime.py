@@ -17,13 +17,8 @@ DOCKER_COMMAND_TIMEOUT = int(os.getenv("MAARS_DOCKER_COMMAND_TIMEOUT", "120"))
 _DOCKER_KEEPALIVE_CMD = "trap : TERM INT; while sleep 3600; do :; done"
 
 
-def _bootstrap_keepalive_cmd(*, plan_mount: str, run_mount: str) -> str:
-    return (
-        f"mkdir -p {shlex.quote(run_mount)} && "
-        f"ln -sfn {shlex.quote(run_mount)} /workdir && "
-        f"ln -sfn {shlex.quote(plan_mount)} /plan && "
-        f"{_DOCKER_KEEPALIVE_CMD}"
-    )
+def _bootstrap_keepalive_cmd() -> str:
+    return _DOCKER_KEEPALIVE_CMD
 
 
 def _docker_bin() -> str:
@@ -96,15 +91,16 @@ async def get_local_docker_status(*, enabled: bool = True, container_name: str |
     return base
 
 
-def build_container_name(execution_run_id: str) -> str:
-    return f"maars-exec-{_sanitize_name(execution_run_id)}"
+def build_container_name(execution_run_id: str, task_id: str) -> str:
+    return f"maars-task-{_sanitize_name(execution_run_id)}-{_sanitize_name(task_id)}"
 
 
 async def ensure_execution_container(
     *,
     execution_run_id: str,
-    run_dir: Path,
-    plan_dir: Path,
+    idea_id: str,
+    plan_id: str,
+    task_id: str,
     skills_dir: Path,
     image: str | None = None,
 ) -> dict[str, Any]:
@@ -112,14 +108,19 @@ async def ensure_execution_container(
     if not docker:
         raise RuntimeError("Docker CLI not found in PATH")
 
-    run_dir = run_dir.resolve()
-    plan_dir = plan_dir.resolve()
+    from db import DB_DIR
+
+    plan_dir = (DB_DIR / idea_id / plan_id).resolve()
+    task_root_dir = (plan_dir / task_id).resolve()
+    src_dir = (task_root_dir / "src").resolve()
+    step_dir = (task_root_dir / "step").resolve()
     skills_dir = skills_dir.resolve()
-    run_dir.mkdir(parents=True, exist_ok=True)
+    src_dir.mkdir(parents=True, exist_ok=True)
+    step_dir.mkdir(parents=True, exist_ok=True)
     plan_dir.mkdir(parents=True, exist_ok=True)
 
     image_name = (image or DEFAULT_DOCKER_IMAGE).strip() or DEFAULT_DOCKER_IMAGE
-    container_name = build_container_name(execution_run_id)
+    container_name = build_container_name(execution_run_id, task_id)
 
     status = await get_local_docker_status(enabled=True, container_name=container_name)
     if not status.get("connected"):
@@ -129,7 +130,9 @@ async def ensure_execution_container(
             **status,
             "containerName": container_name,
             "image": image_name,
-            "runDir": str(run_dir),
+            "taskId": task_id,
+            "srcDir": str(src_dir),
+            "stepDir": str(step_dir),
             "planDir": str(plan_dir),
         }
 
@@ -144,14 +147,12 @@ async def ensure_execution_container(
             "containerRunning": True,
             "containerName": container_name,
             "image": image_name,
-            "runDir": str(run_dir),
+            "taskId": task_id,
+            "srcDir": str(src_dir),
+            "stepDir": str(step_dir),
             "planDir": str(plan_dir),
         }
-
-    db_root_dir = plan_dir.parent.parent.resolve()
-    plan_mount_path = f"/dbroot/{plan_dir.relative_to(db_root_dir).as_posix()}"
-    run_mount_path = f"/dbroot/{run_dir.relative_to(db_root_dir).as_posix()}"
-
+    
     run_cmd = [
         docker,
         "run",
@@ -159,9 +160,16 @@ async def ensure_execution_container(
         "--name",
         container_name,
         "--workdir",
-        "/workdir",
+        "/workdir/src",
+        # src: code execution & artifacts
         "--mount",
-        f"type=bind,src={db_root_dir},dst=/dbroot",
+        f"type=bind,src={src_dir},dst=/workdir/src",
+        # step: task step states / intermediate info
+        "--mount",
+        f"type=bind,src={step_dir},dst=/workdir/step",
+        # plan dir for shared read access when needed
+        "--mount",
+        f"type=bind,src={plan_dir},dst=/plan",
         "--mount",
         f"type=bind,src={skills_dir},dst=/skills,readonly",
         "--mount",
@@ -169,13 +177,21 @@ async def ensure_execution_container(
         image_name,
         "sh",
         "-lc",
-        _bootstrap_keepalive_cmd(plan_mount=plan_mount_path, run_mount=run_mount_path),
+        _bootstrap_keepalive_cmd(),
     ]
     created = await _run_docker_cmd(run_cmd, timeout=40)
     if not created["ok"]:
         raise RuntimeError(created.get("stderr") or created.get("stdout") or "Failed to create Docker execution container")
 
-    logger.info("Docker execution container ready run_id={} container={} image={}", execution_run_id, container_name, image_name)
+    logger.info(
+        "Docker task container ready run_id={} task_id={} container={} image={} src_dir={} step_dir={}",
+        execution_run_id,
+        task_id,
+        container_name,
+        image_name,
+        src_dir,
+        step_dir,
+    )
     return {
         "enabled": True,
         "available": True,
@@ -183,7 +199,9 @@ async def ensure_execution_container(
         "containerRunning": True,
         "containerName": container_name,
         "image": image_name,
-        "runDir": str(run_dir),
+        "taskId": task_id,
+        "srcDir": str(src_dir),
+        "stepDir": str(step_dir),
         "planDir": str(plan_dir),
     }
 
@@ -225,7 +243,7 @@ async def run_skill_script_in_container(
 ) -> dict[str, Any]:
     ext = Path(script_rel_path).suffix.lower()
     script_path = f"/skills/{skill}/{script_rel_path.lstrip('/')}"
-    workspace_dir = f"/workdir/{task_id}/workspace"
+    workspace_dir = "/workdir/src"
     resolved_args = [
         str(a).replace("[[sandbox]]", workspace_dir).replace("{{sandbox}}", workspace_dir)
         for a in (args or [])

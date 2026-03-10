@@ -7,16 +7,30 @@ import yaml
 
 
 def parse_skill_frontmatter(content: str) -> dict:
-    """Parse YAML frontmatter from SKILL.md. Returns dict with name, description, etc."""
+    """Parse YAML frontmatter from SKILL.md. Returns dict with name, description, etc.
+
+    Falls back to a simple line-by-line parser when yaml.safe_load fails (e.g. when
+    the description value contains unquoted colons, which violates strict YAML).
+    """
+    import re
     if not content or "---" not in content:
         return {}
     parts = content.split("---", 2)
     if len(parts) < 3:
         return {}
+    raw = parts[1]
     try:
-        return yaml.safe_load(parts[1]) or {}
+        result = yaml.safe_load(raw)
+        return result or {}
     except yaml.YAMLError:
-        return {}
+        pass
+    # Fallback: simple line-by-line key: value parser (handles unquoted colons in values)
+    result: dict = {}
+    for line in raw.splitlines():
+        m = re.match(r'^(\w[\w-]*):\s*(.*)', line)
+        if m:
+            result[m.group(1)] = m.group(2).strip()
+    return result
 
 
 def list_skills(skills_root: Path) -> str:

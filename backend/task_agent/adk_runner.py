@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional
 
 import json_repair
 
-from db import ensure_sandbox_dir, ensure_task_workspace_dir
+from db import DB_DIR, ensure_sandbox_dir
 from shared.adk_bridge import (
     create_executor_tools,
     get_model_for_adk,
@@ -100,7 +100,10 @@ async def run_task_agent_adk(
     prepare_api_env(api_config)
 
     if idea_id and plan_id and task_id and execution_run_id:
-        await ensure_task_workspace_dir(idea_id, plan_id, execution_run_id, task_id)
+        src_dir = (DB_DIR / idea_id / plan_id / task_id / "src").resolve()
+        src_dir.mkdir(parents=True, exist_ok=True)
+        step_dir = (DB_DIR / idea_id / plan_id / task_id / "step").resolve()
+        step_dir.mkdir(parents=True, exist_ok=True)
     elif idea_id and plan_id and task_id:
         await ensure_sandbox_dir(idea_id, plan_id, task_id)
 
@@ -172,8 +175,11 @@ Produce the output now. You may reason first; when ready, call Finish with the r
     model = get_model_for_adk(api_config)
 
     def _on_tool_call(name: str, args: dict, turn_count: int):
+        # Build a descriptive message for the tool call
+        args_preview = build_tool_args_preview(args, max_len=150)
+        tool_msg = f"Calling {name}({args_preview})"
         return on_thinking_fn(
-            "",
+            tool_msg,
             task_id=task_id,
             operation="Execute",
             schedule_info={

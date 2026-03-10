@@ -45,7 +45,7 @@ def _get_plan_dir_path(idea_id: str, plan_id: str) -> Path:
 
 def _get_task_root_dir(idea_id: str, plan_id: str, task_id: str, execution_run_id: str = "") -> Path:
     if execution_run_id:
-        return get_task_workspace_dir(idea_id, plan_id, execution_run_id, task_id)
+        return (DB_DIR / idea_id / plan_id / task_id / "src").resolve()
     return get_sandbox_dir(idea_id, plan_id, task_id)
 
 
@@ -277,7 +277,7 @@ async def run_read_artifact(idea_id: str, plan_id: str, task_id: str) -> str:
         return f"Error reading artifact: {e}"
 
 
-async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = "", execution_run_id: str = "") -> str:
+async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = "", execution_run_id: str = "", docker_container_name: str = "") -> str:
     """Execute ReadFile. Path: 'sandbox/X' for sandbox, or 'X' for plan dir. Returns content or error."""
     try:
         if not path or not isinstance(path, str):
@@ -308,13 +308,32 @@ async def run_read_file(idea_id: str, plan_id: str, path: str, task_id: str = ""
             return f"Error: File not found: {path}"
         if not full.is_file():
             return f"Error: Not a file: {path}"
+
+        if path.startswith("sandbox/") and execution_run_id and docker_container_name:
+            import shlex
+            from .docker_runtime import run_command_in_container
+            target_path = f"/workdir/src/{subpath}"
+            cmd = f"cat {shlex.quote(target_path)} | base64"
+            result = await run_command_in_container(
+                container_name=docker_container_name, command=cmd, workdir="/workdir/src"
+            )
+            if result.get("code") != 0:
+                return f"Error reading file from docker: {result.get('stderr')}"
+            
+            import base64
+            out_b64 = result.get("stdout", "").strip()
+            try:
+                return base64.b64decode(out_b64).decode("utf-8", errors="replace")
+            except Exception as e:
+                return f"Error decoding file from docker: {str(e)}"
+
         content = full.read_text(encoding="utf-8", errors="replace")
         return content
     except Exception as e:
         return f"Error reading file: {e}"
 
 
-async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, task_id: str = "", execution_run_id: str = "") -> str:
+async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, task_id: str = "", execution_run_id: str = "", docker_container_name: str = "") -> str:
     """Execute WriteFile. Path must be under sandbox. Returns success or error."""
     try:
         if not task_id:
@@ -333,6 +352,23 @@ async def run_write_file(idea_id: str, plan_id: str, path: str, content: str, ta
             full.relative_to(sandbox_dir.resolve())
         except ValueError:
             return "Error: path traversal not allowed"
+
+        if execution_run_id and docker_container_name:
+            import base64
+            import shlex
+            from .docker_runtime import run_command_in_container
+            from pathlib import Path as PyPath
+            target_path = f"/workdir/src/{subpath}"
+            parent_dir = str(PyPath(target_path).parent).replace('\\', '/')
+            content_b64 = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+            cmd = f"mkdir -p {shlex.quote(parent_dir)} && echo {content_b64} | base64 -d > {shlex.quote(target_path)}"
+            result = await run_command_in_container(
+                container_name=docker_container_name, command=cmd, workdir="/workdir/src"
+            )
+            if result.get("code") != 0:
+                return f"Error writing file in docker: {result.get('stderr')}"
+            return "OK"
+
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(content or "", encoding="utf-8")
         return "OK"
@@ -471,7 +507,7 @@ async def run_run_command(
         result = await run_command_in_container(
             container_name=docker_container_name,
             command=cmd,
-            workdir=f"/workdir/{task_id}/workspace",
+            workdir="/workdir/src",
             timeout_seconds=timeout_seconds or _RUN_SCRIPT_TIMEOUT,
         )
         stdout = result.get("stdout", "")
@@ -533,13 +569,13 @@ async def execute_tool(
 
     if name == "ReadFile":
         path = args.get("path", "")
-        result = await run_read_file(idea_id, plan_id, path, task_id, execution_run_id)
+        result = await run_read_file(idea_id, plan_id, path, task_id, execution_run_id, docker_container_name)
         return None, result
 
     if name == "WriteFile":
         path = args.get("path", "")
         content = args.get("content", "")
-        result = await run_write_file(idea_id, plan_id, path, content, task_id, execution_run_id)
+        result = await run_write_file(idea_id, plan_id, path, content, task_id, execution_run_id, docker_container_name)
         return None, result
 
     if name == "RunCommand":

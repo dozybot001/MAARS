@@ -167,7 +167,7 @@
         }
         try {
             if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
-        } catch (_) {}
+        } catch (_) { }
         return html;
     }
 
@@ -211,13 +211,13 @@
             const raw = localStorage.getItem('maars-execute-split-ratio');
             const val = Number(raw);
             if (Number.isFinite(val)) executeSplitRatio = Math.max(35, Math.min(90, val));
-        } catch (_) {}
+        } catch (_) { }
     }
 
     function _saveExecuteSplitRatio() {
         try {
             localStorage.setItem('maars-execute-split-ratio', String(executeSplitRatio));
-        } catch (_) {}
+        } catch (_) { }
     }
 
     function _applyExecuteSplitRatio() {
@@ -294,7 +294,7 @@
         if (typeof val === 'string') return val;
         try {
             if (typeof val === 'object' && val !== null && 'content' in val && typeof val.content === 'string') return val.content;
-        } catch (_) {}
+        } catch (_) { }
         try {
             return JSON.stringify(val, null, 2);
         } catch (_) {
@@ -518,17 +518,11 @@
             dedupeKey: `seed:${currentResearchId || ''}`,
         });
 
+        // Only append existing outputs, not task descriptions
+        // Task descriptions will be shown when task-started events arrive
         executeState.order.forEach((taskId) => {
             const meta = _getTaskMetaById(taskId) || {};
             const status = executeState.statuses.get(taskId) || meta.status || 'undone';
-            _appendExecuteMessage({
-                taskId,
-                kind: 'assistant',
-                title: meta.title || taskId,
-                body: meta.description || 'Task prepared.',
-                status,
-                dedupeKey: `seed-task:${taskId}:${status}`,
-            });
 
             const outputsForTask = executeState.recentOutputsByTask.get(taskId) || [];
             if (outputsForTask.length) {
@@ -569,164 +563,192 @@
             taskMessages.get(taskId).push(msg);
         });
 
-        // Render each task as a collapsible card
+        // Collect rendering blocks: one for each task, and one for each global system message
+        const renderBlocks = [];
+
+        // 1. Task cards
         executeState.order.forEach((taskId) => {
             if (!taskMessages.has(taskId)) return;
             const msgs = taskMessages.get(taskId);
-            const meta = _getTaskMetaById(taskId) || {};
-            const status = executeState.statuses.get(taskId) || meta.status || 'undone';
-            const statusTone = _statusTone(status);
+            if (!msgs.length) return;
+            renderBlocks.push({
+                type: 'task',
+                taskId: taskId,
+                msgs: msgs,
+                firstIndex: messages.indexOf(msgs[0])
+            });
+        });
 
-            // Task card container
-            const cardEl = document.createElement('div');
-            cardEl.className = `research-execute-task-card research-execute-task-card--${statusTone}`;
-            cardEl.setAttribute('data-task-id', taskId);
+        // 2. Global system messages (no taskId)
+        const systemMsgs = messages.filter((m) => !m.taskId);
+        systemMsgs.forEach((msg) => {
+            renderBlocks.push({
+                type: 'system',
+                msg: msg,
+                firstIndex: messages.indexOf(msg)
+            });
+        });
 
-            // Task header (clickable for expand/collapse)
-            const headerEl = document.createElement('div');
-            headerEl.className = 'research-execute-task-header';
+        // Sort blocks by their appearance order in the global messages array
+        renderBlocks.sort((a, b) => a.firstIndex - b.firstIndex);
 
-            // Expand/Collapse toggle
-            const toggleEl = document.createElement('button');
-            toggleEl.className = 'research-execute-task-toggle';
-            toggleEl.innerHTML = '▶';
-            toggleEl.setAttribute('aria-label', 'Toggle task details');
-            toggleEl.type = 'button';
-            headerEl.appendChild(toggleEl);
+        // Render each block in chronological order
+        renderBlocks.forEach((block) => {
+            if (block.type === 'task') {
+                const taskId = block.taskId;
+                const msgs = block.msgs;
+                const meta = _getTaskMetaById(taskId) || {};
+                const status = executeState.statuses.get(taskId) || meta.status || 'undone';
+                const statusTone = _statusTone(status);
 
-            // Status indicator
-            const dotEl = document.createElement('span');
-            dotEl.className = `research-execute-status-dot is-${statusTone}`;
-            headerEl.appendChild(dotEl);
+                // Task card container
+                const cardEl = document.createElement('div');
+                cardEl.className = `research-execute-task-card research-execute-task-card--${statusTone}`;
+                cardEl.setAttribute('data-task-id', taskId);
 
-            // Task title and description (main content)
-            const titleWrapEl = document.createElement('div');
-            titleWrapEl.style.flex = '1 1 auto';
-            titleWrapEl.style.minWidth = '0';
-            titleWrapEl.style.display = 'flex';
-            titleWrapEl.style.flexDirection = 'column';
-            titleWrapEl.style.gap = '4px';
-            
-            const titleEl = document.createElement('div');
-            titleEl.className = 'research-execute-task-title';
-            titleEl.textContent = meta.title || taskId;
-            titleWrapEl.appendChild(titleEl);
+                // Task header (clickable for expand/collapse)
+                const headerEl = document.createElement('div');
+                headerEl.className = 'research-execute-task-header';
 
-            // Current operation (thinking message)
-            const thinkingMsg = msgs.find((m) => m.kind === 'assistant' && m.title?.includes(taskId));
-            if (thinkingMsg) {
-                const opEl = document.createElement('div');
-                opEl.className = 'research-execute-task-operation';
-                const opText = String(thinkingMsg.title || '').split('·').slice(1).join('·').trim();
-                opEl.textContent = opText ? `— ${opText}` : '';
-                titleWrapEl.appendChild(opEl);
-            }
+                // Expand/Collapse toggle
+                const toggleEl = document.createElement('button');
+                toggleEl.className = 'research-execute-task-toggle';
+                toggleEl.innerHTML = '▶';
+                toggleEl.setAttribute('aria-label', 'Toggle task details');
+                toggleEl.type = 'button';
+                headerEl.appendChild(toggleEl);
 
-            headerEl.appendChild(titleWrapEl);
+                // Status indicator
+                const dotEl = document.createElement('span');
+                dotEl.className = `research-execute-status-dot is-${statusTone}`;
+                headerEl.appendChild(dotEl);
 
-            // Status label
-            const labelEl = document.createElement('span');
-            labelEl.className = 'research-execute-task-status-label';
-            labelEl.textContent = _statusLabel(status);
-            headerEl.appendChild(labelEl);
+                // Task title and description (main content)
+                const titleWrapEl = document.createElement('div');
+                titleWrapEl.style.flex = '1 1 auto';
+                titleWrapEl.style.minWidth = '0';
+                titleWrapEl.style.display = 'flex';
+                titleWrapEl.style.flexDirection = 'column';
+                titleWrapEl.style.gap = '4px';
 
-            cardEl.appendChild(headerEl);
+                const titleEl = document.createElement('div');
+                titleEl.className = 'research-execute-task-title';
+                titleEl.textContent = meta.title || taskId;
+                titleWrapEl.appendChild(titleEl);
 
-            // Task details (collapsible)
-            const detailsEl = document.createElement('div');
-            detailsEl.className = 'research-execute-task-details';
-            let isExpanded = false;
-
-            const contentEl = document.createElement('div');
-            contentEl.className = 'research-execute-task-content';
-
-            // Add all messages for this task
-            msgs.forEach((msg) => {
-                const msgEl = document.createElement('div');
-                msgEl.className = `research-execute-message research-execute-message--${msg.kind || 'assistant'}`;
-
-                const metaEl = document.createElement('div');
-                metaEl.className = 'research-execute-message-meta';
-                if (msg.kind && msg.kind !== 'system') {
-                    const kindEl = document.createElement('span');
-                    kindEl.className = 'research-execute-message-kind';
-                    kindEl.textContent = msg.kind === 'output'
-                        ? 'Output'
-                        : msg.kind === 'error'
-                            ? 'Error'
-                            : msg.kind === 'system'
-                                ? 'System'
-                                : 'Think';
-                    metaEl.appendChild(kindEl);
+                // Current operation (thinking message)
+                const thinkingMsg = msgs.find((m) => m.kind === 'assistant' && m.title?.includes(taskId));
+                if (thinkingMsg) {
+                    const opEl = document.createElement('div');
+                    opEl.className = 'research-execute-task-operation';
+                    const opText = String(thinkingMsg.title || '').split('·').slice(1).join('·').trim();
+                    opEl.textContent = opText ? `— ${opText}` : '';
+                    titleWrapEl.appendChild(opEl);
                 }
-                msgEl.appendChild(metaEl);
 
-                const bubbleEl = document.createElement('div');
-                bubbleEl.className = 'research-execute-message-bubble';
+                headerEl.appendChild(titleWrapEl);
+
+                // Status label
+                const labelEl = document.createElement('span');
+                labelEl.className = 'research-execute-task-status-label';
+                labelEl.textContent = _statusLabel(status);
+                headerEl.appendChild(labelEl);
+
+                cardEl.appendChild(headerEl);
+
+                // Task details (collapsible)
+                const detailsEl = document.createElement('div');
+                detailsEl.className = 'research-execute-task-details';
+                let isExpanded = false;
+
+                const contentEl = document.createElement('div');
+                contentEl.className = 'research-execute-task-content';
+
+                // Add all messages for this task
+                msgs.forEach((msg) => {
+                    const msgEl = document.createElement('div');
+                    msgEl.className = `research-execute-message research-execute-message--${msg.kind || 'assistant'}`;
+
+                    const metaEl = document.createElement('div');
+                    metaEl.className = 'research-execute-message-meta';
+                    if (msg.kind && msg.kind !== 'system') {
+                        const kindEl = document.createElement('span');
+                        kindEl.className = 'research-execute-message-kind';
+                        kindEl.textContent = msg.kind === 'output'
+                            ? 'Output'
+                            : msg.kind === 'error'
+                                ? 'Error'
+                                : msg.kind === 'system'
+                                    ? 'System'
+                                    : 'Think';
+                        metaEl.appendChild(kindEl);
+                    }
+                    msgEl.appendChild(metaEl);
+
+                    const bubbleEl = document.createElement('div');
+                    bubbleEl.className = 'research-execute-message-bubble';
+
+                    if (msg.title) {
+                        const titleEl = document.createElement('div');
+                        titleEl.className = 'research-execute-message-title';
+                        titleEl.textContent = msg.title;
+                        bubbleEl.appendChild(titleEl);
+                    }
+
+                    const bodyEl = document.createElement('div');
+                    bodyEl.className = 'research-execute-message-body';
+                    const bodyText = String(msg.body || '').trim() || '—';
+                    bodyEl.textContent = bodyText.length > 6000 ? bodyText.slice(-6000) : bodyText;
+                    bubbleEl.appendChild(bodyEl);
+
+                    msgEl.appendChild(bubbleEl);
+                    contentEl.appendChild(msgEl);
+                });
+
+                detailsEl.appendChild(contentEl);
+                cardEl.appendChild(detailsEl);
+
+                // Toggle handler
+                toggleEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    isExpanded = !isExpanded;
+                    toggleEl.style.transform = isExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+                    detailsEl.style.display = isExpanded ? 'block' : 'none';
+                });
+
+                // Initially collapsed
+                detailsEl.style.display = 'none';
+                headerEl.addEventListener('click', () => {
+                    isExpanded = !isExpanded;
+                    toggleEl.style.transform = isExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+                    detailsEl.style.display = isExpanded ? 'block' : 'none';
+                });
+
+                executeStreamBodyEl.appendChild(cardEl);
+            } else if (block.type === 'system') {
+                const msg = block.msg;
+                const wrap = document.createElement('div');
+                wrap.className = `research-execute-message research-execute-message--system`;
+
+                const bubble = document.createElement('div');
+                bubble.className = 'research-execute-message-bubble';
 
                 if (msg.title) {
                     const titleEl = document.createElement('div');
                     titleEl.className = 'research-execute-message-title';
                     titleEl.textContent = msg.title;
-                    bubbleEl.appendChild(titleEl);
+                    bubble.appendChild(titleEl);
                 }
 
                 const bodyEl = document.createElement('div');
                 bodyEl.className = 'research-execute-message-body';
                 const bodyText = String(msg.body || '').trim() || '—';
                 bodyEl.textContent = bodyText.length > 6000 ? bodyText.slice(-6000) : bodyText;
-                bubbleEl.appendChild(bodyEl);
+                bubble.appendChild(bodyEl);
 
-                msgEl.appendChild(bubbleEl);
-                contentEl.appendChild(msgEl);
-            });
-
-            detailsEl.appendChild(contentEl);
-            cardEl.appendChild(detailsEl);
-
-            // Toggle handler
-            toggleEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                isExpanded = !isExpanded;
-                toggleEl.style.transform = isExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
-                detailsEl.style.display = isExpanded ? 'block' : 'none';
-            });
-
-            // Initially collapsed
-            detailsEl.style.display = 'none';
-            headerEl.addEventListener('click', () => {
-                isExpanded = !isExpanded;
-                toggleEl.style.transform = isExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
-                detailsEl.style.display = isExpanded ? 'block' : 'none';
-            });
-
-            executeStreamBodyEl.appendChild(cardEl);
-        });
-
-        // Render system messages
-        const systemMsgs = messages.filter((m) => !m.taskId || m.kind === 'system');
-        systemMsgs.forEach((msg) => {
-            const wrap = document.createElement('div');
-            wrap.className = `research-execute-message research-execute-message--${msg.kind || 'system'}`;
-
-            const bubble = document.createElement('div');
-            bubble.className = 'research-execute-message-bubble';
-
-            if (msg.title) {
-                const titleEl = document.createElement('div');
-                titleEl.className = 'research-execute-message-title';
-                titleEl.textContent = msg.title;
-                bubble.appendChild(titleEl);
+                wrap.appendChild(bubble);
+                executeStreamBodyEl.appendChild(wrap);
             }
-
-            const bodyEl = document.createElement('div');
-            bodyEl.className = 'research-execute-message-body';
-            const bodyText = String(msg.body || '').trim() || '—';
-            bodyEl.textContent = bodyText.length > 6000 ? bodyText.slice(-6000) : bodyText;
-            bubble.appendChild(bodyEl);
-
-            wrap.appendChild(bubble);
-            executeStreamBodyEl.appendChild(wrap);
         });
 
         if (wasNearBottom || executeStreamBodyEl.childElementCount <= 2) {
@@ -828,7 +850,7 @@
             dragging = true;
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'col-resize';
-            try { executeSplitterEl.setPointerCapture(e.pointerId); } catch (_) {}
+            try { executeSplitterEl.setPointerCapture(e.pointerId); } catch (_) { }
             window.addEventListener('pointermove', onPointerMove);
             window.addEventListener('pointerup', stopDrag);
             window.addEventListener('pointercancel', stopDrag);
@@ -911,7 +933,7 @@
                 const res = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/plan/tree?ideaId=${encodeURIComponent(ideaId)}&planId=${encodeURIComponent(planId)}`);
                 const json = await res.json();
                 if (res.ok) treePayload = { treeData: json.treeData || [], layout: json.layout || null };
-            } catch (_) {}
+            } catch (_) { }
 
             // Restore execute tree layout as well; otherwise Execute panel appears empty on revisit.
             try {
@@ -931,7 +953,7 @@
                         };
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
 
         document.dispatchEvent(new CustomEvent('maars:restore-complete', {
@@ -1167,7 +1189,7 @@
                 description: String(d.description || '').trim() || '',
                 status: 'doing',
             });
-            
+
             const meta = _getTaskMetaById(taskId) || {};
             _appendExecuteMessage({
                 taskId,
@@ -1317,7 +1339,7 @@
                 if (/research\.html$/.test(window.location.pathname || '')) {
                     promptInput.focus();
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
 
         // Detail page (research_detail.html)
