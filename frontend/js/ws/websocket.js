@@ -100,6 +100,9 @@
         onJsonEvent('task-retry', (data) => {
             document.dispatchEvent(new CustomEvent('maars:task-retry', { detail: data || {} }));
         });
+        onJsonEvent('task-step-b', (data) => {
+            document.dispatchEvent(new CustomEvent('maars:task-step-b', { detail: data || {} }));
+        });
         onJsonEvent('task-started', (data) => {
             document.dispatchEvent(new CustomEvent('maars:task-started', { detail: data || {} }));
         });

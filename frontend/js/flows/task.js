@@ -308,11 +308,20 @@
     function onTaskError(e) {
         const data = e?.detail || {};
         const isStoppedByUser = (data.error || '').includes('stopped by user');
+        const isRetryable = !!data.willRetry;
+        const phase = String(data.phase || '').trim().toLowerCase();
+        const taskId = String(data.taskId || '').trim();
+        const phaseLabel = phase === 'validation' ? 'Validation failed' : 'Execution error';
+        const prefix = taskId ? `[${taskId}] ${phaseLabel}` : phaseLabel;
         if (!isStoppedByUser) {
-            console.error('Execution error:', data.error);
-            alert('Execution error: ' + data.error);
+            if (isRetryable) {
+                console.warn(prefix + ' (auto-retrying):', data.error);
+            } else {
+                console.error(prefix + ':', data.error);
+                alert(prefix + ': ' + (data.error || 'Unknown error'));
+            }
         }
-        resetExecutionButtons();
+        if (!isRetryable) resetExecutionButtons();
     }
 
     function onExecutionSync(e) {

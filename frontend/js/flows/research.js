@@ -86,6 +86,7 @@
         treeData: [],
         layout: null,
     };
+    let executionGraphRenderedKey = '';
 
     let executeState = {
         order: [],
@@ -94,10 +95,13 @@
         taskMetaById: new Map(),
         messages: [],
         taskExpandedById: new Map(),
+        currentAttemptByTask: new Map(),
+        attemptExpandedById: new Map(),
     };
     let executionRuntimeStatus = null;
     let runtimeStatusRequestId = 0;
     let executeSplitRatio = 80;
+    const EXECUTE_TIMELINE_MAX_MESSAGES = 2000;
     let currentStageState = {
         refine: { started: false },
         plan: { started: false },
@@ -280,9 +284,7 @@
         } else if (s === 'execute') {
             _applyExecuteSplitRatio();
             setTreeView('execution');
-            if (executionGraphPayload?.layout && Array.isArray(executionGraphPayload?.treeData)) {
-                window.MAARS?.taskTree?.renderExecutionTree?.(executionGraphPayload.treeData, executionGraphPayload.layout);
-            }
+            ensureExecutionGraphRendered();
             renderExecuteStream();
             refreshExecutionRuntimeStatus();
         }
@@ -472,6 +474,18 @@
 
     function _appendExecuteMessage(message) {
         if (!message || !message.taskId && message.kind !== 'system') return;
+        const taskId = String(message.taskId || '').trim();
+        let attempt = Number(message.attempt);
+        if (taskId) {
+            if (!Number.isFinite(attempt) || attempt < 1) {
+                attempt = Number(executeState.currentAttemptByTask.get(taskId));
+            }
+            if (!Number.isFinite(attempt) || attempt < 1) attempt = 1;
+            executeState.currentAttemptByTask.set(taskId, attempt);
+            if (!executeState.attemptExpandedById.has(`${taskId}:${attempt}`)) {
+                executeState.attemptExpandedById.set(`${taskId}:${attempt}`, true);
+            }
+        }
         const dedupeKey = String(message.dedupeKey || '').trim();
         if (dedupeKey) {
             const exists = executeState.messages.some((m) => m.dedupeKey === dedupeKey);
@@ -481,8 +495,111 @@
             id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             at: Date.now(),
             ...message,
+            attempt: taskId ? attempt : undefined,
         });
-        if (executeState.messages.length > 240) executeState.messages = executeState.messages.slice(-240);
+        if (executeState.messages.length > EXECUTE_TIMELINE_MAX_MESSAGES) {
+            executeState.messages = executeState.messages.slice(-EXECUTE_TIMELINE_MAX_MESSAGES);
+        }
+    }
+
+    function _getAttemptKey(taskId, attempt) {
+        return `${String(taskId || '').trim()}:${Number(attempt) || 1}`;
+    }
+
+    function _getCurrentAttempt(taskId) {
+        const id = String(taskId || '').trim();
+        if (!id) return 1;
+        const current = Number(executeState.currentAttemptByTask.get(id));
+        return Number.isFinite(current) && current > 0 ? current : 1;
+    }
+
+    function _setCurrentAttempt(taskId, attempt) {
+        const id = String(taskId || '').trim();
+        const n = Number(attempt);
+        if (!id || !Number.isFinite(n) || n < 1) return;
+        executeState.currentAttemptByTask.set(id, n);
+        const key = _getAttemptKey(id, n);
+        if (!executeState.attemptExpandedById.has(key)) {
+            executeState.attemptExpandedById.set(key, true);
+        }
+    }
+
+    function _getAttemptStatus(taskId, attempt, msgs, fallbackStatus) {
+        const list = Array.isArray(msgs) ? msgs : [];
+        if (list.some((m) => m.status === 'done')) return 'done';
+        if (list.some((m) => m.status === 'validation-failed')) return 'validation-failed';
+        if (list.some((m) => m.status === 'execution-failed')) return 'execution-failed';
+        if (list.some((m) => m.kind === 'error')) return 'validation-failed';
+        if (Number(attempt) < _getCurrentAttempt(taskId)) return 'validation-failed';
+        return String(fallbackStatus || 'doing').trim() || 'doing';
+    }
+
+    function _getAttemptSummary(msgs) {
+        const list = Array.isArray(msgs) ? msgs : [];
+        const source = [...list].reverse().find((m) => m.kind === 'error' || (m.kind === 'system' && /retry|failed|error/i.test(String(m.title || ''))))
+            || list[list.length - 1];
+        const text = String(source?.body || '').trim();
+        if (!text) return '';
+        const firstLine = text.split('\n').map((line) => line.trim()).filter(Boolean)[0] || text;
+        return firstLine.length > 180 ? `${firstLine.slice(0, 180)}...` : firstLine;
+    }
+
+    function _resolveExecutionGraphPayload() {
+        if (executionGraphPayload?.layout && Array.isArray(executionGraphPayload?.treeData) && executionGraphPayload.treeData.length) {
+            return executionGraphPayload;
+        }
+        const sharedState = window.MAARS?.state || {};
+        const layoutState = sharedState.executionLayout;
+        const treeData = Array.isArray(layoutState?.treeData) ? layoutState.treeData : [];
+        const layout = layoutState?.layout || null;
+        if (!treeData.length || !layout) return null;
+        executionGraphPayload = { treeData, layout };
+        treeData.forEach(_upsertTaskMeta);
+        return executionGraphPayload;
+    }
+
+    function _buildExecutionGraphRenderKey(payload) {
+        if (!payload?.layout || !Array.isArray(payload?.treeData)) return '';
+        const ids = payload.treeData.map((t) => String(t?.task_id || '')).filter(Boolean).join('|');
+        const width = Number(payload.layout?.width || 0);
+        const height = Number(payload.layout?.height || 0);
+        return `${ids}::${width}x${height}`;
+    }
+
+    function _syncExecutionGraphNodeStatuses() {
+        const updates = [];
+        executeState.statuses.forEach((status, taskId) => {
+            const id = String(taskId || '').trim();
+            const s = String(status || '').trim();
+            if (!id) return;
+            updates.push({ task_id: id, status: s || 'undone' });
+        });
+        if (!updates.length) return;
+        window.MAARS?.taskTree?.updateTaskStates?.(updates);
+    }
+
+    function ensureExecutionGraphRendered(force = false) {
+        if (activeStage !== 'execute') return;
+        const payload = _resolveExecutionGraphPayload();
+        if (!payload?.layout || !Array.isArray(payload?.treeData) || !payload.treeData.length) return;
+        const nextKey = _buildExecutionGraphRenderKey(payload);
+        const existingNodes = document.querySelectorAll('.plan-agent-execution-tree-area .tasks-tree .tree-task').length;
+        if (!force && executionGraphRenderedKey === nextKey && existingNodes > 0) {
+            _syncExecutionGraphNodeStatuses();
+            return;
+        }
+        const render = () => window.MAARS?.taskTree?.renderExecutionTree?.(payload.treeData, payload.layout);
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => {
+                render();
+                executionGraphRenderedKey = nextKey;
+                _syncExecutionGraphNodeStatuses();
+            });
+            return;
+        }
+        render();
+        executionGraphRenderedKey = nextKey;
+        _syncExecutionGraphNodeStatuses();
     }
 
     function _upsertExecuteThinkingMessage(taskId, operation, body, scheduleInfo) {
@@ -552,6 +669,8 @@
         executeState.taskMetaById = new Map();
         executeState.messages = [];
         executeState.taskExpandedById = new Map();
+        executeState.currentAttemptByTask = new Map();
+        executeState.attemptExpandedById = new Map();
 
         const treeTasks = Array.isArray(treeData) ? treeData : [];
         const execTasks = Array.isArray(execution?.tasks) ? execution.tasks : [];
@@ -559,6 +678,7 @@
         execTasks.forEach((task) => {
             _upsertTaskMeta(task);
             if (task?.status) executeState.statuses.set(task.task_id, String(task.status));
+            _setCurrentAttempt(task.task_id, 1);
         });
 
         const outputMap = outputs && typeof outputs === 'object' ? outputs : {};
@@ -593,6 +713,16 @@
                     dedupeKey: `seed-output:${taskId}`,
                 });
             }
+        });
+    }
+
+    function _resetExecuteTimelineForNewRun() {
+        executeState.messages = [];
+        executeState.recentOutputsByTask = new Map();
+        executeState.currentAttemptByTask = new Map();
+        executeState.attemptExpandedById = new Map();
+        executeState.order.forEach((taskId) => {
+            _setCurrentAttempt(taskId, 1);
         });
     }
 
@@ -658,6 +788,14 @@
                 const meta = _getTaskMetaById(taskId) || {};
                 const status = executeState.statuses.get(taskId) || meta.status || 'undone';
                 const statusTone = _statusTone(status);
+                const attemptGroups = new Map();
+                msgs.forEach((msg) => {
+                    const attempt = Number(msg.attempt) || 1;
+                    if (!attemptGroups.has(attempt)) attemptGroups.set(attempt, []);
+                    attemptGroups.get(attempt).push(msg);
+                });
+                const attemptNumbers = Array.from(attemptGroups.keys()).sort((a, b) => a - b);
+                const latestAttempt = attemptNumbers.length ? attemptNumbers[attemptNumbers.length - 1] : _getCurrentAttempt(taskId);
 
                 // Task card container
                 const cardEl = document.createElement('div');
@@ -691,11 +829,11 @@
 
                 const titleEl = document.createElement('div');
                 titleEl.className = 'research-execute-task-title';
-                titleEl.textContent = meta.title || taskId;
+                titleEl.textContent = `${meta.title || taskId} · Attempt ${latestAttempt}`;
                 titleWrapEl.appendChild(titleEl);
 
                 // Current operation (thinking message)
-                const thinkingMsg = [...msgs].reverse().find((m) => m.kind === 'assistant' && m.title?.includes(taskId));
+                const thinkingMsg = [...msgs].reverse().find((m) => Number(m.attempt) === latestAttempt && m.kind === 'assistant');
                 if (thinkingMsg) {
                     const opEl = document.createElement('div');
                     opEl.className = 'research-execute-task-operation';
@@ -724,53 +862,117 @@
                 const contentEl = document.createElement('div');
                 contentEl.className = 'research-execute-task-content';
 
-                // Add all messages for this task
-                msgs.forEach((msg) => {
-                    const msgEl = document.createElement('div');
-                    msgEl.className = `research-execute-message research-execute-message--${msg.kind || 'assistant'}`;
-
-                    const metaEl = document.createElement('div');
-                    metaEl.className = 'research-execute-message-meta';
-                    if (msg.kind && msg.kind !== 'system') {
-                        const kindEl = document.createElement('span');
-                        kindEl.className = 'research-execute-message-kind';
-                        kindEl.textContent = msg.kind === 'output'
-                            ? 'Output'
-                            : msg.kind === 'error'
-                                ? 'Error'
-                                : msg.kind === 'system'
-                                    ? 'System'
-                                    : 'Think';
-                        metaEl.appendChild(kindEl);
+                attemptNumbers.forEach((attemptNumber) => {
+                    const attemptMsgs = attemptGroups.get(attemptNumber) || [];
+                    const attemptKey = _getAttemptKey(taskId, attemptNumber);
+                    let attemptExpanded = executeState.attemptExpandedById.get(attemptKey);
+                    if (typeof attemptExpanded !== 'boolean') {
+                        attemptExpanded = attemptNumber >= latestAttempt;
+                        executeState.attemptExpandedById.set(attemptKey, attemptExpanded);
                     }
-                    msgEl.appendChild(metaEl);
+                    const attemptStatus = _getAttemptStatus(taskId, attemptNumber, attemptMsgs, status);
+                    const attemptTone = _statusTone(attemptStatus);
 
-                    const bubbleEl = document.createElement('div');
-                    bubbleEl.className = 'research-execute-message-bubble';
+                    const attemptEl = document.createElement('div');
+                    attemptEl.className = `research-execute-attempt research-execute-attempt--${attemptTone}`;
 
-                    if (msg.title) {
-                        const titleEl = document.createElement('div');
-                        titleEl.className = 'research-execute-message-title';
-                        const repeatCount = Number(msg.repeatCount || 1);
-                        titleEl.textContent = repeatCount > 1 ? `${msg.title} ×${repeatCount}` : msg.title;
-                        bubbleEl.appendChild(titleEl);
-                    if (msg.tokenMetaText) {
-                        const tokenMetaEl = document.createElement('div');
-                        tokenMetaEl.className = 'research-execute-message-token-meta';
-                        tokenMetaEl.textContent = String(msg.tokenMetaText || '').trim();
-                        bubbleEl.appendChild(tokenMetaEl);
+                    const attemptHeaderEl = document.createElement('div');
+                    attemptHeaderEl.className = 'research-execute-attempt-header';
+
+                    const attemptToggleEl = document.createElement('button');
+                    attemptToggleEl.className = 'research-execute-attempt-toggle';
+                    attemptToggleEl.innerHTML = '▶';
+                    attemptToggleEl.setAttribute('aria-label', 'Toggle attempt details');
+                    attemptToggleEl.type = 'button';
+                    attemptHeaderEl.appendChild(attemptToggleEl);
+
+                    const attemptTitleEl = document.createElement('div');
+                    attemptTitleEl.className = 'research-execute-attempt-title';
+                    attemptTitleEl.textContent = `Attempt ${attemptNumber}${attemptNumber === latestAttempt ? ' · Current' : ''}`;
+                    attemptHeaderEl.appendChild(attemptTitleEl);
+
+                    const attemptLabelEl = document.createElement('span');
+                    attemptLabelEl.className = 'research-execute-attempt-status-label';
+                    attemptLabelEl.textContent = _statusLabel(attemptStatus);
+                    attemptHeaderEl.appendChild(attemptLabelEl);
+
+                    const attemptSummary = _getAttemptSummary(attemptMsgs);
+                    if (attemptSummary) {
+                        const attemptSummaryEl = document.createElement('div');
+                        attemptSummaryEl.className = 'research-execute-attempt-summary';
+                        attemptSummaryEl.textContent = attemptSummary;
+                        attemptHeaderEl.appendChild(attemptSummaryEl);
                     }
 
-                    }
+                    const attemptBodyEl = document.createElement('div');
+                    attemptBodyEl.className = 'research-execute-attempt-body';
 
-                    const bodyEl = document.createElement('div');
-                    bodyEl.className = 'research-execute-message-body';
-                    const bodyText = String(msg.body || '').trim() || '—';
-                    bodyEl.textContent = bodyText.length > 6000 ? bodyText.slice(-6000) : bodyText;
-                    bubbleEl.appendChild(bodyEl);
+                    attemptMsgs.forEach((msg) => {
+                        const msgEl = document.createElement('div');
+                        msgEl.className = `research-execute-message research-execute-message--${msg.kind || 'assistant'}`;
 
-                    msgEl.appendChild(bubbleEl);
-                    contentEl.appendChild(msgEl);
+                        const metaEl = document.createElement('div');
+                        metaEl.className = 'research-execute-message-meta';
+                        if (msg.kind && msg.kind !== 'system') {
+                            const kindEl = document.createElement('span');
+                            kindEl.className = 'research-execute-message-kind';
+                            kindEl.textContent = msg.kind === 'output'
+                                ? 'Output'
+                                : msg.kind === 'error'
+                                    ? 'Error'
+                                    : msg.kind === 'system'
+                                        ? 'System'
+                                        : 'Think';
+                            metaEl.appendChild(kindEl);
+                        }
+                        msgEl.appendChild(metaEl);
+
+                        const bubbleEl = document.createElement('div');
+                        bubbleEl.className = 'research-execute-message-bubble';
+
+                        if (msg.title) {
+                            const messageTitleEl = document.createElement('div');
+                            messageTitleEl.className = 'research-execute-message-title';
+                            const repeatCount = Number(msg.repeatCount || 1);
+                            messageTitleEl.textContent = repeatCount > 1 ? `${msg.title} ×${repeatCount}` : msg.title;
+                            bubbleEl.appendChild(messageTitleEl);
+                            if (msg.tokenMetaText) {
+                                const tokenMetaEl = document.createElement('div');
+                                tokenMetaEl.className = 'research-execute-message-token-meta';
+                                tokenMetaEl.textContent = String(msg.tokenMetaText || '').trim();
+                                bubbleEl.appendChild(tokenMetaEl);
+                            }
+                        }
+
+                        const bodyEl = document.createElement('div');
+                        bodyEl.className = 'research-execute-message-body';
+                        const bodyText = String(msg.body || '').trim() || '—';
+                        bodyEl.textContent = bodyText.length > 6000 ? bodyText.slice(-6000) : bodyText;
+                        bubbleEl.appendChild(bodyEl);
+
+                        msgEl.appendChild(bubbleEl);
+                        attemptBodyEl.appendChild(msgEl);
+                    });
+
+                    attemptEl.appendChild(attemptHeaderEl);
+                    attemptEl.appendChild(attemptBodyEl);
+                    attemptBodyEl.style.display = attemptExpanded ? 'block' : 'none';
+                    attemptToggleEl.style.transform = attemptExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+
+                    const toggleAttempt = () => {
+                        attemptExpanded = !attemptExpanded;
+                        executeState.attemptExpandedById.set(attemptKey, attemptExpanded);
+                        attemptBodyEl.style.display = attemptExpanded ? 'block' : 'none';
+                        attemptToggleEl.style.transform = attemptExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+                    };
+
+                    attemptToggleEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        toggleAttempt();
+                    });
+                    attemptHeaderEl.addEventListener('click', toggleAttempt);
+
+                    contentEl.appendChild(attemptEl);
                 });
 
                 detailsEl.appendChild(contentEl);
@@ -1028,6 +1230,7 @@
 
         let treePayload = { treeData: [], layout: null };
         let executionLayout = null;
+        let executionForRestore = execution;
         if (ideaId && planId) {
             try {
                 const res = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/plan/tree?ideaId=${encodeURIComponent(ideaId)}&planId=${encodeURIComponent(planId)}`);
@@ -1037,12 +1240,27 @@
 
             // Restore execute tree layout as well; otherwise Execute panel appears empty on revisit.
             try {
-                const execTasks = Array.isArray(execution?.tasks) ? execution.tasks : [];
+                let executionSnapshot = execution;
+                let execTasks = Array.isArray(executionSnapshot?.tasks) ? executionSnapshot.tasks : [];
+                if (!execTasks.length) {
+                    const genRes = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/execution/generate-from-plan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ideaId, planId }),
+                    });
+                    const genJson = await genRes.json().catch(() => ({}));
+                    const generatedExecution = genJson?.execution;
+                    if (genRes.ok && Array.isArray(generatedExecution?.tasks) && generatedExecution.tasks.length) {
+                        executionSnapshot = generatedExecution;
+                        execTasks = generatedExecution.tasks;
+                    }
+                }
                 if (execTasks.length) {
+                    executionForRestore = executionSnapshot;
                     const layoutRes = await cfg.fetchWithSession(`${cfg.API_BASE_URL}/plan/layout`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ execution, ideaId, planId }),
+                        body: JSON.stringify({ execution: executionSnapshot, ideaId, planId }),
                     });
                     const layoutJson = await layoutRes.json().catch(() => ({}));
                     if (layoutRes.ok && layoutJson?.layout) {
@@ -1051,6 +1269,7 @@
                             treeData: Array.isArray(layoutJson.layout?.treeData) ? layoutJson.layout.treeData : [],
                             layout: layoutJson.layout?.layout || null,
                         };
+                        executionGraphRenderedKey = '';
                     }
                 }
             } catch (_) { }
@@ -1063,15 +1282,15 @@
                 treePayload,
                 plan,
                 layout: executionLayout,
-                execution,
+                execution: executionForRestore,
                 outputs: outputs || {},
                 ideaText: idea?.idea || research.prompt || '',
             },
         }));
 
-        _seedExecutionState(treePayload.treeData, execution, outputs);
+        _seedExecutionState(treePayload.treeData, executionForRestore, outputs);
         if (executionGraphPayload?.layout && activeStage === 'execute') {
-            window.MAARS?.taskTree?.renderExecutionTree?.(executionGraphPayload.treeData, executionGraphPayload.layout);
+            ensureExecutionGraphRendered();
         }
         if (activeStage === 'execute') renderExecuteStream();
         refreshExecutionRuntimeStatus({ ideaId, planId });
@@ -1139,6 +1358,13 @@
         ['refine', 'plan', 'execute', 'paper'].forEach((stage) => {
             bindStageAction(stage, 'run', async () => {
                 await api.runResearchStage(researchId, stage);
+                if (stage === 'execute') {
+                    _resetExecuteTimelineForNewRun();
+                    if (activeStage === 'execute') {
+                        ensureExecutionGraphRendered();
+                        renderExecuteStream();
+                    }
+                }
                 setActiveStage(stage);
             });
             bindStageAction(stage, 'resume', async () => {
@@ -1147,6 +1373,13 @@
             });
             bindStageAction(stage, 'retry', async () => {
                 await api.retryResearchStage(researchId, stage);
+                if (stage === 'execute') {
+                    _resetExecuteTimelineForNewRun();
+                    if (activeStage === 'execute') {
+                        ensureExecutionGraphRendered();
+                        renderExecuteStream();
+                    }
+                }
                 setActiveStage(stage);
             });
             bindStageAction(stage, 'stop', async () => {
@@ -1159,7 +1392,13 @@
         // Update stage state based on live pipeline events.
         document.addEventListener('maars:idea-start', () => setStageStarted('refine', true));
         document.addEventListener('maars:plan-start', () => setStageStarted('plan', true));
-        document.addEventListener('maars:task-start', () => setStageStarted('execute', true));
+        document.addEventListener('maars:task-start', () => {
+            setStageStarted('execute', true);
+            if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
+                renderExecuteStream();
+            }
+        });
         document.addEventListener('maars:paper-start', () => setStageStarted('paper', true));
         document.addEventListener('maars:task-start', () => refreshExecutionRuntimeStatus());
 
@@ -1250,6 +1489,7 @@
                 // Task descriptions are shown in task-started event, status changes are shown in status labels
             });
             if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
                 renderExecuteStream();
             }
         });
@@ -1261,6 +1501,7 @@
             if (!taskId || !chunk) return;
 
             _ensureTaskInOrder(taskId);
+            _setCurrentAttempt(taskId, Number(d.attempt || d?.scheduleInfo?.attempt) || _getCurrentAttempt(taskId));
             _upsertExecuteThinkingMessage(
                 taskId,
                 d.operation || 'Execute',
@@ -1279,6 +1520,7 @@
             if (!taskId) return;
 
             _ensureTaskInOrder(taskId);
+            _setCurrentAttempt(taskId, Number(d.attempt) || _getCurrentAttempt(taskId));
             _upsertTaskMeta({
                 task_id: taskId,
                 title: String(d.title || d.description || taskId).trim() || taskId,
@@ -1290,13 +1532,14 @@
             _appendExecuteMessage({
                 taskId,
                 kind: 'system',
-                title: `${taskId} started`,
+                title: `${taskId} started · Attempt ${_getCurrentAttempt(taskId)}`,
                 body: meta.description || 'Task execution started',
                 status: 'doing',
-                dedupeKey: `started:${taskId}`,
+                attempt: _getCurrentAttempt(taskId),
             });
 
             if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
                 renderExecuteStream();
             }
         });
@@ -1306,6 +1549,7 @@
             const taskId = String(d.taskId || d.task_id || '').trim();
             if (!taskId) return;
             _ensureTaskInOrder(taskId);
+            _setCurrentAttempt(taskId, Number(d.attempt) || _getCurrentAttempt(taskId));
             const outputText = _stringifyOutput(d.output);
             _pushRecentOutput(taskId, outputText);
             const meta = _getTaskMetaById(taskId) || {};
@@ -1314,6 +1558,7 @@
                 kind: 'output',
                 title: meta.title || taskId,
                 body: outputText,
+                attempt: _getCurrentAttempt(taskId),
                 status: executeState.statuses.get(taskId) || meta.status || '',
             });
             if (activeStage === 'execute') {
@@ -1326,6 +1571,7 @@
             const taskId = String(d.taskId || d.task_id || '').trim();
             if (!taskId) return;
 
+            _setCurrentAttempt(taskId, Number(d.attempt) || _getCurrentAttempt(taskId));
             executeState.statuses.set(taskId, 'done');
             const meta = _getTaskMetaById(taskId) || {};
             const validated = !!d.validated;
@@ -1339,13 +1585,14 @@
             _appendExecuteMessage({
                 taskId,
                 kind: 'system',
-                title: `${taskId} ${validated ? 'validated' : 'completed'}`,
+                title: `${taskId} ${validated ? 'validated' : 'completed'} · Attempt ${_getCurrentAttempt(taskId)}`,
                 body,
+                attempt: _getCurrentAttempt(taskId),
                 status: 'done',
-                dedupeKey: `completed:${taskId}`,
             });
 
             if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
                 renderExecuteStream();
             }
         });
@@ -1362,6 +1609,7 @@
                 if (nextStatus) executeState.statuses.set(id, nextStatus);
             });
             if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
                 renderExecuteStream();
             }
             refreshExecutionRuntimeStatus();
@@ -1371,17 +1619,21 @@
             const d = e?.detail || {};
             const taskId = String(d.taskId || d.task_id || '').trim();
             if (!taskId) return;
+            _setCurrentAttempt(taskId, Number(d.attempt) || _getCurrentAttempt(taskId));
             const meta = _getTaskMetaById(taskId) || {};
             _appendExecuteMessage({
                 taskId,
                 kind: 'assistant',
-                title: meta.title || taskId,
+                title: `${meta.title || taskId} · Attempt ${_getCurrentAttempt(taskId)}`,
                 body: 'Step completed.',
+                attempt: _getCurrentAttempt(taskId),
                 status: 'done',
-                dedupeKey: `complete:${taskId}`,
             });
             executeState.statuses.set(taskId, 'done');
-            if (activeStage === 'execute') renderExecuteStream();
+            if (activeStage === 'execute') {
+                ensureExecutionGraphRendered();
+                renderExecuteStream();
+            }
             refreshExecutionRuntimeStatus();
         });
 
@@ -1395,6 +1647,8 @@
             const willRetry = d.willRetry === true;
             if (!taskId && !errorText) return;
             const meta = _getTaskMetaById(taskId) || {};
+            const messageAttempt = Number.isFinite(attempt) ? attempt : _getCurrentAttempt(taskId);
+            _setCurrentAttempt(taskId, messageAttempt);
             const detailParts = [];
             if (phase) detailParts.push(`Phase: ${phase}`);
             if (Number.isFinite(attempt) && Number.isFinite(maxAttempts)) {
@@ -1404,14 +1658,18 @@
                 detailParts.push(willRetry ? 'Retry scheduled' : 'No more automatic retries');
             }
             const detailPrefix = detailParts.length ? `${detailParts.join(' · ')}\n` : '';
+            const terminalStatus = phase === 'validation' ? 'validation-failed' : 'execution-failed';
+            const currentStatus = taskId ? (executeState.statuses.get(taskId) || '') : '';
+            const nextStatus = willRetry ? (currentStatus || 'doing') : terminalStatus;
             _appendExecuteMessage({
                 taskId: taskId || '',
-                kind: 'error',
-                title: meta.title || taskId || 'Execution Error',
+                kind: willRetry ? 'system' : 'error',
+                title: `${meta.title || taskId || (willRetry ? 'Retrying Task' : 'Execution Error')} · Attempt ${messageAttempt}`,
                 body: `${detailPrefix}${errorText || 'Unknown execution error.'}`,
-                status: taskId ? (executeState.statuses.get(taskId) || 'execution-failed') : 'execution-failed',
+                attempt: messageAttempt,
+                status: taskId ? nextStatus : terminalStatus,
             });
-            if (taskId) executeState.statuses.set(taskId, 'execution-failed');
+            if (taskId) executeState.statuses.set(taskId, nextStatus);
             if (activeStage === 'execute') renderExecuteStream();
             refreshExecutionRuntimeStatus();
         });
@@ -1430,12 +1688,46 @@
             if (Number.isFinite(attempt) && Number.isFinite(nextAttempt) && Number.isFinite(maxAttempts)) {
                 detailParts.push(`Retry ${nextAttempt}/${maxAttempts} (failed ${attempt}/${maxAttempts})`);
             }
+            const failedAttempt = Number.isFinite(attempt) ? attempt : _getCurrentAttempt(taskId);
+            const upcomingAttempt = Number.isFinite(nextAttempt) ? nextAttempt : failedAttempt + 1;
             _appendExecuteMessage({
                 taskId,
                 kind: 'system',
-                title: `${taskId} retrying`,
+                title: `${taskId} retrying · Attempt ${failedAttempt}`,
                 body: `${detailParts.join(' · ')}\n${reason}`,
+                attempt: failedAttempt,
                 status: executeState.statuses.get(taskId) || 'execution-failed',
+            });
+            executeState.attemptExpandedById.set(_getAttemptKey(taskId, failedAttempt), false);
+            _setCurrentAttempt(taskId, upcomingAttempt);
+            executeState.attemptExpandedById.set(_getAttemptKey(taskId, upcomingAttempt), true);
+            if (activeStage === 'execute') renderExecuteStream();
+        });
+
+        document.addEventListener('maars:task-step-b', (e) => {
+            const d = e?.detail || {};
+            const taskId = String(d.taskId || d.task_id || '').trim();
+            if (!taskId) return;
+            _ensureTaskInOrder(taskId);
+            const attempt = Number(d.attempt) || _getCurrentAttempt(taskId);
+            _setCurrentAttempt(taskId, attempt);
+            const adjusted = d.shouldAdjust === true;
+            const immutableBlocked = d.immutableImpacted === true;
+            const patchSummary = String(d.patchSummary || '').trim();
+            const reasoning = String(d.reasoning || '').trim();
+            const bodyParts = [
+                `Step B review: ${adjusted ? 'Adjusted mutable validation criteria' : 'No criteria change'}`,
+            ];
+            if (immutableBlocked) bodyParts.push('Immutable constraints impacted: blocked');
+            if (patchSummary) bodyParts.push(`Patch: ${patchSummary}`);
+            if (reasoning) bodyParts.push(`Reasoning: ${reasoning}`);
+            _appendExecuteMessage({
+                taskId,
+                kind: 'system',
+                title: `${taskId} · Step B · Attempt ${attempt}`,
+                body: bodyParts.join('\n'),
+                attempt,
+                status: executeState.statuses.get(taskId) || 'validating',
             });
             if (activeStage === 'execute') renderExecuteStream();
         });
@@ -1450,9 +1742,10 @@
             const graphLayout = d?.layout?.layout || null;
             if (!treeData.length || !graphLayout) return;
             executionGraphPayload = { treeData, layout: graphLayout };
+            executionGraphRenderedKey = '';
             treeData.forEach(_upsertTaskMeta);
             if (activeStage === 'execute') {
-                window.MAARS?.taskTree?.renderExecutionTree?.(treeData, graphLayout);
+                ensureExecutionGraphRendered(true);
                 renderExecuteStream();
             }
         });

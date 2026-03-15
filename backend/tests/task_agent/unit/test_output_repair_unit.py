@@ -1,8 +1,11 @@
 import pytest
 
 from task_agent.agent_tools import run_finish
+from task_agent.runner import ExecutionRunner
 from task_agent.llm import executor as task_exec
-from task_agent.llm.validation import classify_validation_failure
+from task_agent.llm.validation import (
+    classify_validation_failure,
+)
 from plan_agent.llm import executor as plan_exec
 
 
@@ -17,6 +20,58 @@ def test_classify_validation_failure_detects_format_and_evidence():
     evidence_case = classify_validation_failure("Signal length match: FAIL (Data not provided)")
     assert format_case["category"] == "format"
     assert evidence_case["category"] == "evidence_missing"
+
+@pytest.mark.asyncio
+async def test_runner_step_b_contract_review_applies_adjustment(monkeypatch):
+    runner = ExecutionRunner(sio=None)
+    runner.api_config = {"taskUseMock": False}
+    runner.abort_event = None
+    runner.docker_runtime_status = {"available": True}
+    runner.task_attempt_history = {
+        "1_2_3": [
+            {"category": "format", "decision": "regenerate_output", "summary": "bad structure"},
+            {"category": "semantic", "decision": "redo_step", "summary": "metric shortfall"},
+        ]
+    }
+
+    async def fake_review_contract_adjustment(packet, **kwargs):
+        return {
+            "shouldAdjust": True,
+            "immutableImpacted": False,
+            "reasoning": "Return artifact-based criteria to avoid impossible in-memory checks.",
+            "proposedValidationCriteria": [
+                "Deliver output as loadable artifact path with schema metadata.",
+            ],
+            "patchSummary": "Switch to artifact-based validation for this step.",
+            "source": "step-b-agent",
+        }
+
+    monkeypatch.setattr("task_agent.runner.review_contract_adjustment", fake_review_contract_adjustment)
+
+    task = {
+        "task_id": "1_2_3",
+        "description": "Prepare filtered ECG dataset",
+        "dependencies": ["1_2_1"],
+        "output": {"format": "Numerical Array or Time-series Object", "artifact": "filtered_ecg", "description": "Prepared ECG array"},
+        "validation": {"criteria": ["Provide loadable array output"]},
+    }
+
+    decision = await runner._run_step_b_contract_review(
+        task={
+            **task,
+        },
+        result={"filtered_ecg_path": "sandbox/ecg_prepared.npz"},
+        reason="Output format: FAIL (Expected numerical array/time-series, received file path)",
+        output_format="Numerical Array or Time-series Object",
+        on_thinking=None,
+    )
+
+    assert decision["source"] == "step-b-agent"
+    assert decision["shouldAdjust"] is True
+    assert decision["immutableImpacted"] is False
+    assert task["validation"]["criteria"] == [
+        "Deliver output as loadable artifact path with schema metadata.",
+    ]
 
 
 @pytest.mark.asyncio

@@ -163,3 +163,145 @@ async def _run_load_task_attempt_memories(monkeypatch):
 
 def test_load_task_attempt_memories(monkeypatch):
     anyio.run(_run_load_task_attempt_memories, monkeypatch)
+
+
+async def _run_retry_task_clears_downstream_history(monkeypatch):
+    runner = ExecutionRunner(sio=None, session_id="test")
+    runner.idea_id = "idea_x"
+    runner.plan_id = "plan_y"
+    runner.research_id = "research_z"
+    runner.is_running = True
+    runner.task_map = {
+        "1_1": {"task_id": "1_1", "dependencies": [], "status": "done"},
+        "1_2_1": {"task_id": "1_2_1", "dependencies": ["1_1"], "status": "validating"},
+        "1_2_2": {"task_id": "1_2_2", "dependencies": ["1_2_1"], "status": "pending"},
+        "1_2_3": {"task_id": "1_2_3", "dependencies": ["1_2_2"], "status": "done"},
+    }
+    runner.reverse_dependency_index = {
+        "1_1": ["1_2_1"],
+        "1_2_1": ["1_2_2"],
+        "1_2_2": ["1_2_3"],
+        "1_2_3": [],
+    }
+    runner.running_tasks = {"1_2_1"}
+    runner.pending_tasks = {"1_2_2"}
+    runner.completed_tasks = {"1_1", "1_2_3"}
+    runner.task_attempt_history = {
+        "1_2_1": [{"attempt": 1, "category": "runtime", "error": "timeout"}],
+        "1_2_2": [{"attempt": 1, "category": "format", "error": "invalid json"}],
+        "1_2_3": [{"attempt": 1, "category": "semantic", "error": "metric failed"}],
+    }
+
+    released: list[str] = []
+    deleted_artifacts: list[str] = []
+    deleted_memories: list[str] = []
+    scheduled: list[str] = []
+
+    from task_agent import runner as runner_mod
+
+    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", lambda task_id: released.append(task_id))
+
+    async def fake_delete_task_artifact(_idea_id, _plan_id, task_id):
+        deleted_artifacts.append(task_id)
+        return True
+
+    async def fake_delete_task_attempt_memories(_research_id, task_id=None):
+        if task_id:
+            deleted_memories.append(task_id)
+        return 1
+
+    monkeypatch.setattr(runner_mod, "delete_task_artifact", fake_delete_task_artifact)
+    monkeypatch.setattr(runner_mod, "delete_task_attempt_memories", fake_delete_task_attempt_memories)
+
+    def fake_schedule_ready_tasks(tasks):
+        for t in tasks or []:
+            if t and t.get("task_id"):
+                scheduled.append(t["task_id"])
+
+    runner._schedule_ready_tasks = fake_schedule_ready_tasks  # type: ignore[method-assign]
+
+    ok = await runner.retry_task("1_2_1")
+    assert ok is True
+
+    for tid in ("1_2_1", "1_2_2", "1_2_3"):
+        assert runner.task_map[tid]["status"] == "undone"
+        assert tid in runner.pending_tasks
+        assert tid not in runner.running_tasks
+        assert tid not in runner.completed_tasks
+        assert tid not in runner.task_attempt_history
+
+    assert set(released) >= {"1_2_1", "1_2_2", "1_2_3"}
+    assert set(deleted_artifacts) == {"1_2_1", "1_2_2", "1_2_3"}
+    assert set(deleted_memories) == {"1_2_1", "1_2_2", "1_2_3"}
+    assert "1_2_1" in scheduled
+
+
+def test_retry_task_clears_downstream_history(monkeypatch):
+    anyio.run(_run_retry_task_clears_downstream_history, monkeypatch)
+
+
+async def _run_unified_retry_counter_increments_consistently():
+    runner = ExecutionRunner(sio=None, session_id="test")
+
+    attempt_1 = runner._next_retry_attempt("3_1")
+    attempt_2 = runner._next_retry_attempt("3_1")
+    attempt_3 = runner._next_retry_attempt("3_1")
+
+    # Unified retry counter must keep increasing regardless of failure category.
+    assert attempt_1 == 1
+    assert attempt_2 == 2
+    assert attempt_3 == 3
+
+
+def test_unified_retry_counter_increments_consistently():
+    anyio.run(_run_unified_retry_counter_increments_consistently)
+
+
+async def _run_schedule_ready_tasks_deduplicates_inflight_task():
+    runner = ExecutionRunner(sio=None, session_id="test")
+    runner.is_running = True
+    task = {"task_id": "3_1", "dependencies": []}
+    runner.pending_tasks = {"3_1"}
+
+    calls = {"count": 0}
+
+    async def fake_execute_task(_task):
+        calls["count"] += 1
+        await anyio.sleep(0.05)
+
+    async def fake_handle_task_error(_task, _error):
+        raise AssertionError("_handle_task_error should not be called in this test")
+
+    runner._execute_task = fake_execute_task  # type: ignore[method-assign]
+    runner._handle_task_error = fake_handle_task_error  # type: ignore[method-assign]
+
+    # Schedule the same ready task repeatedly while it's still running.
+    runner._schedule_ready_tasks([task])
+    runner._schedule_ready_tasks([task])
+    runner._schedule_ready_tasks([task])
+
+    await anyio.sleep(0.1)
+
+    assert calls["count"] == 1
+
+
+def test_schedule_ready_tasks_deduplicates_inflight_task():
+    anyio.run(_run_schedule_ready_tasks_deduplicates_inflight_task)
+
+
+async def _run_unified_retry_counter_uses_history_when_memory_resets():
+    runner = ExecutionRunner(sio=None, session_id="test")
+    runner.task_attempt_history = {
+        "3_1": [
+            {"phase": "retry", "attempt": 1, "error": "fail-1"},
+            {"phase": "retry", "attempt": 2, "error": "fail-2"},
+        ]
+    }
+
+    attempt = runner._next_retry_attempt("3_1")
+
+    assert attempt == 3
+
+
+def test_unified_retry_counter_uses_history_when_memory_resets():
+    anyio.run(_run_unified_retry_counter_uses_history_when_memory_resets)

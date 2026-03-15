@@ -17,10 +17,7 @@ from loguru import logger
 from db import DB_DIR, delete_task_artifact, get_execution_task_step_dir, get_idea, save_execution, save_task_artifact, save_validation_report
 from db import delete_task_attempt_memories, list_task_attempt_memories, save_task_attempt_memory
 from shared.constants import (
-    MAX_EXECUTION_FAILURES,
     MAX_EXECUTION_CONCURRENCY,
-    MAX_FORMAT_REPAIR_ATTEMPTS,
-    MAX_VALIDATION_FAILURES,
     MOCK_EXECUTION_PASS_PROBABILITY,
     MOCK_VALIDATION_PASS_PROBABILITY,
 )
@@ -33,6 +30,7 @@ from .agent_tools import SKILLS_ROOT
 from .docker_runtime import ensure_execution_container, get_local_docker_status, prepare_execution_runtime, stop_execution_container
 from .llm.executor import execute_task
 from .llm.validation import classify_validation_failure, validate_task_output_with_llm
+from validate_agent import review_contract_adjustment
 from shared.reflection import self_evaluate, generate_skill_from_reflection, save_learned_skill
 
 
@@ -66,9 +64,7 @@ class ExecutionRunner:
         self.task_phase_failure_count: Dict[str, int] = {}
         self.EXECUTION_PASS_PROBABILITY = MOCK_EXECUTION_PASS_PROBABILITY
         self.VALIDATION_PASS_PROBABILITY = MOCK_VALIDATION_PASS_PROBABILITY
-        self.MAX_EXECUTION_FAILURES = MAX_EXECUTION_FAILURES
-        self.MAX_VALIDATION_FAILURES = MAX_VALIDATION_FAILURES
-        self.MAX_FORMAT_REPAIR_ATTEMPTS = MAX_FORMAT_REPAIR_ATTEMPTS
+        self.MAX_RETRY_ATTEMPTS = 5
         self.execution_layout = None
         self.idea_id: Optional[str] = None
         self.plan_id: Optional[str] = None
@@ -90,10 +86,12 @@ class ExecutionRunner:
     def _get_failure_count(self, task_id: str, bucket: str) -> int:
         return int(self.task_phase_failure_count.get(self._failure_key(task_id, bucket), 0) or 0)
 
-    def _increment_failure_count(self, task_id: str, bucket: str) -> int:
-        key = self._failure_key(task_id, bucket)
-        next_count = self._get_failure_count(task_id, bucket) + 1
-        self.task_phase_failure_count[key] = next_count
+    def _next_phase_attempt(self, task_id: str, *, phase: str, bucket: str) -> int:
+        history = self.task_attempt_history.get(task_id) or []
+        phase_attempts = sum(1 for item in history if str(item.get("phase") or "") == phase)
+        in_memory_attempts = self._get_failure_count(task_id, bucket)
+        next_count = max(phase_attempts, in_memory_attempts) + 1
+        self.task_phase_failure_count[self._failure_key(task_id, bucket)] = next_count
         return next_count
 
     def _clear_task_failure_counts(self, task_id: str) -> None:
@@ -103,17 +101,167 @@ class ExecutionRunner:
                 self.task_phase_failure_count.pop(key, None)
         self.task_failure_count.pop(task_id, None)
 
-    def _validation_retry_policy(self, task_id: str, report: str, output_format: str) -> tuple[int, int, dict]:
-        classification = classify_validation_failure(report, output_format=output_format)
-        category = classification.get("category") or "semantic"
-        if category in ("format", "evidence_missing"):
-            bucket = f"validation:{category}"
-            max_attempts = self.MAX_FORMAT_REPAIR_ATTEMPTS
-        else:
-            bucket = "validation:semantic"
-            max_attempts = self.MAX_VALIDATION_FAILURES
-        attempt = self._increment_failure_count(task_id, bucket)
-        return attempt, max_attempts, classification
+    def _next_retry_attempt(self, task_id: str) -> int:
+        return self._next_phase_attempt(task_id, phase="retry", bucket="retry")
+
+    def _get_original_validation_criteria(self, task: Dict[str, Any]) -> List[str]:
+        validation = task.setdefault("validation", {})
+        if not isinstance(validation, dict):
+            validation = {}
+            task["validation"] = validation
+        original = list(validation.get("originalCriteria") or [])
+        current = list(validation.get("criteria") or [])
+        if not original:
+            original = list(current)
+            validation["originalCriteria"] = list(original)
+        return list(original)
+
+    async def _run_step_b_contract_review(
+        self,
+        *,
+        task: Dict[str, Any],
+        result: Any,
+        reason: str,
+        output_format: str,
+        on_thinking: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        task_id = str(task.get("task_id") or "")
+        validation = task.setdefault("validation", {})
+        if not isinstance(validation, dict):
+            validation = {}
+            task["validation"] = validation
+        original = self._get_original_validation_criteria(task)
+        active = list(validation.get("criteria") or [])
+
+        packet = {
+            "task": {
+                "taskId": task_id,
+                "description": task.get("description") or "",
+                "outputFormat": output_format or "",
+            },
+            "globalGoal": self._idea_text or "",
+            "attemptHistory": list(self.task_attempt_history.get(task_id) or []),
+            "initialValidationCriteria": original,
+            "activeValidationCriteria": active,
+            "resultPreview": (result if isinstance(result, dict) else {"content": str(result)[:800]}),
+            "failureReason": reason or "",
+            "immutableItems": validation.get("immutableItems") or [],
+        }
+
+        if (self.api_config or {}).get("taskUseMock"):
+            return {
+                "shouldAdjust": False,
+                "immutableImpacted": False,
+                "reasoning": "Mock mode: Step-B review skipped.",
+                "proposedValidationCriteria": active,
+                "patchSummary": "",
+                "source": "step-b-agent",
+            }
+
+        try:
+            reviewed = await review_contract_adjustment(
+                packet,
+                api_config=self.api_config,
+                abort_event=self.abort_event,
+                on_thinking=on_thinking,
+            )
+        except Exception as exc:
+            logger.warning("Step-B contract review failed task_id={} error={}", task_id, exc)
+            return {
+                "shouldAdjust": False,
+                "immutableImpacted": False,
+                "reasoning": f"Step-B review failed: {exc}",
+                "proposedValidationCriteria": active,
+                "patchSummary": "",
+                "source": "step-b-agent",
+            }
+
+        if reviewed.get("shouldAdjust") and not reviewed.get("immutableImpacted"):
+            proposed = list(reviewed.get("proposedValidationCriteria") or [])
+            if proposed:
+                validation["criteria"] = proposed
+        return reviewed
+
+    async def _retry_or_fail(
+        self,
+        *,
+        task: Dict[str, Any],
+        phase: str,
+        error: str,
+        decision: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        task_id = str(task.get("task_id") or "")
+        attempt = self._next_retry_attempt(task_id)
+        will_retry = attempt < self.MAX_RETRY_ATTEMPTS
+        payload = {
+            "taskId": task_id,
+            "phase": phase,
+            "attempt": attempt,
+            "maxAttempts": self.MAX_RETRY_ATTEMPTS,
+            "willRetry": will_retry,
+            "error": error,
+            "decision": decision or {},
+        }
+        self._emit("task-error", payload)
+        await self._record_task_attempt_failure(
+            task_id=task_id,
+            phase=phase,
+            attempt=attempt,
+            error=error,
+            will_retry=will_retry,
+            decision=decision,
+        )
+        async with self._worker_lock:
+            worker_manager["release_worker_by_task_id"](task_id)
+        self._broadcast_worker_states()
+        await asyncio.sleep(1.0)
+
+        if will_retry:
+            retry_payload = {
+                "taskId": task_id,
+                "phase": phase,
+                "reason": error,
+                "attempt": attempt,
+                "nextAttempt": attempt + 1,
+                "maxAttempts": self.MAX_RETRY_ATTEMPTS,
+                "decision": decision or {},
+            }
+            self._emit("task-retry", retry_payload)
+            await self._append_step_event(task_id, "task-retry", retry_payload)
+            self.running_tasks.discard(task_id)
+            self.completed_tasks.discard(task_id)
+            self._spawn_task_execution(task)
+            return
+
+        self.running_tasks.discard(task_id)
+        self.completed_tasks.discard(task_id)
+        await self._trigger_fail_fast(
+            failed_task_id=task_id,
+            phase=phase,
+            reason=error or "Task failed after max retries",
+        )
+
+    def _spawn_task_execution(self, task: Dict) -> None:
+        task_id = task["task_id"]
+        existing = self.task_tasks.get(task_id)
+        if existing and not existing.done():
+            return
+
+        async def run_with_error_handling(t=task):
+            try:
+                await self._execute_task(t)
+            except Exception as e:
+                await self._handle_task_error(t, e)
+
+        created = asyncio.create_task(run_with_error_handling())
+        self.task_tasks[task_id] = created
+
+        def _cleanup(done_task: asyncio.Task, tid: str = task_id) -> None:
+            current = self.task_tasks.get(tid)
+            if current is done_task:
+                self.task_tasks.pop(tid, None)
+
+        created.add_done_callback(_cleanup)
 
     def _emit_runtime_status(self) -> None:
         payload = dict(self.docker_runtime_status or {})
@@ -179,13 +327,18 @@ class ExecutionRunner:
         attempt: int,
         error: str,
         will_retry: bool,
+        decision: Optional[Dict[str, Any]] = None,
     ) -> None:
+        decision = decision or {}
         history = self.task_attempt_history.setdefault(task_id, [])
         history.append({
             "attempt": attempt,
             "phase": phase,
             "error": (error or "").strip(),
             "willRetry": bool(will_retry),
+            "decision": str(decision.get("action") or ""),
+            "category": str(decision.get("category") or ""),
+            "summary": str(decision.get("summary") or ""),
             "ts": int(time.time() * 1000),
         })
         if len(history) > 8:
@@ -201,6 +354,9 @@ class ExecutionRunner:
                     "phase": phase,
                     "error": latest.get("error") or "",
                     "willRetry": bool(will_retry),
+                    "decision": latest.get("decision") or "",
+                    "category": latest.get("category") or "",
+                    "summary": latest.get("summary") or "",
                     "ts": latest.get("ts"),
                 },
             )
@@ -226,11 +382,23 @@ class ExecutionRunner:
                     "phase": str(data.get("phase") or "execution"),
                     "error": str(data.get("error") or ""),
                     "willRetry": bool(data.get("willRetry")),
+                    "decision": str(data.get("decision") or ""),
+                    "category": str(data.get("category") or ""),
+                    "summary": str(data.get("summary") or ""),
                     "ts": int(data.get("ts") or 0),
                 }
             )
         for task_id, items in grouped.items():
             self.task_attempt_history[task_id] = sorted(items, key=lambda x: (x.get("attempt") or 0, x.get("ts") or 0))[-8:]
+
+    async def _clear_attempt_history_for_tasks(self, task_ids: Set[str]) -> None:
+        for task_id in set(task_ids or set()):
+            self.task_attempt_history.pop(task_id, None)
+            if self.research_id:
+                try:
+                    await delete_task_attempt_memories(self.research_id, task_id)
+                except Exception:
+                    logger.exception("Failed to clear task attempt memories research_id={} task_id={}", self.research_id, task_id)
 
     def _build_task_execution_context(
         self,
@@ -327,6 +495,13 @@ class ExecutionRunner:
         self.docker_container_name = ""
         self.task_docker_containers.clear()
         self.docker_runtime_status = {"enabled": False, "available": False, "connected": False}
+        # Attempt history is scoped to one execute run. Start of a new run clears persisted memories.
+        if self.research_id:
+            try:
+                await delete_task_attempt_memories(self.research_id)
+            except Exception:
+                logger.exception("Failed to clear task attempt memories for new run research_id={}", self.research_id)
+        self.task_attempt_history.clear()
         if self.idea_id:
             try:
                 idea_data = await get_idea(self.idea_id)
@@ -360,7 +535,6 @@ class ExecutionRunner:
             self.reverse_dependency_index.clear()
             self.task_failure_count.clear()
             self.task_phase_failure_count.clear()
-            await self._load_task_attempt_memories()
 
             for task in self.chain_cache:
                 self.task_map[task["task_id"]] = task
@@ -385,6 +559,7 @@ class ExecutionRunner:
                     elif task.get("status") == "done":
                         self.completed_tasks.add(task["task_id"])
                         self.pending_tasks.discard(task["task_id"])
+                await self._clear_attempt_history_for_tasks(set(to_reset))
             else:
                 for task in self.chain_cache:
                     task["status"] = "undone"
@@ -429,13 +604,7 @@ class ExecutionRunner:
         )
 
         for task in initial_ready:
-            async def run_with_error_handling(t=task):
-                try:
-                    await self._execute_task(t)
-                except Exception as e:
-                    await self._handle_task_error(t, e)
-
-            self.task_tasks[task["task_id"]] = asyncio.create_task(run_with_error_handling())
+            self._spawn_task_execution(task)
 
         # Event-driven: wait for completion (task completion triggers _schedule_ready_tasks)
         last_heartbeat = time.monotonic()
@@ -523,6 +692,7 @@ class ExecutionRunner:
         try:
             input_spec = task.get("input") or {}
             output_spec = task.get("output") or {}
+            result: Any = None
             if not output_spec:
                 raise ValueError(f"Task {task['task_id']} has no output spec")
             execution_error_message = ""
@@ -616,92 +786,139 @@ class ExecutionRunner:
 
             if not execution_passed:
                 self._update_task_status(task["task_id"], "execution-failed")
-                attempt = self._increment_failure_count(task["task_id"], "execution")
-                will_retry = attempt < self.MAX_EXECUTION_FAILURES
-                logger.warning(
-                    "Task execution failed task_id={} attempt={}/{}",
-                    task["task_id"],
-                    attempt,
-                    self.MAX_EXECUTION_FAILURES,
-                )
-                self._emit("task-error", {
-                    "taskId": task["task_id"],
-                    "phase": "execution",
-                    "attempt": attempt,
-                    "maxAttempts": self.MAX_EXECUTION_FAILURES,
-                    "willRetry": will_retry,
-                    "error": execution_error_message or "Task execution failed",
-                })
-                await self._record_task_attempt_failure(
-                    task_id=task["task_id"],
+                await self._retry_or_fail(
+                    task=task,
                     phase="execution",
-                    attempt=attempt,
                     error=execution_error_message or "Task execution failed",
-                    will_retry=will_retry,
+                    decision={"action": "retry", "source": "simple-retry"},
                 )
-                async with self._worker_lock:
-                    worker_manager["release_worker_by_task_id"](task["task_id"])
-                self._broadcast_worker_states()
-                await asyncio.sleep(1.0)
-                if will_retry:
-                    next_attempt = attempt + 1
-                    logger.info("Task retry scheduled task_id={} next_attempt={}", task["task_id"], next_attempt)
-                    retry_payload = {
-                        "taskId": task["task_id"],
-                        "phase": "execution",
-                        "reason": execution_error_message or "Task execution failed",
-                        "attempt": attempt,
-                        "nextAttempt": next_attempt,
-                        "maxAttempts": self.MAX_EXECUTION_FAILURES,
-                    }
-                    self._emit("task-retry", retry_payload)
-                    await self._append_step_event(task["task_id"], "task-retry", retry_payload)
-                    self.running_tasks.discard(task["task_id"])
-                    self.completed_tasks.discard(task["task_id"])
-                    await self._execute_task(task)
-                    return
-                else:
-                    logger.warning("Task rollback after repeated execution failure task_id={}", task["task_id"])
-                    self.running_tasks.discard(task["task_id"])
-                    self.completed_tasks.discard(task["task_id"])
-                    await self._rollback_task(task)
-                    return
+                return
 
             # Slot stays held; validation is fixed behavior after execution
             worker_manager["set_worker_status"](task["task_id"], "validating")
             self._broadcast_worker_states()
             self._update_task_status(task["task_id"], "validating")
 
-            # Validation: mock uses random; LLM mode uses LLM validation; Agent mode validates via skill before Finish
+            # Validation flow (simplified):
+            # Step A: format gate
+            # Step B: agent contract adjustment review (always)
+            # Step C: final validation against original criteria
             task_id = task["task_id"]
             output_spec = task.get("output") or {}
             use_mock = (self.api_config or {}).get("taskUseMock", True)
+            original_criteria = self._get_original_validation_criteria(task)
             if use_mock:
                 validation_passed = random.random() < self.VALIDATION_PASS_PROBABILITY
                 report = (
                     f"# Validating Task {task_id}\n\n"
-                    "Checking output against criteria...\n\n"
-                    "- Criterion 1: Output format ✓\n"
-                    "- Criterion 2: Content completeness ✓\n"
-                    "- Criterion 3: Alignment with spec ✓\n\n"
+                    "Checking output against simplified 3-step flow...\n\n"
+                    "- Step A format gate: PASS\n"
+                    "- Step B contract review: SKIPPED (mock mode)\n"
+                    "- Step C original-contract validation: PASS\n\n"
                     f"**Result: {'PASS' if validation_passed else 'FAIL'}**\n\n"
                     "(Mock validation mode)"
                 )
+                step_b_review = {
+                    "shouldAdjust": False,
+                    "immutableImpacted": False,
+                    "reasoning": "Mock mode: Step-B skipped.",
+                    "patchSummary": "",
+                    "source": "step-b-agent",
+                }
             else:
-                validation_spec = task.get("validation")
-                validation_passed, report = await validate_task_output_with_llm(
+                format_validation_spec = {
+                    "criteria": [
+                        f"Output format must match expected format exactly: {output_spec.get('format') or 'unspecified'}."
+                    ]
+                }
+                format_passed, format_report = await validate_task_output_with_llm(
                     result,
                     output_spec,
                     task_id,
-                    validation_spec=validation_spec,
+                    validation_spec=format_validation_spec,
                     api_config=self.api_config,
                     abort_event=self.abort_event,
                     on_thinking=_on_thinking,
                 )
+                format_classification = classify_validation_failure(
+                    format_report,
+                    output_format=output_spec.get("format") or "",
+                )
+
+                step_b_review = await self._run_step_b_contract_review(
+                    task=task,
+                    result=result,
+                    reason=format_report,
+                    output_format=output_spec.get("format") or "",
+                    on_thinking=_on_thinking,
+                )
+                self._emit("task-step-b", {
+                    "taskId": task_id,
+                    "attempt": self._get_failure_count(task_id, "retry") + 1,
+                    "phase": "validation",
+                    "shouldAdjust": bool(step_b_review.get("shouldAdjust")),
+                    "immutableImpacted": bool(step_b_review.get("immutableImpacted")),
+                    "reasoning": step_b_review.get("reasoning") or "",
+                    "patchSummary": step_b_review.get("patchSummary") or "",
+                })
+                await self._append_step_event(task_id, "task-step-b", {
+                    "shouldAdjust": bool(step_b_review.get("shouldAdjust")),
+                    "immutableImpacted": bool(step_b_review.get("immutableImpacted")),
+                    "reasoning": step_b_review.get("reasoning") or "",
+                    "patchSummary": step_b_review.get("patchSummary") or "",
+                })
+
+                if (not format_passed) or format_classification.get("category") in (
+                    "format",
+                    "contract_mismatch",
+                    "evidence_missing",
+                ):
+                    validation_passed = False
+                    report = (
+                        "# Validation FAILED\n\n"
+                        "Step A (format gate) failed.\n\n"
+                        f"{format_report}"
+                    )
+                else:
+                    final_validation_spec = {"criteria": list(original_criteria)}
+                    validation_passed, final_report = await validate_task_output_with_llm(
+                        result,
+                        output_spec,
+                        task_id,
+                        validation_spec=final_validation_spec,
+                        api_config=self.api_config,
+                        abort_event=self.abort_event,
+                        on_thinking=_on_thinking,
+                    )
+                    report = (
+                        "# Validation Flow\n\n"
+                        "Step A (format gate): PASS\n"
+                        f"Step B (contract review): {'ADJUSTED' if step_b_review.get('shouldAdjust') else 'NO CHANGE'}\n"
+                        "Step C (original contract): "
+                        f"{'PASS' if validation_passed else 'FAIL'}\n\n"
+                        f"{final_report}"
+                    )
             if use_mock:
                 for chunk in chunk_string(report, 20):
                     await self._emit_await("task-thinking", {"chunk": chunk, "source": "task", "taskId": task_id, "operation": "Validate"})
                     await asyncio.sleep(_MOCK_VALIDATOR_CHUNK_DELAY)
+
+            if use_mock:
+                self._emit("task-step-b", {
+                    "taskId": task_id,
+                    "attempt": self._get_failure_count(task_id, "retry") + 1,
+                    "phase": "validation",
+                    "shouldAdjust": False,
+                    "immutableImpacted": False,
+                    "reasoning": step_b_review.get("reasoning") or "Mock mode: Step-B skipped.",
+                    "patchSummary": "",
+                })
+                await self._append_step_event(task_id, "task-step-b", {
+                    "shouldAdjust": False,
+                    "immutableImpacted": False,
+                    "reasoning": step_b_review.get("reasoning") or "Mock mode: Step-B skipped.",
+                    "patchSummary": "",
+                })
 
             if self.idea_id and self.plan_id:
                 await save_validation_report(
@@ -745,60 +962,17 @@ class ExecutionRunner:
                 validation_reason = "Validation failed"
                 if report:
                     validation_reason = report[:500]
-                attempt, max_attempts, classification = self._validation_retry_policy(
-                    task_id,
-                    validation_reason,
-                    output_spec.get("format") or "",
-                )
-                will_retry = classification.get("retryable", True) and attempt < max_attempts
-                logger.warning(
-                    "Task validation failed task_id={} attempt={}/{}",
-                    task_id,
-                    attempt,
-                    max_attempts,
-                )
-                self._emit("task-error", {
-                    "taskId": task_id,
-                    "phase": "validation",
-                    "attempt": attempt,
-                    "maxAttempts": max_attempts,
-                    "willRetry": will_retry,
-                    "error": validation_reason,
-                })
-                await self._record_task_attempt_failure(
-                    task_id=task_id,
+                await self._retry_or_fail(
+                    task=task,
                     phase="validation",
-                    attempt=attempt,
                     error=validation_reason,
-                    will_retry=will_retry,
+                    decision={
+                        "action": "retry",
+                        "source": "simple-retry",
+                        "stepB": step_b_review,
+                    },
                 )
-                await asyncio.sleep(1.0)
-                async with self._worker_lock:
-                    worker_manager["release_worker_by_task_id"](task["task_id"])
-                self._broadcast_worker_states()
-                if will_retry:
-                    next_attempt = attempt + 1
-                    logger.info("Task retry after validation failure task_id={} next_attempt={}", task_id, next_attempt)
-                    retry_payload = {
-                        "taskId": task_id,
-                        "phase": "validation",
-                        "reason": validation_reason,
-                        "attempt": attempt,
-                        "nextAttempt": next_attempt,
-                        "maxAttempts": max_attempts,
-                    }
-                    self._emit("task-retry", retry_payload)
-                    await self._append_step_event(task["task_id"], "task-retry", retry_payload)
-                    self.running_tasks.discard(task["task_id"])
-                    self.completed_tasks.discard(task["task_id"])
-                    await self._execute_task(task)
-                    return
-                else:
-                    logger.warning("Task rollback after repeated validation failure task_id={}", task_id)
-                    self.running_tasks.discard(task["task_id"])
-                    self.completed_tasks.discard(task["task_id"])
-                    await self._rollback_task(task)
-                    return
+                return
 
         except Exception as e:
             async with self._worker_lock:
@@ -887,14 +1061,7 @@ class ExecutionRunner:
             and self._are_dependencies_satisfied(t)
         ]
         for task in ready:
-            if task["task_id"] not in self.task_tasks:
-                async def run_with_error_handling(t=task):
-                    try:
-                        await self._execute_task(t)
-                    except Exception as e:
-                        await self._handle_task_error(t, e)
-
-                self.task_tasks[task["task_id"]] = asyncio.create_task(run_with_error_handling())
+            self._spawn_task_execution(task)
 
     async def _handle_task_error(self, task: Dict, error: Exception) -> None:
         logger.exception("Error executing task %s", task["task_id"])
@@ -1091,31 +1258,50 @@ class ExecutionRunner:
 
     async def retry_task(self, task_id: str) -> bool:
         """
-        Retry a single failed task. If execution is running, reset and re-schedule in-place.
-        If not running, start execution with resume_from_task_id.
+        Retry from a task and clear all downstream runtime history/artifacts.
+        If execution is running, reset and re-schedule in-place.
+        If not running, caller may start execution with resume_from_task_id.
         Returns True if retry was initiated.
         """
         if task_id not in self.task_map:
             return False
-        task = self.task_map[task_id]
-        status = task.get("status")
-        if status not in ("execution-failed", "validation-failed"):
-            return False
+        tasks_to_reset = self._get_downstream_task_ids(task_id)
+
+        # Cancel in-flight asyncio tasks for the reset subtree to avoid stale writes.
+        for tid in list(tasks_to_reset):
+            asyncio_task = self.task_tasks.pop(tid, None)
+            if asyncio_task and not asyncio_task.done():
+                asyncio_task.cancel()
+
+        async with self._worker_lock:
+            for tid in tasks_to_reset:
+                self.completed_tasks.discard(tid)
+                self.running_tasks.discard(tid)
+                self.pending_tasks.add(tid)
+                self._clear_task_failure_counts(tid)
+                if tid in self.task_map:
+                    self.task_map[tid]["status"] = "undone"
+                worker_manager["release_worker_by_task_id"](tid)
+                if self.idea_id and self.plan_id:
+                    await delete_task_artifact(self.idea_id, self.plan_id, tid)
+
+        await self._clear_attempt_history_for_tasks(tasks_to_reset)
+
+        self._persist_execution()
+        self._broadcast_task_states()
+        self._broadcast_worker_states()
 
         if self.is_running:
-            self.completed_tasks.discard(task_id)
-            self.running_tasks.discard(task_id)
-            self.pending_tasks.add(task_id)
-            self._clear_task_failure_counts(task_id)
-            self.task_tasks.pop(task_id, None)
-            task["status"] = "undone"
-            if self.idea_id and self.plan_id:
-                await delete_task_artifact(self.idea_id, self.plan_id, task_id)
-            self._persist_execution()
-            self._broadcast_task_states()
-            self._schedule_ready_tasks([task])
-            return True
-        return False
+            ready = [
+                self.task_map[tid]
+                for tid in tasks_to_reset
+                if tid in self.task_map
+                and tid in self.pending_tasks
+                and self._are_dependencies_satisfied(self.task_map[tid])
+            ]
+            if ready:
+                self._schedule_ready_tasks(ready)
+        return True
 
     async def stop_async(self) -> None:
         """停止 Task Agent Execution 阶段：发送中止信号，取消任务，释放 worker，立即推送 task-error。"""

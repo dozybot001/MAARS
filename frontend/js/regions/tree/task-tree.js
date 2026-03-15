@@ -564,14 +564,17 @@
         if (!tasks || !Array.isArray(tasks)) return;
         const areas = document.querySelectorAll('.plan-agent-tree-area, .plan-agent-execution-tree-area');
         tasks.forEach((taskState) => {
+            const taskId = String(taskState?.task_id || taskState?.taskId || '').trim();
+            const status = String(taskState?.status || '').trim();
+            if (!taskId) return;
             areas.forEach((treeArea) => {
                 if (!treeArea) return;
-                const byId = treeArea.querySelectorAll(`[data-task-id="${taskState.task_id}"]`);
+                const byId = treeArea.querySelectorAll(`[data-task-id="${taskId}"]`);
                 const byIds = treeArea.querySelectorAll('[data-task-ids]');
                 const cells = Array.from(byId);
                 byIds.forEach((cell) => {
                     const ids = (cell.getAttribute('data-task-ids') || '').split(',').map((s) => s.trim());
-                    if (ids.includes(taskState.task_id)) cells.push(cell);
+                    if (ids.includes(taskId)) cells.push(cell);
                 });
                 cells.forEach((cell) => {
                     cell.classList.remove('task-status-undone', 'task-status-doing', 'task-status-validating', 'task-status-done', 'task-status-validation-failed', 'task-status-execution-failed');
@@ -580,19 +583,19 @@
                         try {
                             const d = JSON.parse(dataAttr);
                             const arr = Array.isArray(d) ? d : [d];
-                            const updated = arr.map((t) => (t.task_id === taskState.task_id ? { ...t, status: taskState.status } : t));
+                            const updated = arr.map((t) => (t.task_id === taskId ? { ...t, status } : t));
                             cell.setAttribute('data-task-data', JSON.stringify(Array.isArray(d) ? updated : updated[0]));
-                            const status = arr.length === 1 ? taskState.status : aggregateStatus(updated);
-                            if (status && status !== 'undone') cell.classList.add(`task-status-${status}`);
+                            const mergedStatus = arr.length === 1 ? status : aggregateStatus(updated);
+                            if (mergedStatus && mergedStatus !== 'undone') cell.classList.add(`task-status-${mergedStatus}`);
                         } catch (_) {
-                            if (taskState.status && taskState.status !== 'undone') cell.classList.add(`task-status-${taskState.status}`);
+                            if (status && status !== 'undone') cell.classList.add(`task-status-${status}`);
                         }
                     } else {
-                        if (taskState.status && taskState.status !== 'undone') cell.classList.add(`task-status-${taskState.status}`);
+                        if (status && status !== 'undone') cell.classList.add(`task-status-${status}`);
                     }
-                    document.querySelectorAll(`.task-detail-tab[data-tab-task-id="${taskState.task_id}"]`).forEach((tab) => {
+                    document.querySelectorAll(`.task-detail-tab[data-tab-task-id="${taskId}"]`).forEach((tab) => {
                         tab.classList.remove('task-status-undone', 'task-status-doing', 'task-status-validating', 'task-status-done', 'task-status-validation-failed', 'task-status-execution-failed');
-                        if (taskState.status && taskState.status !== 'undone') tab.classList.add(`task-status-${taskState.status}`);
+                        if (status && status !== 'undone') tab.classList.add(`task-status-${status}`);
                     });
                 });
             });
