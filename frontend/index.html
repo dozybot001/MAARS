@@ -154,6 +154,13 @@
                                             <button type="button" class="settings-mode-cell" data-row="paperAgent" data-col="agent">Agent</button>
                                         </div>
                                     </div>
+                                    <div class="settings-field settings-literature-source-row">
+                                        <label for="ideaLiteratureSource">Literature Source</label>
+                                        <select id="ideaLiteratureSource">
+                                            <option value="openalex">OpenAlex (default)</option>
+                                            <option value="arxiv">arXiv (legacy)</option>
+                                        </select>
+                                    </div>
                                     <div class="settings-idea-rag-row">
                                         <label class="settings-toggle-row">
                                             <input type="checkbox" id="ideaRAGEnabled" />
@@ -262,16 +269,34 @@
     <script src="js/core/config.js"></script>
     <script src="js/core/logger.js"></script>
     <script src="js/core/state.js"></script>
+    <script src="js/regions/tree/task-tree-popover.js"></script>
+    <script src="js/regions/tree/task-tree-zoom.js"></script>
+    <script src="js/regions/tree/task-tree-events.js"></script>
+    <script src="js/regions/tree/task-tree-renderer.js"></script>
     <script src="js/regions/tree/task-tree.js"></script>
     <script src="js/ui/theme.js"></script>
 
+    <script src="js/api/research-api.js"></script>
     <script src="js/api/api.js"></script>
+    <script src="js/flows/task-run-controls.js"></script>
+    <script src="js/flows/task-execution-state.js"></script>
     <script src="js/flows/task.js"></script>
+    <script src="js/flows/research-execute-utils.js"></script>
+    <script src="js/flows/research-execution-graph.js"></script>
+    <script src="js/flows/research-nav-utils.js"></script>
+    <script src="js/flows/research-core-utils.js"></script>
+    <script src="js/flows/research-execute-render.js"></script>
+    <script src="js/flows/research-large-helpers.js"></script>
+    <script src="js/flows/research-stage-ui.js"></script>
     <script src="js/flows/research.js"></script>
+    <script src="js/regions/output-utils.js"></script>
     <script src="js/regions/output.js"></script>
+    <script src="js/regions/thinking-stream.js"></script>
     <script src="js/regions/thinking.js"></script>
     <script src="js/ws/handlers/thinking-handler.js"></script>
     <script src="js/ws/websocket.js"></script>
+    <script src="js/ui/settings-presets.js"></script>
+    <script src="js/ui/settings-sync.js"></script>
     <script src="js/ui/settings.js"></script>
     <script src="js/ui/sidebar.js"></script>
     <script src="app.js"></script>

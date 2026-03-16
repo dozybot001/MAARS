@@ -3,8 +3,8 @@ from shared.constants import TASK_AGENT_MAX_TURNS
 import anyio
 
 
-def test_task_agent_max_turns_is_100():
-    assert TASK_AGENT_MAX_TURNS == 100
+def test_task_agent_max_turns_is_200():
+    assert TASK_AGENT_MAX_TURNS == 200
 
 
 def test_build_user_message_includes_execution_context_retry_memory():
