@@ -22,7 +22,7 @@ from .runner_deps import RunnerDeps, build_default_deps
 from .runner_execution_mixin import RunnerExecutionMixin
 from . import runner_memory_mixin as memory_fns
 from . import runner_retry_mixin as retry_fns
-from .runner_state_mixin import RunnerStateMixin
+from . import runner_state_mixin as state_fns
 
 # --- Backward-compat symbols for test monkeypatching ---
 # Tests do: monkeypatch.setattr(runner_mod, "resolve_artifacts", fake)
@@ -54,7 +54,6 @@ _MOCK_VALIDATOR_CHUNK_DELAY = _env_float("MAARS_MOCK_VALIDATOR_CHUNK_DELAY", 0.0
 
 
 class ExecutionRunner(
-    RunnerStateMixin,
     RunnerExecutionMixin,
 ):
     def __init__(self, sio: Any, session_id: Optional[str] = None, deps: Optional[RunnerDeps] = None):
@@ -192,6 +191,47 @@ class ExecutionRunner(
             chain_cache=self.chain_cache, idea_text=self._idea_text,
             execution_run_id=self.execution_run_id,
         )
+
+    # -- State/scheduling delegates (from runner_state_mixin functions) --
+
+    def _schedule_ready_tasks(self, tasks_to_check: List[Dict]) -> None:
+        state_fns.schedule_ready_tasks(self, tasks_to_check)
+
+    async def _handle_task_error(self, task: Dict, error: Exception) -> None:
+        await state_fns.handle_task_error(self, task, error)
+
+    async def _trigger_fail_fast(self, *, failed_task_id: str, phase: str, reason: str) -> None:
+        await state_fns.trigger_fail_fast(self, failed_task_id=failed_task_id, phase=phase, reason=reason)
+
+    def _are_dependencies_satisfied(self, task: Dict) -> bool:
+        return state_fns.are_dependencies_satisfied(self.completed_tasks, task)
+
+    def _update_task_status(self, task_id: str, status: str) -> None:
+        state_fns.update_task_status(self, task_id, status)
+
+    async def _append_step_event(self, task_id: str, event: str, payload: Dict[str, Any]) -> None:
+        await state_fns.append_step_event(self.execution_run_id, task_id, event, payload)
+
+    async def _stop_all_task_containers(self) -> None:
+        await state_fns.stop_all_task_containers(self)
+
+    def _broadcast_task_states(self) -> None:
+        state_fns.broadcast_task_states(self)
+
+    def _broadcast_worker_states(self) -> None:
+        state_fns.broadcast_worker_states(self)
+
+    async def _rollback_task(self, task: Dict) -> None:
+        await state_fns.rollback_task(self, task)
+
+    def set_layout(self, layout: Dict, idea_id: Optional[str] = None, plan_id: Optional[str] = None, execution: Optional[Dict] = None) -> None:
+        state_fns.set_layout(self, layout, idea_id, plan_id, execution)
+
+    async def retry_task(self, task_id: str) -> bool:
+        return await state_fns.retry_task(self, task_id)
+
+    async def stop_async(self) -> None:
+        await state_fns.stop_async(self)
 
     # -- Task lifecycle --
 
