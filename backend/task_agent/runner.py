@@ -21,7 +21,7 @@ from db import save_execution as _db_save_execution
 from .runner_deps import RunnerDeps, build_default_deps
 from .runner_execution_mixin import RunnerExecutionMixin
 from .runner_memory_mixin import RunnerMemoryMixin
-from .runner_retry_mixin import RunnerRetryMixin
+from . import runner_retry_mixin as retry_fns
 from .runner_state_mixin import RunnerStateMixin
 
 # --- Backward-compat symbols for test monkeypatching ---
@@ -55,7 +55,6 @@ _MOCK_VALIDATOR_CHUNK_DELAY = _env_float("MAARS_MOCK_VALIDATOR_CHUNK_DELAY", 0.0
 
 class ExecutionRunner(
     RunnerMemoryMixin,
-    RunnerRetryMixin,
     RunnerStateMixin,
     RunnerExecutionMixin,
 ):
@@ -127,6 +126,43 @@ class ExecutionRunner(
                 await self.sio.emit(event, data, to=self.session_id)
             except Exception as e:
                 logger.warning("%s emit failed: %s", event, e)
+
+    # -- Retry/attempt delegates (from runner_retry_mixin functions) --
+
+    def _failure_key(self, task_id: str, bucket: str) -> str:
+        return retry_fns.failure_key(task_id, bucket)
+
+    def _get_failure_count(self, task_id: str, bucket: str) -> int:
+        return retry_fns.get_failure_count(self.task_phase_failure_count, task_id, bucket)
+
+    def _clear_task_failure_counts(self, task_id: str) -> None:
+        retry_fns.clear_task_failure_counts(self.task_phase_failure_count, self.task_failure_count, task_id)
+
+    @staticmethod
+    def _extract_direct_fail_reason(report_text: str) -> str:
+        return retry_fns.extract_direct_fail_reason(report_text)
+
+    def _next_retry_attempt(self, task_id: str) -> int:
+        return retry_fns.next_retry_attempt(self.task_attempt_history, self.task_phase_failure_count, task_id)
+
+    def _get_current_attempt(self, task_id: str) -> int:
+        return retry_fns.get_current_attempt(self.task_attempt_history, self.task_phase_failure_count, task_id)
+
+    def _resolve_run_attempt(self, task_id: str) -> int:
+        return retry_fns.resolve_run_attempt(
+            self.task_run_attempt, self.task_forced_attempt, self.task_next_attempt_hint,
+            self.task_attempt_history, self.task_phase_failure_count, task_id,
+        )
+
+    def _reserve_execute_attempt(self, task_id: str, requested_attempt: int) -> int:
+        return retry_fns.reserve_execute_attempt(self.task_execute_started_attempts, task_id, requested_attempt)
+
+    def _get_original_validation_criteria(self, task: Dict) -> List[str]:
+        return retry_fns.get_original_validation_criteria(task)
+
+    @staticmethod
+    def _run_step_a_structural_format_gate(result: Any, output_spec: Dict[str, Any]) -> tuple[bool, str]:
+        return retry_fns.run_step_a_structural_format_gate(result, output_spec)
 
     # -- Task lifecycle --
 
