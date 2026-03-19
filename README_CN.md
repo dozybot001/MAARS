@@ -2,7 +2,7 @@
 
 Multi-Agent Automated Research System — 多智能体自动研究系统。从模糊 idea 到论文草稿的一站式研究流水线。
 
-[English README](README.md) | **中文版**
+中文｜[English](README.md)
 
 ---
 
