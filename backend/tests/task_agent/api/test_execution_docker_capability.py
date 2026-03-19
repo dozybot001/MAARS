@@ -31,7 +31,6 @@ def test_execution_run_uses_task_docker_flow_and_writes_step_events(
     client,
     session_headers,
     seed_real_refine_plan,
-    monkeypatch,
 ):
     # Enable taskAgentMode=True through settings
     set_resp = client.post("/api/settings", json=_agent_mode_settings_payload())
@@ -58,8 +57,11 @@ def test_execution_run_uses_task_docker_flow_and_writes_step_events(
     )
     assert layout_resp.status_code == 200
 
-    # Patch runtime pieces so test is deterministic and offline
-    from task_agent import runner as runner_mod
+    # Patch runtime pieces so test is deterministic and offline — inject via runner._deps
+    from api import state as api_state
+
+    sid = session_headers["X-MAARS-SESSION-ID"]
+    runner = api_state.sessions[sid].runner
 
     ensure_calls = []
     run_agent_calls = []
@@ -126,18 +128,18 @@ def test_execution_run_uses_task_docker_flow_and_writes_step_events(
         task_id = kwargs.get("task_id") or "unknown"
         return {"content": f"docker-agent-output-{task_id}"}
 
-    async def fake_validate_task_output_with_llm(*args, **kwargs):
+    async def fake_validate_task_output(*args, **kwargs):
         return True, "ok"
 
     async def fake_stop_execution_container(container_name):
         stop_calls.append(container_name)
 
-    monkeypatch.setattr(runner_mod, "get_local_docker_status", fake_get_local_docker_status)
-    monkeypatch.setattr(runner_mod, "prepare_execution_runtime", fake_prepare_execution_runtime)
-    monkeypatch.setattr(runner_mod, "ensure_execution_container", fake_ensure_execution_container)
-    monkeypatch.setattr(runner_mod, "run_task_agent", fake_run_task_agent)
-    monkeypatch.setattr(runner_mod, "validate_task_output_with_llm", fake_validate_task_output_with_llm)
-    monkeypatch.setattr(runner_mod, "stop_execution_container", fake_stop_execution_container)
+    runner._deps.get_local_docker_status = fake_get_local_docker_status
+    runner._deps.prepare_execution_runtime = fake_prepare_execution_runtime
+    runner._deps.ensure_execution_container = fake_ensure_execution_container
+    runner._deps.run_task_agent = fake_run_task_agent
+    runner._deps.validate_task_output = fake_validate_task_output
+    runner._deps.stop_execution_container = fake_stop_execution_container
 
     run_resp = client.post(
         "/api/execution/run",

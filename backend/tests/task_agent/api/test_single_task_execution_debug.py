@@ -13,7 +13,6 @@ def test_single_task_1_data_preparation_execution_debug(
     client,
     session_headers,
     seed_real_refine_plan,
-    monkeypatch,
 ):
     """
     Execute plan task "1" (Data Preparation) with extensive tracing.
@@ -90,19 +89,22 @@ def test_single_task_1_data_preparation_execution_debug(
     )
     assert layout_resp.status_code == 200
 
-    # 3. Monkeypatch runner to capture events and mock agent
-    from task_agent import runner as runner_mod
+    # 3. Inject fakes via runner._deps and patch _emit on the instance
+    from api import state as api_state
+
+    sid = session_headers["X-MAARS-SESSION-ID"]
+    runner = api_state.sessions[sid].runner
 
     captured_events = []
     agent_output = None
     target_task_id = task_1.get("task_id")  # Dynamically capture the task ID
 
-    original_emit = runner_mod.ExecutionRunner._emit
+    original_emit = runner._emit  # save the bound method
 
-    def capture_emit(self, event, data):
+    def patched_emit(event, data):
         captured_events.append((event, json.dumps(data)))
         print(f"\n>>> EMIT: {event} = {json.dumps(data, indent=2)[:200]}...", flush=True)
-        original_emit(self, event, data)
+        original_emit(event, data)
 
     async def mock_run_task_agent(**kwargs):
         task_id = kwargs.get("task_id")
@@ -128,7 +130,7 @@ def test_single_task_1_data_preparation_execution_debug(
         print(f"\n=== AGENT OUTPUT ===\n{json.dumps(agent_output, indent=2, ensure_ascii=False)}", flush=True)
         return agent_output
 
-    async def mock_validate_task_output_with_llm(*args, **kwargs):
+    async def mock_validate_task_output(*args, **kwargs):
         return True, "Data preparation completed successfully"
 
     async def mock_ensure_execution_container(**kwargs):
@@ -174,13 +176,13 @@ def test_single_task_1_data_preparation_execution_debug(
             "serverVersion": "test",
         }
 
-    monkeypatch.setattr(runner_mod.ExecutionRunner, "_emit", capture_emit)
-    monkeypatch.setattr(runner_mod, "run_task_agent", mock_run_task_agent)
-    monkeypatch.setattr(runner_mod, "validate_task_output_with_llm", mock_validate_task_output_with_llm)
-    monkeypatch.setattr(runner_mod, "prepare_execution_runtime", mock_prepare_execution_runtime)
-    monkeypatch.setattr(runner_mod, "ensure_execution_container", mock_ensure_execution_container)
-    monkeypatch.setattr(runner_mod, "stop_execution_container", mock_stop_execution_container)
-    monkeypatch.setattr(runner_mod, "get_local_docker_status", mock_get_local_docker_status)
+    runner._emit = patched_emit
+    runner._deps.run_task_agent = mock_run_task_agent
+    runner._deps.validate_task_output = mock_validate_task_output
+    runner._deps.prepare_execution_runtime = mock_prepare_execution_runtime
+    runner._deps.ensure_execution_container = mock_ensure_execution_container
+    runner._deps.stop_execution_container = mock_stop_execution_container
+    runner._deps.get_local_docker_status = mock_get_local_docker_status
 
     # 4. Run execution
     run_resp = client.post(

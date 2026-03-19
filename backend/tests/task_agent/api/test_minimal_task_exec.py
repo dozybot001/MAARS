@@ -10,7 +10,6 @@ def test_single_first_task_basic_execution(
     client,
     session_headers,
     seed_real_refine_plan,
-    monkeypatch,
 ):
     """
     Basic execution of first task - verify output generation without heavy tracing.
@@ -54,13 +53,16 @@ def test_single_first_task_basic_execution(
         json={"ideaId": idea_id, "planId": plan_id, "execution": execution},
     )
 
-    # Mock agent
-    from task_agent import runner as runner_mod
+    # Mock agent — inject fakes via runner._deps
+    from api import state as api_state
+
+    sid = session_headers["X-MAARS-SESSION-ID"]
+    runner = api_state.sessions[sid].runner
 
     async def fake_run_task_agent(**kwargs):
         return {"status": "success", "data": "task output data"}
 
-    async def fake_validate_task_output_with_llm(*args, **kwargs):
+    async def fake_validate_task_output(*args, **kwargs):
         return True, "Valid"
 
     async def fake_prepare_execution_runtime(*, enabled=True, image=None):
@@ -74,16 +76,18 @@ def test_single_first_task_basic_execution(
             "taskId": kwargs.get("task_id"),
         }
 
-    monkeypatch.setattr(runner_mod, "run_task_agent", fake_run_task_agent)
-    monkeypatch.setattr(runner_mod, "validate_task_output_with_llm", fake_validate_task_output_with_llm)
-    monkeypatch.setattr(runner_mod, "prepare_execution_runtime", fake_prepare_execution_runtime)
-    monkeypatch.setattr(runner_mod, "ensure_execution_container", mock_ensure_execution_container)
     async def fake_stop_execution_container(_container_name):
         return None
-    monkeypatch.setattr(runner_mod, "stop_execution_container", fake_stop_execution_container)
+
     async def fake_get_local_docker_status(**k):
         return {"enabled": True, "available": True, "connected": True}
-    monkeypatch.setattr(runner_mod, "get_local_docker_status", fake_get_local_docker_status)
+
+    runner._deps.run_task_agent = fake_run_task_agent
+    runner._deps.validate_task_output = fake_validate_task_output
+    runner._deps.prepare_execution_runtime = fake_prepare_execution_runtime
+    runner._deps.ensure_execution_container = mock_ensure_execution_container
+    runner._deps.stop_execution_container = fake_stop_execution_container
+    runner._deps.get_local_docker_status = fake_get_local_docker_status
 
     # Run
     run_resp = client.post(
