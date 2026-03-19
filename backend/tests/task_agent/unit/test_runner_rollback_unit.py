@@ -3,10 +3,18 @@ import asyncio
 import anyio
 
 from task_agent.runner import ExecutionRunner
+from task_agent.runner_deps import RunnerDeps
 
 
-async def _run_rollback_keeps_upstream(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
+async def _run_rollback_keeps_upstream():
+    released = []
+
+    def fake_release(task_id):
+        released.append(task_id)
+        return task_id
+
+    deps = RunnerDeps(release_worker=fake_release)
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
 
     task_1_1 = {"task_id": "1_1", "dependencies": [], "status": "done"}
     task_1_2 = {"task_id": "1_2", "dependencies": ["1_1"], "status": "execution-failed"}
@@ -27,16 +35,6 @@ async def _run_rollback_keeps_upstream(monkeypatch):
     runner.pending_tasks = {"1_2", "1_3"}
     runner.running_tasks = set()
 
-    released = []
-
-    from task_agent import runner as runner_mod
-
-    def fake_release(task_id):
-        released.append(task_id)
-        return task_id
-
-    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", fake_release)
-
     await runner._rollback_task(task_1_2)
 
     assert "1_1" in runner.completed_tasks
@@ -53,12 +51,13 @@ async def _run_rollback_keeps_upstream(monkeypatch):
     assert "1_1" not in released
 
 
-def test_rollback_only_resets_failed_and_downstream(monkeypatch):
-    anyio.run(_run_rollback_keeps_upstream, monkeypatch)
+def test_rollback_only_resets_failed_and_downstream():
+    anyio.run(_run_rollback_keeps_upstream)
 
 
-async def _run_handle_task_error_emits_event(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
+async def _run_handle_task_error_emits_event():
+    deps = RunnerDeps(release_worker=lambda _task_id: None)
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.task_map = {"1_1": {"task_id": "1_1", "status": "doing"}}
     runner.reverse_dependency_index = {"1_1": []}
     runner.completed_tasks = set()
@@ -72,10 +71,6 @@ async def _run_handle_task_error_emits_event(monkeypatch):
 
     runner._emit = fake_emit
 
-    from task_agent import runner as runner_mod
-
-    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", lambda _task_id: None)
-
     await runner._handle_task_error({"task_id": "1_1"}, RuntimeError("boom"))
 
     task_error = [payload for event, payload in emitted if event == "task-error"]
@@ -85,12 +80,13 @@ async def _run_handle_task_error_emits_event(monkeypatch):
     assert "boom" in str(task_error[0].get("error"))
 
 
-def test_handle_task_error_emits_task_error_event(monkeypatch):
-    anyio.run(_run_handle_task_error_emits_event, monkeypatch)
+def test_handle_task_error_emits_task_error_event():
+    anyio.run(_run_handle_task_error_emits_event)
 
 
 async def _run_build_context_with_retry_memory():
-    runner = ExecutionRunner(sio=None, session_id="test")
+    deps = RunnerDeps()
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.execution_run_id = "exec_x"
     runner._idea_text = "global objective"
     runner.chain_cache = [
@@ -129,10 +125,7 @@ def test_build_task_execution_context_includes_retry_memory():
     anyio.run(_run_build_context_with_retry_memory)
 
 
-async def _run_load_task_attempt_memories(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
-    runner.research_id = "research_x"
-
+async def _run_load_task_attempt_memories():
     async def fake_list(research_id, task_id=None):
         assert research_id == "research_x"
         assert task_id is None
@@ -152,9 +145,9 @@ async def _run_load_task_attempt_memories(monkeypatch):
             }
         ]
 
-    from task_agent import runner as runner_mod
-
-    monkeypatch.setattr(runner_mod, "list_task_attempt_memories", fake_list)
+    deps = RunnerDeps(list_task_attempt_memories=fake_list)
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
+    runner.research_id = "research_x"
 
     await runner._load_task_attempt_memories()
     history = runner.task_attempt_history.get("1_1") or []
@@ -163,12 +156,31 @@ async def _run_load_task_attempt_memories(monkeypatch):
     assert "max turns" in history[0]["error"]
 
 
-def test_load_task_attempt_memories(monkeypatch):
-    anyio.run(_run_load_task_attempt_memories, monkeypatch)
+def test_load_task_attempt_memories():
+    anyio.run(_run_load_task_attempt_memories)
 
 
-async def _run_retry_task_clears_downstream_history(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
+async def _run_retry_task_clears_downstream_history():
+    released: list[str] = []
+    deleted_artifacts: list[str] = []
+    deleted_memories: list[str] = []
+    scheduled: list[str] = []
+
+    async def fake_delete_task_artifact(_idea_id, _plan_id, task_id):
+        deleted_artifacts.append(task_id)
+        return True
+
+    async def fake_delete_task_attempt_memories(_research_id, task_id=None):
+        if task_id:
+            deleted_memories.append(task_id)
+        return 1
+
+    deps = RunnerDeps(
+        release_worker=lambda task_id: released.append(task_id),
+        delete_task_artifact=fake_delete_task_artifact,
+        delete_task_attempt_memories=fake_delete_task_attempt_memories,
+    )
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.idea_id = "idea_x"
     runner.plan_id = "plan_y"
     runner.research_id = "research_z"
@@ -194,27 +206,6 @@ async def _run_retry_task_clears_downstream_history(monkeypatch):
         "1_2_3": [{"attempt": 1, "category": "semantic", "error": "metric failed"}],
     }
 
-    released: list[str] = []
-    deleted_artifacts: list[str] = []
-    deleted_memories: list[str] = []
-    scheduled: list[str] = []
-
-    from task_agent import runner as runner_mod
-
-    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", lambda task_id: released.append(task_id))
-
-    async def fake_delete_task_artifact(_idea_id, _plan_id, task_id):
-        deleted_artifacts.append(task_id)
-        return True
-
-    async def fake_delete_task_attempt_memories(_research_id, task_id=None):
-        if task_id:
-            deleted_memories.append(task_id)
-        return 1
-
-    monkeypatch.setattr(runner_mod, "delete_task_artifact", fake_delete_task_artifact)
-    monkeypatch.setattr(runner_mod, "delete_task_attempt_memories", fake_delete_task_attempt_memories)
-
     def fake_schedule_ready_tasks(tasks):
         for t in tasks or []:
             if t and t.get("task_id"):
@@ -238,12 +229,13 @@ async def _run_retry_task_clears_downstream_history(monkeypatch):
     assert "1_2_1" in scheduled
 
 
-def test_retry_task_clears_downstream_history(monkeypatch):
-    anyio.run(_run_retry_task_clears_downstream_history, monkeypatch)
+def test_retry_task_clears_downstream_history():
+    anyio.run(_run_retry_task_clears_downstream_history)
 
 
 async def _run_unified_retry_counter_increments_consistently():
-    runner = ExecutionRunner(sio=None, session_id="test")
+    deps = RunnerDeps()
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
 
     attempt_1 = runner._next_retry_attempt("3_1")
     attempt_2 = runner._next_retry_attempt("3_1")
@@ -260,7 +252,8 @@ def test_unified_retry_counter_increments_consistently():
 
 
 async def _run_schedule_ready_tasks_deduplicates_inflight_task():
-    runner = ExecutionRunner(sio=None, session_id="test")
+    deps = RunnerDeps()
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.is_running = True
     task = {"task_id": "3_1", "dependencies": []}
     runner.pending_tasks = {"3_1"}
@@ -292,7 +285,8 @@ def test_schedule_ready_tasks_deduplicates_inflight_task():
 
 
 async def _run_unified_retry_counter_uses_history_when_memory_resets():
-    runner = ExecutionRunner(sio=None, session_id="test")
+    deps = RunnerDeps()
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.task_attempt_history = {
         "3_1": [
             {"phase": "retry", "attempt": 1, "error": "fail-1"},
@@ -309,8 +303,9 @@ def test_unified_retry_counter_uses_history_when_memory_resets():
     anyio.run(_run_unified_retry_counter_uses_history_when_memory_resets)
 
 
-async def _run_retry_sets_forced_next_attempt(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
+async def _run_retry_sets_forced_next_attempt():
+    deps = RunnerDeps(release_worker=lambda _task_id: None)
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
 
     emitted = []
     appended = []
@@ -321,9 +316,6 @@ async def _run_retry_sets_forced_next_attempt(monkeypatch):
     async def fake_append(task_id, event, payload):
         appended.append((task_id, event, payload))
 
-    from task_agent import runner as runner_mod
-
-    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", lambda _task_id: None)
     runner._emit = fake_emit
     runner._append_step_event = fake_append  # type: ignore[method-assign]
     runner._spawn_task_execution = lambda _task: None  # type: ignore[method-assign]
@@ -345,12 +337,54 @@ async def _run_retry_sets_forced_next_attempt(monkeypatch):
     assert any(ev == "attempt-retry" for _, ev, _ in appended)
 
 
-def test_retry_sets_forced_next_attempt(monkeypatch):
-    anyio.run(_run_retry_sets_forced_next_attempt, monkeypatch)
+def test_retry_sets_forced_next_attempt():
+    anyio.run(_run_retry_sets_forced_next_attempt)
 
 
-async def _run_execute_task_uses_forced_attempt_for_all_events(monkeypatch):
-    runner = ExecutionRunner(sio=None, session_id="test")
+async def _run_execute_task_uses_forced_attempt_for_all_events():
+    async def fake_resolve_artifacts(*_args, **_kwargs):
+        return {"raw": "value"}
+
+    async def fake_execute_task(*_args, **kwargs):
+        on_thinking = kwargs.get("on_thinking")
+        if on_thinking:
+            await on_thinking(
+                "Calling RunCommand({\"command\": \"echo ok\"})",
+                task_id="1_2_1",
+                operation="Execute",
+                schedule_info={"turn": 1, "max_turns": 200},
+            )
+        return {"content": "ok"}
+
+    async def fake_save_task_artifact(*_args, **_kwargs):
+        return None
+
+    async def fake_save_validation_report(*_args, **_kwargs):
+        return None
+
+    async def fake_delete_task_attempt_memories(*_args, **_kwargs):
+        return None
+
+    async def fake_stop_execution_container(*_args, **_kwargs):
+        return None
+
+    async def fake_reflect(*_args, **_kwargs):
+        return None
+
+    deps = RunnerDeps(
+        resolve_artifacts=fake_resolve_artifacts,
+        execute_task=fake_execute_task,
+        save_task_artifact=fake_save_task_artifact,
+        save_validation_report=fake_save_validation_report,
+        delete_task_attempt_memories=fake_delete_task_attempt_memories,
+        stop_execution_container=fake_stop_execution_container,
+        assign_task=lambda _task_id: "slot-1",
+        release_worker=lambda _task_id: None,
+        set_worker_status=lambda _task_id, _status: None,
+        chunk_string=lambda s, n: [s],
+        MOCK_VALIDATOR_CHUNK_DELAY=0.0,
+    )
+    runner = ExecutionRunner(sio=None, session_id="test", deps=deps)
     runner.api_config = {"taskUseMock": True}
     runner.VALIDATION_PASS_PROBABILITY = 1.0
     runner.is_running = True
@@ -388,47 +422,6 @@ async def _run_execute_task_uses_forced_attempt_for_all_events(monkeypatch):
     async def fake_append(task_id, event, payload):
         appended.append((task_id, event, payload))
 
-    async def fake_resolve_artifacts(*_args, **_kwargs):
-        return {"raw": "value"}
-
-    async def fake_execute_task(*_args, **kwargs):
-        on_thinking = kwargs.get("on_thinking")
-        if on_thinking:
-            await on_thinking(
-                "Calling RunCommand({\"command\": \"echo ok\"})",
-                task_id="1_2_1",
-                operation="Execute",
-                schedule_info={"turn": 1, "max_turns": 200},
-            )
-        return {"content": "ok"}
-
-    async def fake_save_task_artifact(*_args, **_kwargs):
-        return None
-
-    async def fake_save_validation_report(*_args, **_kwargs):
-        return None
-
-    async def fake_delete_task_attempt_memories(*_args, **_kwargs):
-        return None
-
-    async def fake_stop_execution_container(*_args, **_kwargs):
-        return None
-
-    async def fake_reflect(*_args, **_kwargs):
-        return None
-
-    from task_agent import runner as runner_mod
-
-    monkeypatch.setattr(runner_mod, "resolve_artifacts", fake_resolve_artifacts)
-    monkeypatch.setattr(runner_mod, "execute_task", fake_execute_task)
-    monkeypatch.setattr(runner_mod, "save_task_artifact", fake_save_task_artifact)
-    monkeypatch.setattr(runner_mod, "save_validation_report", fake_save_validation_report)
-    monkeypatch.setattr(runner_mod, "delete_task_attempt_memories", fake_delete_task_attempt_memories)
-    monkeypatch.setattr(runner_mod, "stop_execution_container", fake_stop_execution_container)
-    monkeypatch.setitem(runner_mod.worker_manager, "assign_task", lambda _task_id: "slot-1")
-    monkeypatch.setitem(runner_mod.worker_manager, "release_worker_by_task_id", lambda _task_id: None)
-    monkeypatch.setitem(runner_mod.worker_manager, "set_worker_status", lambda _task_id, _status: None)
-
     runner._emit = fake_emit
     runner._append_step_event = fake_append  # type: ignore[method-assign]
     runner._reflect_on_task = fake_reflect  # type: ignore[method-assign]
@@ -450,5 +443,5 @@ async def _run_execute_task_uses_forced_attempt_for_all_events(monkeypatch):
     assert "1_2_1" not in runner.task_forced_attempt
 
 
-def test_execute_task_uses_forced_attempt_for_all_events(monkeypatch):
-    anyio.run(_run_execute_task_uses_forced_attempt_for_all_events, monkeypatch)
+def test_execute_task_uses_forced_attempt_for_all_events():
+    anyio.run(_run_execute_task_uses_forced_attempt_for_all_events)
