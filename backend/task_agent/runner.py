@@ -25,22 +25,6 @@ from . import runner_retry_mixin as retry_fns
 from . import runner_state_mixin as state_fns
 from . import runner_task_execution_mixin as task_exec_fns
 
-# --- Backward-compat symbols for test monkeypatching ---
-# Tests do: monkeypatch.setattr(runner_mod, "resolve_artifacts", fake)
-# These imports keep those patches working until tests migrate to RunnerDeps injection.
-from db import DB_DIR, delete_task_artifact, get_idea, save_execution, save_task_artifact, save_validation_report  # noqa: F401
-from db import delete_task_attempt_memories, list_task_attempt_memories, save_task_attempt_memory  # noqa: F401
-from shared.utils import chunk_string  # noqa: F401
-from .artifact_resolver import resolve_artifacts  # noqa: F401
-from .agent import run_task_agent  # noqa: F401
-from .agent_tools import SKILLS_ROOT  # noqa: F401
-from .pools import worker_manager  # noqa: F401
-from .docker_runtime import ensure_execution_container, get_local_docker_status, prepare_execution_runtime, stop_execution_container  # noqa: F401
-from .llm.executor import execute_task  # noqa: F401
-from .llm.validation import validate_task_output_with_readonly_agent  # noqa: F401
-from validate_agent import review_contract_adjustment  # noqa: F401
-from shared.reflection import self_evaluate, generate_skill_from_reflection, save_learned_skill  # noqa: F401
-validate_task_output_with_llm = validate_task_output_with_readonly_agent
 
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name)
