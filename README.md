@@ -2,7 +2,7 @@
 
 Multi-Agent Automated Research System — an end-to-end research pipeline from a vague idea to a paper draft, powered by four AI Agents.
 
-[中文版 README](README_CN.md) | **English**
+[中文](README_CN.md) | **English**
 
 ---
 
