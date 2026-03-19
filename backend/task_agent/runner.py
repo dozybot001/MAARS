@@ -20,7 +20,7 @@ from shared.idea_utils import get_idea_text
 from db import save_execution as _db_save_execution
 from .runner_deps import RunnerDeps, build_default_deps
 from .runner_execution_mixin import RunnerExecutionMixin
-from .runner_memory_mixin import RunnerMemoryMixin
+from . import runner_memory_mixin as memory_fns
 from . import runner_retry_mixin as retry_fns
 from .runner_state_mixin import RunnerStateMixin
 
@@ -54,7 +54,6 @@ _MOCK_VALIDATOR_CHUNK_DELAY = _env_float("MAARS_MOCK_VALIDATOR_CHUNK_DELAY", 0.0
 
 
 class ExecutionRunner(
-    RunnerMemoryMixin,
     RunnerStateMixin,
     RunnerExecutionMixin,
 ):
@@ -163,6 +162,36 @@ class ExecutionRunner(
     @staticmethod
     def _run_step_a_structural_format_gate(result: Any, output_spec: Dict[str, Any]) -> tuple[bool, str]:
         return retry_fns.run_step_a_structural_format_gate(result, output_spec)
+
+    # -- Memory delegates (from runner_memory_mixin functions) --
+
+    async def _record_task_attempt_failure(
+        self, *, task_id: str, phase: str, attempt: int, error: str,
+        will_retry: bool, decision: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        await memory_fns.record_task_attempt_failure(
+            self.task_attempt_history, self.research_id, self._deps.save_task_attempt_memory,
+            task_id=task_id, phase=phase, attempt=attempt, error=error,
+            will_retry=will_retry, decision=decision,
+        )
+
+    async def _load_task_attempt_memories(self) -> None:
+        await memory_fns.load_task_attempt_memories(
+            self.task_attempt_history, self.research_id, self._deps.list_task_attempt_memories,
+        )
+
+    async def _clear_attempt_history_for_tasks(self, task_ids: Set[str]) -> None:
+        await memory_fns.clear_attempt_history_for_tasks(
+            self.task_attempt_history, self.research_id, self._deps.delete_task_attempt_memories, task_ids,
+        )
+
+    def _build_task_execution_context(self, task: Dict[str, Any], resolved_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return memory_fns.build_task_execution_context(
+            task=task, resolved_inputs=resolved_inputs,
+            completed_tasks=self.completed_tasks, task_attempt_history=self.task_attempt_history,
+            chain_cache=self.chain_cache, idea_text=self._idea_text,
+            execution_run_id=self.execution_run_id,
+        )
 
     # -- Task lifecycle --
 
