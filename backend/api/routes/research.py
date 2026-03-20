@@ -38,9 +38,7 @@ def _make_research_id() -> str:
 def _make_title(prompt: str) -> str:
     s = (prompt or "").strip().replace("\n", " ")
     s = " ".join(s.split())
-    if not s:
-        return "Untitled"
-    return s[:64]
+    return s or "Untitled"
 
 
 @router.get("")
