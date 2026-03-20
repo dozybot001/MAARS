@@ -12,7 +12,7 @@
         let popoverKeydownHandler = null;
 
         function buildTaskDetailBody(task) {
-            const title = (task.title || task.description || task.objective || '').trim() || String(task.task_id || 'Task');
+            const title = (task.description || task.objective || task.title || '').trim() || String(task.task_id || 'Task');
             const desc = (task.description || task.objective || '').trim() || '-';
             const depsText = (task.dependencies || []).length > 0 ? (task.dependencies || []).join(', ') : 'None';
             const hasStatus = task.status != null;
