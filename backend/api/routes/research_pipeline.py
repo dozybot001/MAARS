@@ -96,15 +96,7 @@ async def _run_stage_refine(session_id: str, session, research_id: str, prompt: 
     await _emit_stage(session_id, research_id, "refine", "running")
     await update_research_stage(research_id, stage="refine", stage_status="running", current_idea_id=idea_id, current_plan_id=None, error=None)
     await save_idea({"idea": prompt, "keywords": [], "papers": []}, idea_id)
-    session.idea_run_state.abort_event = asyncio.Event()
-    await _run_collect_inner(
-        session_id,
-        session.idea_run_state,
-        idea_id,
-        prompt,
-        limit=10,
-        abort_event=session.idea_run_state.abort_event,
-    )
+    await _run_collect_inner(session_id, session.idea_run_state, idea_id, prompt, 10)
     refine_ok, refine_err = await _validate_refine_completion(idea_id)
     if not refine_ok:
         raise ValueError(f"Refine finished without required artifacts: {refine_err}")
@@ -150,15 +142,7 @@ async def _run_stage_execute(session_id: str, session, research_id: str, idea_id
 async def _run_stage_paper(session_id: str, session, research_id: str, idea_id: str, plan_id: str, paper_format: str) -> None:
     await _emit_stage(session_id, research_id, "paper", "running")
     await update_research_stage(research_id, stage="paper", stage_status="running", error=None)
-    session.paper_run_state.abort_event = asyncio.Event()
-    await _run_paper_inner(
-        session_id,
-        session.paper_run_state,
-        idea_id,
-        plan_id,
-        paper_format,
-        abort_event=session.paper_run_state.abort_event,
-    )
+    await _run_paper_inner(session_id, session.paper_run_state, idea_id, plan_id, paper_format)
     paper_ok, paper_err = await _validate_paper_completion(idea_id, plan_id)
     if not paper_ok:
         raise ValueError(f"Paper finished without required artifacts: {paper_err}")
