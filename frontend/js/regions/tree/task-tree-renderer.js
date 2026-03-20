@@ -116,35 +116,7 @@
         }
 
         function calculateAdaptiveScale(treeData, baseLayout, areaSelector) {
-            if (!baseLayout) return getZoomLevel();
-
-            const ctx = getTreeContainer(areaSelector);
-            if (!ctx) return getZoomLevel();
-
-            const containerWidth = ctx.area.clientWidth || 800;
-            const containerHeight = ctx.area.clientHeight || 600;
-            const baseWidth = baseLayout.width || 500;
-            const baseHeight = baseLayout.height || 400;
-
-            const scaleByWidth = (containerWidth - 40) / baseWidth;
-            const scaleByHeight = (containerHeight - 40) / baseHeight;
-            const fitScale = Math.min(scaleByWidth, scaleByHeight, 2.0);
-
-            let titleScale = 1.0;
-            if (treeData && Array.isArray(treeData)) {
-                treeData.forEach((task) => {
-                    const title = deriveDisplayTitle(task) || '';
-                    const isChinese = /[\u4e00-\u9fff]/.test(title);
-                    const charWidth = isChinese ? 8 : 7;
-                    const requiredWidth = Math.min(title.length * charWidth + 20, 350);
-                    if (requiredWidth > 180) {
-                        titleScale = Math.max(titleScale, requiredWidth / 180);
-                    }
-                });
-            }
-
-            const baseScale = Math.max(fitScale, titleScale);
-            return baseScale * getZoomLevel();
+            return 1.0;
         }
 
         function renderFull(treeData, layout, areaSelector) {
