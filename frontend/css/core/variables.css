@@ -15,11 +15,11 @@
     --gap: 20px;
 
     /* Task tree */
-    --tree-task-width: 110px;
-    --tree-task-height: 52px;
-    --tree-task-font-number: 12px;
+    --tree-task-width: 24px;
+    --tree-task-height: 24px;
+    --tree-task-font-number: 10px;
     --tree-task-font-desc: 10px;
-    --tree-task-radius: 10px;
+    --tree-task-radius: 50%;
     --tree-node-shadow: var(--shadow-md);
     --tree-node-shadow-hover: var(--shadow-lg);
 
