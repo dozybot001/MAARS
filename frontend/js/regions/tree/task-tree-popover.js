@@ -39,8 +39,7 @@
                 const optionalHtml = optionalList ? `<ul class="validation-optional">${optionalList}</ul>` : '';
                 return `<div class="task-detail-row task-detail-validation"><span class="task-detail-label">Validation:</span><div class="task-detail-value">${vdesc}${criteriaHtml}${optionalHtml}</div></div>`;
             })() : '';
-            return `<div class="task-detail-row"><span class="task-detail-label">Title:</span><span class="task-detail-value">${escapeHtml(title)}</span></div>
-                <div class="task-detail-row"><span class="task-detail-label">Description:</span><span class="task-detail-value">${escapeHtml(desc)}</span></div>
+            return `<div class="task-detail-row"><span class="task-detail-label">Description:</span><span class="task-detail-value">${escapeHtml(desc)}</span></div>
                     <div class="task-detail-row"><span class="task-detail-label">Dependencies:</span><span class="task-detail-value">${escapeHtml(depsText)}</span></div>
                     ${statusRow}
                     ${inputRow}
