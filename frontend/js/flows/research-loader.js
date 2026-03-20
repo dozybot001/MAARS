@@ -22,7 +22,7 @@
         const paper = data?.paper || null;
 
         if (ctx.breadcrumbEl) ctx.breadcrumbEl.textContent = 'Research';
-        if (ctx.titleEl) ctx.titleEl.textContent = research.title || research.researchId || 'Research';
+        if (ctx.titleEl) ctx.titleEl.textContent = research.prompt || research.title || research.researchId || 'Research';
 
         ctx.stageData.originalIdea = (idea?.idea || research.prompt || '').trim();
         ctx.stageData.papers = Array.isArray(idea?.papers) ? idea.papers : [];
