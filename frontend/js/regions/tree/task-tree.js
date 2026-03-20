@@ -11,7 +11,6 @@
         execution: '.plan-agent-execution-tree-area',
     };
     const createPopoverController = window.MAARS?.createTaskTreePopoverController;
-    const createZoomController = window.MAARS?.createTaskTreeZoomController;
     const createTaskTreeRenderer = window.MAARS?.createTaskTreeRenderer;
     const bindTaskTreeEvents = window.MAARS?.bindTaskTreeEvents;
 
@@ -45,29 +44,12 @@
     let clearRenderedTree = () => {};
     let aggregateStatus = () => 'undone';
 
-    const zoomController = createZoomController
-        ? createZoomController({
-            getTreeContainer,
-            onZoomChange: (areaSelector) => {
-                if (areaSelector === AREA.decomposition) {
-                    renderFull(planAgentTreeData, planAgentLayout, areaSelector);
-                }
-            },
-        })
-        : {
-            getLevel: () => 1.0,
-            initZoomControls: () => {},
-            loadZoomLevel: () => {},
-            setLevel: () => {},
-            updateZoomDisplay: () => {},
-        };
-
     const renderer = createTaskTreeRenderer
         ? createTaskTreeRenderer({
             AREA,
             deriveDisplayTitle,
             getTreeContainer,
-            getZoomLevel: () => zoomController.getLevel(),
+            getZoomLevel: () => 1.0,
         })
         : null;
 
@@ -93,17 +75,11 @@
         if (!Array.isArray(treeData)) return;
         planAgentTreeData = treeData || [];
         planAgentLayout = layout || null;
-        zoomController.loadZoomLevel();
         renderFull(treeData, layout, AREA.decomposition);
-        zoomController.initZoomControls(AREA.decomposition);
-        zoomController.updateZoomDisplay(AREA.decomposition);
     }
 
     function renderExecutionTree(data, layout) {
-        zoomController.loadZoomLevel();
         renderFull(data, layout, AREA.execution);
-        zoomController.initZoomControls(AREA.execution);
-        zoomController.updateZoomDisplay(AREA.execution);
     }
 
     function initClickHandlers() {
@@ -187,6 +163,5 @@
         initClickHandlers,
         updatePlanAgentQualityBadge,
         updateTaskStates,
-        setTreeZoom: (level) => zoomController.setLevel(level),
     };
 })();
