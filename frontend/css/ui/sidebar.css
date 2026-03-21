@@ -126,16 +126,15 @@
 .app-sidebar-list-item {
     width: 100%;
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 10px 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: var(--btn-radius);
     background: color-mix(in srgb, var(--bg-area-secondary) 90%, transparent);
     color: var(--text-color);
     font-size: 13px;
-    box-shadow: none;
     cursor: pointer;
 }
 
@@ -145,33 +144,23 @@
 }
 
 .app-sidebar-list-item-title {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-align: left;
     font-size: 13px;
     font-weight: 500;
 }
 
-.app-sidebar-list-item-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    cursor: pointer;
-}
-
 .app-sidebar-badge {
-    flex-shrink: 0;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 999px;
     border: 1px solid var(--border-color);
     background: var(--bg-input);
     color: var(--text-muted);
     font-size: 11px;
-    cursor: pointer;
+    cursor: inherit;
 }
 
 .app-sidebar-delete-btn {

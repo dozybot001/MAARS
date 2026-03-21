@@ -54,10 +54,8 @@
                     const activeClass = rid && currentId && rid === currentId ? ' is-active' : '';
                     return `<div class="app-sidebar-list-item${activeClass}" data-research-id="${rid}">
                         <div class="app-sidebar-list-item-title">${title || 'Research'}</div>
-                        <div class="app-sidebar-list-item-footer">
-                            <span class="app-sidebar-badge">${badge}</span>
-                            <button type="button" class="app-sidebar-delete-btn" data-research-id="${rid}" data-action="delete" aria-label="Delete research" title="Delete">×</button>
-                        </div>
+                        <span class="app-sidebar-badge">${badge}</span>
+                        <button type="button" class="app-sidebar-delete-btn" data-research-id="${rid}" data-action="delete" aria-label="Delete research" title="Delete">×</button>
                     </div>`;
                 }).join('');
             } catch (e) {
