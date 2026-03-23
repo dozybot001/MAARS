@@ -120,9 +120,9 @@ The semantic history for building MAARS is maintained in the [Intent](https://gi
 
 ## Community
 
-- [Contributing](CONTRIBUTING.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
+- [Contributing](.github/CONTRIBUTING.md)
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+- [Security Policy](.github/SECURITY.md)
 
 Issues and pull requests use bilingual templates in GitHub.
 
