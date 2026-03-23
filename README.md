@@ -118,6 +118,14 @@ Two complete research runs included in `showcase/`:
 
 The semantic history for building MAARS is maintained in the [Intent](https://github.com/dozybot001/Intent) official showcase: [`showcase/maars`](https://github.com/dozybot001/Intent/tree/main/showcase/maars). It captures the MAARS build as 1 intent, 8 snaps, and 3 decisions, covering the path from architecture design to agent mode integration.
 
+## Community
+
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+
+Issues and pull requests use bilingual templates in GitHub.
+
 ## License
 
 MIT

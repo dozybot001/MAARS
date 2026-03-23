@@ -118,6 +118,14 @@ research/20260323-210300-how-does-framing-effect-in/
 
 MAARS 的构建语义历史现维护在 [Intent](https://github.com/dozybot001/Intent) 的官方 showcase 中：[`showcase/maars`](https://github.com/dozybot001/Intent/tree/main/showcase/maars)。其中包含 1 个 intent、8 个 snaps、3 个 decisions，覆盖了从架构设计到 Agent 模式接入的全过程。
 
+## 社区
+
+- [贡献指南](CONTRIBUTING_CN.md)
+- [行为准则](CODE_OF_CONDUCT_CN.md)
+- [安全策略](SECURITY_CN.md)
+
+GitHub 中的 Issue 和 Pull Request 模板也已提供双语提示。
+
 ## 许可证
 
 MIT

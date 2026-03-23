@@ -1,6 +1,8 @@
-# Security Policy | 安全策略
+# Security Policy
 
-## English
+[中文](SECURITY_CN.md) | English
+
+[Project Overview](README.md) | [Contributing](CONTRIBUTING.md) | [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ### Reporting a Vulnerability
 
@@ -23,23 +25,3 @@ We will respond within 48 hours and work with you to resolve the issue.
 - MAARS sends user input to Google Gemini API (in `gemini` and `agent` modes)
 - Research outputs are stored as plaintext files in `research/`
 - The SSE endpoint does not require authentication (intended for local development)
-
----
-
-## 中文
-
-### 报告漏洞
-
-如果你发现安全漏洞，请负责任地报告：
-
-1. **不要**创建公开的 issue
-2. 直接邮件联系维护者或使用 GitHub 的私密漏洞报告功能
-3. 包含漏洞的清晰描述和复现步骤
-
-我们将在 48 小时内回复并与你合作解决问题。
-
-### API Key 安全
-
-- 切勿将 `.env` 文件或 API key 提交到仓库
-- 使用 `.env.example` 作为模板 — 其中不包含密钥
-- `.gitignore` 已配置排除 `.env` 和 `.env.*`
