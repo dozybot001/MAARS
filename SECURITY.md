@@ -2,8 +2,6 @@
 
 [中文](SECURITY_CN.md) | English
 
-[Project Overview](README.md) | [Contributing](CONTRIBUTING.md) | [Code of Conduct](CODE_OF_CONDUCT.md)
-
 ### Reporting a Vulnerability
 
 If you discover a security vulnerability, please report it responsibly:

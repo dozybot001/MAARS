@@ -2,8 +2,6 @@
 
 中文 | [English](SECURITY.md)
 
-[项目说明](README_CN.md) | [贡献指南](CONTRIBUTING_CN.md) | [行为准则](CODE_OF_CONDUCT_CN.md)
-
 ### 报告漏洞
 
 如果你发现安全漏洞，请负责任地报告：

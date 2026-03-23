@@ -2,8 +2,6 @@
 
 中文 | [English](CODE_OF_CONDUCT.md)
 
-[项目说明](README_CN.md) | [贡献指南](CONTRIBUTING_CN.md) | [安全策略](SECURITY_CN.md)
-
 ### 我们的承诺
 
 我们致力于让每个人都能在友好的环境中参与本项目，不论其背景或身份。

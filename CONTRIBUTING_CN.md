@@ -2,8 +2,6 @@
 
 中文 | [English](CONTRIBUTING.md)
 
-[项目说明](README_CN.md) | [行为准则](CODE_OF_CONDUCT_CN.md) | [安全策略](SECURITY_CN.md)
-
 感谢你对 MAARS 的关注！下面是参与本项目的方式。
 
 ### 开发环境

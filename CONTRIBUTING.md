@@ -2,8 +2,6 @@
 
 [中文](CONTRIBUTING_CN.md) | English
 
-[Project Overview](README.md) | [Code of Conduct](CODE_OF_CONDUCT.md) | [Security Policy](SECURITY.md)
-
 Thank you for your interest in MAARS! Here's how to get started.
 
 ### Development Setup

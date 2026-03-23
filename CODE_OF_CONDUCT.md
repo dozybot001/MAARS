@@ -2,8 +2,6 @@
 
 [中文](CODE_OF_CONDUCT_CN.md) | English
 
-[Project Overview](README.md) | [Contributing](CONTRIBUTING.md) | [Security Policy](SECURITY.md)
-
 ### Our Pledge
 
 We are committed to making participation in this project a welcoming experience for everyone, regardless of background or identity.
