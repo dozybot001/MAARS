@@ -1,11 +1,12 @@
-"""Academic search tools — arXiv and Semantic Scholar APIs."""
+"""Academic tools — arXiv search/fetch, Semantic Scholar search."""
 
+import io
 import httpx
 
 
 def create_academic_tools() -> list:
-    """Create academic search tools. No API key needed."""
-    return [arxiv_search, semantic_scholar_search]
+    """Create academic tools. No API key needed."""
+    return [arxiv_search, semantic_scholar_search, fetch_arxiv_paper]
 
 
 async def arxiv_search(query: str, max_results: int = 5) -> str:
@@ -67,6 +68,45 @@ async def semantic_scholar_search(query: str, max_results: int = 5) -> str:
         )
 
     return "\n\n".join(results)
+
+
+async def fetch_arxiv_paper(arxiv_id: str, max_chars: int = 15000) -> str:
+    """Download and extract text from an arXiv paper PDF.
+    Pass the arXiv ID (e.g., '2201.11903' or '2201.11903v2').
+    Returns the paper's full text (truncated to max_chars).
+    Use this after arxiv_search to read papers in depth."""
+    # Clean up ID
+    arxiv_id = arxiv_id.strip().replace("arXiv:", "").replace("arxiv:", "")
+    if "/" in arxiv_id:
+        arxiv_id = arxiv_id.split("/")[-1]
+
+    url = f"https://arxiv.org/pdf/{arxiv_id}"
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            pdf_bytes = resp.content
+    except Exception as e:
+        return f"Failed to download arXiv paper {arxiv_id}: {e}"
+
+    try:
+        import fitz  # pymupdf
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        text_parts = []
+        for page in doc:
+            text_parts.append(page.get_text())
+        doc.close()
+        full_text = "\n".join(text_parts).strip()
+    except Exception as e:
+        return f"Failed to extract text from PDF: {e}"
+
+    if not full_text:
+        return f"No text extracted from arXiv paper {arxiv_id}"
+
+    if len(full_text) > max_chars:
+        return full_text[:max_chars] + f"\n\n... [truncated at {max_chars} chars, full paper is {len(full_text)} chars]"
+
+    return full_text
 
 
 def _parse_arxiv_response(xml_text: str) -> str:

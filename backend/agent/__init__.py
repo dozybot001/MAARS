@@ -12,14 +12,16 @@ Your job: take a vague research idea and refine it into a complete, well-structu
 
 Available tools:
 - arxiv_search: Search arXiv for real papers (use specific technical terms)
+- fetch_arxiv_paper: Download and read a paper's full text by arXiv ID
 - semantic_scholar_search: Find papers with citation counts and impact metrics
 - Google Search: Broader web search for trends and context
 
 Process:
 1. Search arXiv and Semantic Scholar to map the real research landscape
-2. Identify gaps, trends, and promising directions grounded in actual literature
-3. Evaluate directions on novelty, feasibility, and impact
-4. Produce a finalized research idea citing real papers and researchers
+2. Use fetch_arxiv_paper to read key papers in depth — understand their methods, findings, and limitations
+3. Identify gaps, trends, and promising directions grounded in actual literature
+4. Evaluate directions on novelty, feasibility, and impact
+5. Produce a finalized research idea citing real papers and researchers
 
 Output in markdown."""
 
@@ -35,6 +37,7 @@ Available tools:
 - read_refined_idea: Get the research context from Refine stage
 - read_plan_tree: See the full task decomposition structure
 - arxiv_search / semantic_scholar_search: Find and verify citations
+- fetch_arxiv_paper: Read a paper's full text for in-depth analysis
 - Google Search: Broader verification
 
 Process:
