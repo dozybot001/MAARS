@@ -4,10 +4,21 @@
 
 **Multi-Agent Automated Research System** — From one idea to a full research paper, fully automated.
 
+## Pipeline
+
+Four fixed stages. Every mode runs the same pipeline — modes only swap the engine underneath.
+
 ```mermaid
 flowchart LR
     I[Idea] --> R["Refine\n3 rounds"] --> P["Plan\nrecursive DAG"] --> X["Execute\nparallel + verify"] --> W["Write\noutline → polish"] --> O[Paper]
 ```
+
+| Stage | What it does |
+|-------|-------------|
+| **Refine** | Explore → Evaluate → Crystallize. Turns a vague idea into a structured research proposal |
+| **Plan** | Recursive decomposition into atomic tasks with dependency DAG (depth 3, batch-parallel) |
+| **Execute** | Topological sort → parallel batch execution → verification → retry. Results stored in file DB |
+| **Write** | Outline → section-by-section writing → polish. Each section receives only its relevant task outputs |
 
 ## Modes
 
@@ -18,16 +29,16 @@ MAARS_LLM_MODE=mock      # or gemini, or agent
 MAARS_GOOGLE_API_KEY=your-key
 ```
 
-| Stage | Gemini | Agent |
-|-------|--------|-------|
-| **Refine** | 3-round LLM: Explore → Evaluate → Crystallize | ADK Agent + Google Search |
-| **Plan** | Recursive decomposition → atomic task DAG (depth 3, batch-parallel) | **Same LLM recursive engine** — not an agent task |
-| **Execute** | Topo sort → parallel batches → verify → retry | ADK Agent per task + Google Search → verify → retry |
-| **Write** | Outline → section-by-section → polish | ADK Agent + DB tools + Google Search |
+Modes replace the engine at each stage, not the pipeline logic:
 
-> **Why does Agent Plan use the LLM pipeline?** Each decomposition step is a structured JSON judgment (atomic? → yes / no + subtasks). Deterministic LLM calls are faster and more reliable than ReAct loops for this.
+| Stage | Mock | Gemini | Agent |
+|-------|------|--------|-------|
+| **Refine** | replay | LLM | ADK Agent + Google Search |
+| **Plan** | replay | LLM | LLM (same as Gemini) |
+| **Execute** | replay | LLM | ADK Agent per task + Google Search |
+| **Write** | replay | LLM | ADK Agent + DB tools + Google Search |
 
-Mock mode replays recorded outputs at all stages — for development and UI testing.
+> Agent Plan deliberately stays on the LLM engine — each step is a structured JSON judgment (atomic? → yes/no + subtasks), where deterministic calls outperform ReAct loops.
 
 ## Architecture
 
