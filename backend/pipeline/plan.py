@@ -24,19 +24,17 @@ class Task:
 # Prompts
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT = """\
+_SYSTEM_PROMPT_TEMPLATE = """\
 You are a research project planner. Your job is to decompose tasks into smaller subtasks.
 
 IMPORTANT CONTEXT: This is the PLAN stage of a 4-stage automated research pipeline: Refine → Plan → Execute → Write.
 - You are in the PLAN stage: decompose the research into executable atomic tasks.
-- The EXECUTE stage will run each atomic task (with tools: search, code execution, etc.).
+- The EXECUTE stage will run each atomic task.
 - A separate WRITE stage will synthesize all task outputs into the final research paper.
-- Therefore: do NOT create "write paper" or "compile report" tasks. Only create research/analysis/experiment tasks. The final synthesis is handled by the Write stage, not here.
+- Therefore: do NOT create "write paper" or "compile report" tasks. Only create research/analysis/experiment tasks.
 - No human is in the loop. Make all decisions autonomously.
 
-Given a task, decide:
-1. Is it **atomic**? A task is atomic if a single focused LLM call can produce a reliable, complete, self-contained text result for it (e.g., "analyze X", "compare A and B", "summarize findings on Y").
-2. If NOT atomic, decompose it into subtasks with dependencies.
+{atomic_definition}
 
 Rules:
 - Dependencies are ONLY between sibling subtasks (same level).
@@ -45,16 +43,21 @@ Rules:
 - Each decomposition should produce 3-7 subtasks. Prefer fewer, coarser tasks over many fine-grained ones.
 - Task descriptions should be specific and actionable: state clearly what output is expected.
 - Do NOT create "write the paper" or "compile final report" tasks — that is the Write stage's job.
-- Tasks CAN involve literature search, data analysis, code experiments — the Execute stage has tools for these.
 - MAXIMIZE PARALLELISM: Only add a dependency when a task truly CANNOT start without the other's output. Independent tasks MUST have empty dependencies so they can run in parallel. Do NOT chain tasks sequentially unless there is a real data dependency.
 
 Respond with ONLY a JSON object (no markdown fencing, no extra text):
 
 If atomic:
-{"is_atomic": true}
+{{"is_atomic": true}}
 
 If not atomic (note: tasks 1,2,3 are independent and parallel; only task 4 depends on 1 and 2):
-{"is_atomic": false, "subtasks": [{"id": "1", "description": "...", "dependencies": []}, {"id": "2", "description": "...", "dependencies": []}, {"id": "3", "description": "...", "dependencies": []}, {"id": "4", "description": "...", "dependencies": ["1", "2"]}]}"""
+{{"is_atomic": false, "subtasks": [{{"id": "1", "description": "...", "dependencies": []}}, {{"id": "2", "description": "...", "dependencies": []}}, {{"id": "3", "description": "...", "dependencies": []}}, {{"id": "4", "description": "...", "dependencies": ["1", "2"]}}]}}"""
+
+# Default atomic definition (Gemini/Mock mode)
+_ATOMIC_DEF_DEFAULT = """\
+Given a task, decide:
+1. Is it **atomic**? A task is atomic if a single focused LLM call can produce a reliable, complete, self-contained text result for it (e.g., "analyze X", "compare A and B", "summarize findings on Y").
+2. If NOT atomic, decompose it into subtasks with dependencies."""
 
 
 def _build_user_prompt(task: Task, context: str) -> str:
@@ -76,9 +79,12 @@ class PlanStage(BaseStage):
     Same-level tasks are processed in parallel batches.
     """
 
-    def __init__(self, name: str = "plan", max_depth: int = 3, **kwargs):
+    def __init__(self, name: str = "plan", max_depth: int = 3,
+                 atomic_definition: str = "", **kwargs):
         super().__init__(name=name, **kwargs)
         self.max_depth = max_depth
+        self._atomic_def = atomic_definition or _ATOMIC_DEF_DEFAULT
+        self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(atomic_definition=self._atomic_def)
         self._tasks: dict[str, Task] = {}
         self._pending: list[str] = []
         self._context: str = ""
@@ -158,7 +164,7 @@ class PlanStage(BaseStage):
         client = self.llm_client
 
         messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": _build_user_prompt(task, self._context)},
         ]
 

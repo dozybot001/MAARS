@@ -94,10 +94,17 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
         code_executor=_code_executor,
     )
     plan_client = AgentClient(
-        instruction="",  # Plan prompt is flow logic, managed by PlanStage
+        instruction="",
         tools=[],
         model=model,
     )
+
+    # Agent mode: coarser atomic tasks — an Agent can search, read papers,
+    # run code, and do multi-step reasoning in a single task
+    agent_atomic_def = """\
+Given a task, decide:
+1. Is it **atomic**? In this pipeline, each task is executed by an AI Agent with tools (web search, paper reading, code execution). A task is atomic if a single Agent session can complete it end-to-end, even if it requires multiple tool calls. Examples of atomic tasks: "search and summarize literature on X", "implement and run experiment Y", "analyze dataset and produce visualization".
+2. If NOT atomic, decompose it. But prefer FEWER, COARSER tasks. An Agent is powerful — don't split what one Agent can handle."""
     execute_client = AgentClient(
         instruction=_EXECUTE_INSTRUCTION,
         tools=db_tools + docker_tools + research_tools,
@@ -113,7 +120,7 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
 
     return {
         "refine": RefineStage(llm_client=refine_client, db=db),
-        "plan": PlanStage(llm_client=plan_client, db=db),
+        "plan": PlanStage(llm_client=plan_client, db=db, atomic_definition=agent_atomic_def),
         "execute": ExecuteStage(llm_client=execute_client, db=db),
         "write": WriteStage(llm_client=write_client, db=db),
     }
