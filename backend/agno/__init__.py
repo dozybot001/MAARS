@@ -4,6 +4,10 @@ Same pipeline stages as ADK mode, but uses Agno framework for the agent loop.
 Supports multiple model providers (Google, Anthropic, OpenAI) via config.
 """
 
+from agno.tools.arxiv import ArxivTools
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.wikipedia import WikipediaTools
+
 from backend.agent import (
     _REFINE_INSTRUCTION, _EXECUTE_INSTRUCTION, _WRITE_INSTRUCTION,
 )
@@ -33,10 +37,13 @@ def create_agno_stages(
     # docker_tools = [code_execute, list_artifacts]
     list_artifacts = docker_tools[1:] if len(docker_tools) > 1 else []
 
+    # Agno-native research tools (no API keys needed)
+    research_tools = [DuckDuckGoTools(), ArxivTools(), WikipediaTools()]
+
     refine_client = AgnoClient(
         instruction=_REFINE_INSTRUCTION,
         model=model,
-        tools=[],  # No search tools initially; add agno.tools later
+        tools=research_tools,
     )
     plan_client = AgnoClient(
         instruction="",
@@ -61,12 +68,12 @@ PREFER DECOMPOSITION for the top-level idea. An atomic top-level task means the 
     execute_client = AgnoClient(
         instruction=_EXECUTE_INSTRUCTION,
         model=model,
-        tools=db_tools + docker_tools,
+        tools=db_tools + docker_tools + research_tools,
     )
     write_client = AgnoClient(
         instruction=_WRITE_INSTRUCTION,
         model=model,
-        tools=db_tools + list_artifacts,
+        tools=db_tools + list_artifacts + research_tools,
     )
 
     return {
