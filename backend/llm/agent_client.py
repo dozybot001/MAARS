@@ -9,6 +9,8 @@ Wraps Google ADK Agent's ReAct loop into the LLMClient.stream() interface.
 from typing import AsyncIterator
 
 from google.adk import Runner
+from google.adk.runners import RunConfig
+from google.adk.agents.run_config import StreamingMode
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
@@ -80,6 +82,7 @@ class AgentClient(LLMClient):
             user_id="maars_user",
             session_id=session.id,
             new_message=message,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
             # --- Think: partial = streaming chunks, complete = step boundary ---
             if event.content and event.content.parts:
