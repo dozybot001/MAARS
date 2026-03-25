@@ -13,11 +13,19 @@ app = FastAPI(title="MAARS", version="0.1.0")
 # --- Pipeline stages ---
 orchestrator = PipelineOrchestrator()
 
-if settings.llm_mode == "agent":
+if settings.llm_mode in ("agent", "adk"):
     from backend.agent import create_agent_stages
     stages = create_agent_stages(
         api_key=settings.google_api_key,
         model=settings.gemini_model,
+        db=orchestrator.db,
+    )
+elif settings.llm_mode == "agno":
+    from backend.agno import create_agno_stages
+    stages = create_agno_stages(
+        model_provider=settings.agno_model_provider,
+        model_id=settings.agno_model_id,
+        api_key=settings.google_api_key,
         db=orchestrator.db,
     )
 elif settings.llm_mode == "gemini":
