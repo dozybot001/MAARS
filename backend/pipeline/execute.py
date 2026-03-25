@@ -296,7 +296,15 @@ class ExecuteStage(BaseStage):
         return data.get("pass", True), data.get("review", "")
 
     def _build_final_output(self) -> str:
-        """Combine all task results into final output for Write stage."""
+        """Combine all task results and generate Docker reproduction files."""
+        # Generate Docker files if any code was executed
+        if self.db:
+            try:
+                from backend.agent.tools.shared.docker_exec import generate_reproduce_files
+                generate_reproduce_files(self.db)
+            except Exception:
+                pass  # Non-critical — don't fail the stage
+
         parts = []
         for task_id in sorted(self._task_results.keys()):
             parts.append(f"## Task [{task_id}]\n\n{self._task_results[task_id]}")
