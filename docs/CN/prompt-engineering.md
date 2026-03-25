@@ -1,43 +1,24 @@
 # Prompt 工程文档
 
-## Prompt 分层架构
+## Prompt 架构
 
-MAARS 的 prompt 分为两层，各司其职：
-
-```
-┌─────────────────────────────────────────┐
-│ 适配器层 Instruction（Agent 独有）        │
-│ 职责：工具使用、行为约束、语言偏好        │
-│ 位置：backend/agent/__init__.py          │
-│ 注入：create_agent(instruction=...)      │
-├─────────────────────────────────────────┤
-│ Pipeline 层 System Prompt（三模式共用）   │
-│ 职责：流程指令、轮次目标、自动化约束       │
-│ 位置：backend/pipeline/*.py              │
-│ 注入：build_messages() 的 system role    │
-└─────────────────────────────────────────┘
-```
-
-### 合并机制
-
-Gemini 模式：pipeline system prompt 直接作为 `system_instruction`，无适配器层。
-
-Agent 模式：`AgentClient._build_agent_prompt()` 将两层合并为统一的 ADK system instruction：
+MAARS 的两种模式使用**独立的 prompt 体系**：
 
 ```
-merged_instruction = 适配器 instruction + "\n\n" + pipeline system prompt
+Gemini/Mock 模式                     Agent 模式
+─────────────                       ─────────
+Pipeline System Prompt               Agent Instruction
+  职责：流程编排、轮次目标              职责：完整任务描述、工具使用、行为约束
+  位置：backend/pipeline/*.py          位置：backend/agent/__init__.py
+  注入：build_messages() system role   注入：create_agent(instruction=...)
 ```
 
-Agent 收到的完整结构：
-```
-[ADK System Instruction]            ← merged_instruction
-  适配器指令（工具、行为）
-  +
-  Pipeline 指令（流程、轮次目标）
+### 设计原则
 
-[User Message]                      ← user_prompt
-  用户输入 / 历史对话 / 阶段指令
-```
+- **Gemini/Mock**：无工具能力，pipeline 通过多轮 prompt 手把手编排（Explore → Evaluate → Crystallize）
+- **Agent**：有工具能力，instruction 描述完整任务目标和参考流程，Agent 自主决定执行步骤
+- Agent instruction 参考了 pipeline 的流程设计（如 Explore/Evaluate/Crystallize），但不依赖 pipeline prompt，是**独立编写的完整任务描述**
+- Plan 和 Execute 阶段两种模式共用 pipeline stage，Agent 的 instruction 与 pipeline system prompt 通过 `AgentClient._build_agent_prompt()` 合并
 
 ## Pipeline 层 Prompt 清单
 
@@ -97,60 +78,54 @@ Agent 原子定义：`backend/agent/__init__.py` → `agent_atomic_def`
 
 位置：`backend/pipeline/write.py`
 
-## 适配器层 Instruction 清单
+## Agent Instruction 清单
 
-仅 Agent 模式有适配器指令。Gemini/Mock 不需要（pipeline prompt 够用）。
+Agent 模式的 Refine 和 Write 使用独立的 stage（`AgentRefineStage`、`AgentWriteStage`），instruction 是完整的任务描述，**不拼接 pipeline prompt**。
 
-| 指令 | 用于阶段 | 核心内容 |
-|------|---------|---------|
-| `_REFINE_INSTRUCTION` | Refine | 列出可用工具，指导搜索论文流程 |
-| `_EXECUTE_INSTRUCTION` | Execute | **强制使用工具**：MUST call code_execute，不伪造 |
-| `_WRITE_INSTRUCTION` | Write | 列出 DB 工具，指导读取任务产出写论文 |
-| `agent_atomic_def` | Plan | Agent 的原子任务定义（注入 Plan 模板） |
+| 指令 | 用于阶段 | Stage 类 | 核心内容 |
+|------|---------|---------|---------|
+| `_REFINE_INSTRUCTION` | Refine | `AgentRefineStage` | 完整任务：Explore → Evaluate → Crystallize，强制使用搜索工具 |
+| `_EXECUTE_INSTRUCTION` | Execute | `ExecuteStage`（共用） | **强制使用工具**：MUST call code_execute，不伪造 |
+| `_WRITE_INSTRUCTION` | Write | `AgentWriteStage` | 完整任务：读取所有产出、设计结构、撰写全文 |
+| `agent_atomic_def` | Plan | `PlanStage`（共用） | Agent 的原子任务定义（注入 Plan 模板） |
 
-位置：`backend/agent/__init__.py`
+位置：`backend/agent/__init__.py`（instruction）、`backend/agent/stages.py`（stage 类）
+
+**注意**：Agent instruction 参考了 pipeline 的流程步骤作为指引（如 Refine 的三阶段），但 Agent 在单个 session 中自主决定执行顺序和深度，不受 pipeline 多轮机制约束。
 
 ## 完整 Prompt 示例
 
-### Agent 模式 — Refine Explore 轮
+### Agent 模式 — Refine（单 session）
 
 ```
 [ADK System Instruction]
-You have access to research tools. Use them to ground your analysis...
-Available tools: Google Search, arXiv, fetch...
-全文使用中文撰写。
+You are a research advisor. Your job is to take a vague research idea
+and refine it into a complete, actionable research proposal.
 
-This is a fully automated pipeline. No human is in the loop.
-Do NOT ask questions or request input. Make all decisions autonomously.
+Work autonomously through these phases — do NOT stop early:
+1. Explore: Search for relevant papers and survey the landscape...
+2. Evaluate: Based on your research, evaluate possible directions...
+3. Crystallize: Produce a finalized research idea document...
 
-You are a research advisor helping to explore a vague research idea.
-Given the user's initial idea, your job is to:
-- Identify the core research domain...
-Be expansive and creative.
-Output in markdown.
+IMPORTANT: You MUST use your search and paper-reading tools...
+全文使用中文撰写。Output in markdown.
 
 [User Message]
-用 Python 生成并可视化分形图案：比较 Mandelbrot 集与 Julia 集的结构差异
+用蒙特卡洛方法估算圆周率：不同采样数量对收敛速度的影响
 ```
 
 ### Agent 模式 — Execute 某任务
 
 ```
 [ADK System Instruction]
-You have access to research and experiment tools. You MUST use them...
-CRITICAL RULES: When a task involves code, you MUST call code_execute...
-全文使用中文撰写。
-
-This is a fully automated pipeline...
 You are a research assistant executing a specific task...
-Produce a thorough, well-structured result...
-Output in markdown.
+（_EXECUTE_INSTRUCTION + pipeline _EXECUTE_SYSTEM 合并）
 
 [User Message]
 ## Prerequisite tasks (use read_task_output to read): 1_1, 1_2
 ---
 ## Your task [2_1]:
-实现 Mandelbrot 集的逃逸时间算法并生成高分辨率可视化图像
+实现蒙特卡洛采样算法并绘制收敛曲线
 ```
 
 ### Gemini 模式 — Execute 某任务
@@ -167,16 +142,17 @@ Output in markdown.
 （完整的依赖任务内容，预加载在 prompt 中）
 ---
 ## Your task [2_1]:
-实现 Mandelbrot 集的逃逸时间算法并生成高分辨率可视化图像
+实现蒙特卡洛采样算法并绘制收敛曲线
 ```
 
 ## 修改指南
 
 | 要改什么 | 改哪里 |
 |---------|--------|
-| 全局自动化约束 | `pipeline/refine.py` 的 `_AUTO`（其他文件同名变量） |
-| 某阶段的流程逻辑 | 对应的 `pipeline/*.py` |
-| Agent 的工具使用指导 | `agent/__init__.py` 的 `_*_INSTRUCTION` |
-| 原子任务标准 | Gemini: `pipeline/plan.py` 的 `_ATOMIC_DEF_DEFAULT`；Agent: `agent/__init__.py` 的 `agent_atomic_def` |
-| 语言偏好 | `pipeline/*.py` 的 `_AUTO` 前缀（全局生效） |
-| Verify 严格度 | `pipeline/execute.py` 的 `_VERIFY_SYSTEM` |
+| Gemini/Mock 某阶段的流程逻辑 | `pipeline/*.py` 的 system prompt |
+| Agent Refine/Write 的任务描述 | `agent/__init__.py` 的 `_REFINE_INSTRUCTION` / `_WRITE_INSTRUCTION` |
+| Agent Execute 的工具约束 | `agent/__init__.py` 的 `_EXECUTE_INSTRUCTION` |
+| 原子任务标准 | Gemini: `pipeline/plan.py` → `_ATOMIC_DEF_DEFAULT`；Agent: `agent/__init__.py` → `agent_atomic_def` |
+| 全局自动化约束（Gemini） | `pipeline/refine.py` 的 `_AUTO`（其他 pipeline 文件同名变量） |
+| Agent Refine/Write 的 stage 行为 | `agent/stages.py` 的 `AgentRefineStage` / `AgentWriteStage` |
+| Verify 严格度 | `pipeline/execute.py` 的 `_VERIFY_SYSTEM`（两种模式共用） |

@@ -8,11 +8,10 @@ from backend.agent.tools import (
     create_db_tools, create_docker_tools,
     create_arxiv_toolset, create_fetch_toolset,
 )
+from backend.agent.stages import AgentRefineStage, AgentWriteStage
 from backend.llm.agent_client import AgentClient
-from backend.pipeline.refine import RefineStage
 from backend.pipeline.plan import PlanStage
 from backend.pipeline.execute import ExecuteStage
-from backend.pipeline.write import WriteStage
 
 # ADK built-in tools
 try:
@@ -33,42 +32,38 @@ except (ImportError, AttributeError):
 # ---------------------------------------------------------------------------
 
 _REFINE_INSTRUCTION = """\
-You have access to research tools. Use them to ground your analysis in real sources.
+You are a research advisor. Your job is to take a vague research idea and refine it into a complete, actionable research proposal.
 
-Available tools:
-- Google Search: Web search for trends and context
-- url_context: Read content from URLs
-- search + download + read_paper: arXiv paper search and full-text reading
-- fetch: Retrieve content from any URL
+Work autonomously through these phases — do NOT stop early:
+1. **Explore**: Search for relevant papers and survey the landscape. Read key papers in depth to understand what has been done and what gaps exist.
+2. **Evaluate**: Based on your research, evaluate possible directions on novelty, feasibility, and impact. Converge on the most promising direction.
+3. **Crystallize**: Produce a finalized research idea document with: title, research question, motivation, hypothesis, methodology overview, expected contributions, scope/limitations, and related work positioning.
 
-Process: search for relevant papers, read key ones in depth, then produce your analysis."""
+IMPORTANT: You MUST use your search and paper-reading tools — do NOT rely on memory alone. Ground every claim in real sources.
+全文使用中文撰写。Output in markdown."""
 
 _EXECUTE_INSTRUCTION = """\
-You have access to research and experiment tools. You MUST use them — do NOT fabricate results.
+You are a research assistant executing a specific task as part of a larger research project.
 
 CRITICAL RULES:
 - When a task involves code, data analysis, or experiments: you MUST call code_execute to run real Python code. Do NOT describe code or simulate results — actually execute it.
 - When a task involves literature: you MUST call search/fetch tools. Do NOT make up citations.
 - NEVER pretend to have executed something. If you didn't call a tool, you didn't do it.
-
-Available tools:
-- Google Search + arXiv: Find papers, data, and evidence
-- fetch: Retrieve content from any URL
-- code_execute: Run Python in Docker (outputs persist as artifacts in /workspace/output/)
-- list_artifacts: See experiment outputs produced so far"""
+- Produce a thorough, well-structured result with specific examples, evidence, and citations.
+全文使用中文撰写。Output in markdown."""
 
 _WRITE_INSTRUCTION = """\
-You have access to research tools to verify and enrich the paper.
+You are a research paper author. Your job is to write a complete, publication-quality research paper based on completed research task outputs.
 
-Available tools:
-- list_tasks + read_task_output: Read completed research outputs
-- read_refined_idea + read_plan_tree: Research context and structure
-- search + download + read_paper: arXiv papers for citations
-- fetch: Retrieve content from any URL
-- code_execute + list_artifacts: Reference experiment outputs
-- Google Search: Broader verification
+Work autonomously:
+1. Read ALL completed task outputs using list_tasks and read_task_output tools. Read the refined idea and plan tree for context.
+2. Design an appropriate paper structure (Abstract, Introduction, Related Work, Methodology, Results, Discussion, Conclusion — adapt as needed).
+3. Write each section, grounding every claim in the task outputs. Do NOT fabricate findings.
+4. Ensure logical flow, consistent terminology, and proper transitions between sections.
+5. Add a title and make sure the abstract accurately reflects the content.
 
-Do not fabricate findings."""
+You may use search tools to verify facts or find additional citations, but the core content must come from the completed research tasks.
+全文使用中文撰写。Output the complete paper in markdown."""
 
 
 def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) -> dict:
@@ -114,8 +109,8 @@ Given a task, decide:
     )
 
     return {
-        "refine": RefineStage(llm_client=refine_client, db=db),
+        "refine": AgentRefineStage(llm_client=refine_client, db=db),
         "plan": PlanStage(llm_client=plan_client, db=db, atomic_definition=agent_atomic_def),
         "execute": ExecuteStage(llm_client=execute_client, db=db),
-        "write": WriteStage(llm_client=write_client, db=db),
+        "write": AgentWriteStage(llm_client=write_client, db=db),
     }

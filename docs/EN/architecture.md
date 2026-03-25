@@ -92,56 +92,62 @@ WRITE
 
 ## Data Flow: Agent Mode
 
-Agent reads inputs via tools autonomously. Pipeline only provides directives.
+Agent reads inputs via tools autonomously. Refine and Write use dedicated Agent stages
+(single session). Plan and Execute reuse pipeline stages (shared logic, Agent as LLM client).
 
 ```
 User idea
   ↓
-REFINE
-  ├── load_input() → db.get_idea()          [short, passed directly]
+REFINE ← AgentRefineStage (single session, max_rounds=1)
+  ├── load_input() → db.get_idea()
   ├── AgentClient.stream():
-  │   ├── Agent uses search/arXiv/fetch tools
+  │   ├── Agent autonomously: Explore → Evaluate → Crystallize
+  │   ├── Uses search/arXiv/fetch tools for real literature
   │   ├── Think/Tool/Result → broadcast → UI
-  │   └── Final answer → yield → pipeline
-  ├── 3 rounds: Explore → Evaluate → Crystallize
+  │   └── Final research proposal → yield → pipeline
   └── finalize() → db.save_refined_idea()
 
-PLAN
-  ├── load_input() → db.get_refined_idea()  [no tools, reads DB directly, same as Gemini]
+PLAN ← PlanStage (shared, same as Gemini)
+  ├── load_input() → db.get_refined_idea()
   ├── AgentClient(tools=[]) → degrades to plain LLM
   ├── recursive decompose (same as Gemini)
   └── _finalize_output() → db.save_plan(json, tree)
 
-EXECUTE
+EXECUTE ← ExecuteStage (shared, but each task runs as independent Agent session)
   ├── load_input() → db.get_plan_json()     [structural, pipeline reads]
   ├── topological_batches() → parallel execution
-  ├── each task:
+  ├── each task → independent Agent session:
   │   ├── prompt lists dep IDs (Agent reads via read_task_output tool)
   │   ├── Agent decides: search / code_execute / fetch
   │   │   └── code_execute → Docker → artifacts/ on disk
   │   ├── verify → retry if needed
   │   └── db.save_task_output(id, result)
-  └── _build_final_output()
+  └── _build_final_output() + generate_reproduce_files()
 
-WRITE
-  ├── load_input() → "Use list_tasks and read_task_output tools..."
+WRITE ← AgentWriteStage (single session, max_rounds=1)
+  ├── load_input() → directive text (Agent reads all content via tools)
   ├── AgentClient.stream():
   │   ├── Agent calls list_tasks → read_task_output → read_refined_idea
-  │   ├── Agent searches arXiv for citations
-  │   └── Final paper → yield → pipeline
+  │   ├── Agent designs paper structure and writes section by section
+  │   ├── May search for additional citations
+  │   └── Complete paper → yield → pipeline
   └── finalize() → db.save_paper()
 ```
 
 ## Mode Comparison
 
-| | Gemini | Agent |
+| | Gemini/Mock | Agent |
 |---|---|---|
-| Read input | Pipeline pre-loads from DB | Refine/Plan: DB pre-loaded (same as Gemini); Execute/Write: Agent reads via tools |
+| Refine | RefineStage (3 LLM rounds) | AgentRefineStage (1 Agent session, self-directed) |
+| Plan | PlanStage (shared) | PlanStage (shared) |
+| Execute | ExecuteStage (parallel LLM calls) | ExecuteStage (parallel Agent sessions with tools) |
+| Write | WriteStage (outline→sections→polish) | AgentWriteStage (1 Agent session, self-directed) |
+| Read input | Pipeline pre-loads from DB | Refine/Plan: DB pre-loaded; Execute/Write: Agent reads via tools |
 | Write output | `finalize()` writes DB | Same (deterministic) |
 | Dependencies | Content in prompt | Agent calls `read_task_output` |
 | Tools | None | search, code, DB, fetch |
 | UI broadcast | Pipeline emits chunks | AgentClient broadcasts |
-| Artifacts | None | `artifacts/` (Docker) |
+| Artifacts | None | `artifacts/` + Docker reproduction files |
 
 ## Inter-Stage Communication
 

@@ -92,56 +92,62 @@ WRITE
 
 ## 数据流：Agent 模式
 
-Agent 通过工具自主读取输入，Pipeline 只提供指令。
+Agent 通过工具自主读取输入。Refine 和 Write 使用独立的 Agent stage（单 session），
+Plan 和 Execute 复用 pipeline stage（共享逻辑，Agent 作为 LLM client）。
 
 ```
 用户输入 idea
   ↓
-REFINE
-  ├── load_input() → db.get_idea()          [内容短，直接传]
+REFINE ← AgentRefineStage（单 session，max_rounds=1）
+  ├── load_input() → db.get_idea()
   ├── AgentClient.stream()：
-  │   ├── Agent 使用 search/arXiv/fetch 工具
+  │   ├── Agent 自主执行 Explore → Evaluate → Crystallize
+  │   ├── 使用 search/arXiv/fetch 工具查找真实文献
   │   ├── Think/Tool/Result → broadcast → UI
-  │   └── 最终结论 → yield → pipeline
-  ├── 3 轮：Explore → Evaluate → Crystallize
+  │   └── 最终研究提案 → yield → pipeline
   └── finalize() → db.save_refined_idea()
 
-PLAN
-  ├── load_input() → db.get_refined_idea()  [无工具，直接从 DB 读，同 Gemini]
+PLAN ← PlanStage（共用，同 Gemini 模式）
+  ├── load_input() → db.get_refined_idea()
   ├── AgentClient(tools=[]) → 退化为普通 LLM 调用
   ├── 递归分解（同 Gemini 模式）
   └── _finalize_output() → db.save_plan(json, tree)
 
-EXECUTE
+EXECUTE ← ExecuteStage（共用，但每个任务由独立 Agent session 执行）
   ├── load_input() → db.get_plan_json()     [结构化数据，pipeline 直接读]
   ├── topological_batches() → 并行批次执行
-  ├── 每个任务：
+  ├── 每个任务 → 独立 Agent session：
   │   ├── prompt 列出依赖 ID，Agent 用 read_task_output 工具读取
   │   ├── Agent 自主决策：search / code_execute / fetch
   │   │   └── code_execute → Docker 容器 → artifacts/ 落盘
   │   ├── verify → 失败则 retry → 再失败则阶段停止
   │   └── db.save_task_output(id, result)
-  └── _build_final_output()
+  └── _build_final_output() + generate_reproduce_files()
 
-WRITE
-  ├── load_input() → "Use list_tasks and read_task_output tools..."
+WRITE ← AgentWriteStage（单 session，max_rounds=1）
+  ├── load_input() → 指令文本（Agent 通过工具读取所有内容）
   ├── AgentClient.stream()：
   │   ├── Agent 调用 list_tasks → read_task_output → read_refined_idea
-  │   ├── Agent 搜索 arXiv 补充引用
+  │   ├── Agent 自主决定论文结构并逐章节撰写
+  │   ├── 可调用 search 工具补充引用
   │   └── 完整论文 → yield → pipeline
   └── finalize() → db.save_paper()
 ```
 
 ## 模式对比
 
-| | Gemini | Agent |
+| | Gemini/Mock | Agent |
 |---|---|---|
-| 读输入 | Pipeline 从 DB 预加载 | Refine/Plan：DB 预加载（同 Gemini）；Execute/Write：Agent 用工具读取 |
+| Refine | RefineStage（3 轮 LLM 调用） | AgentRefineStage（1 个 Agent session 自主完成） |
+| Plan | PlanStage（共用） | PlanStage（共用） |
+| Execute | ExecuteStage（并行 LLM 调用） | ExecuteStage（并行 Agent session，各带工具） |
+| Write | WriteStage（outline→sections→polish 多 phase） | AgentWriteStage（1 个 Agent session 自主完成） |
+| 读输入 | Pipeline 从 DB 预加载到 prompt | Refine/Plan：DB 预加载；Execute/Write：Agent 用工具读取 |
 | 写输出 | `finalize()` 确定性写 DB | 同左 |
 | 依赖注入 | 内容塞进 prompt | 列出 ID，Agent 调 `read_task_output` |
 | 工具 | 无 | 搜索、代码执行、DB、网页抓取 |
 | UI 广播 | Pipeline emit chunks | AgentClient broadcast |
-| 文件产出 | 无 artifacts | `artifacts/`（Docker 落盘） |
+| 文件产出 | 无 artifacts | `artifacts/` + Docker 复现文件 |
 
 ## 阶段间通信
 
