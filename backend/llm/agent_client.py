@@ -48,11 +48,11 @@ class AgentClient(LLMClient):
         The full message history from pipeline is concatenated into a single
         user prompt to preserve multi-round context.
         """
-        user_text = self._build_agent_prompt(messages)
+        merged_instruction, user_text = self._build_agent_prompt(messages)
 
         agent = create_agent(
             name="maars_agent",
-            instruction=self._instruction,
+            instruction=merged_instruction,
             tools=self._tools,
             model=self._model,
             code_executor=self._code_executor,
@@ -118,27 +118,34 @@ class AgentClient(LLMClient):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_agent_prompt(self, messages: list[dict]) -> str:
-        """Build a single prompt string from the full message history.
+    def _build_agent_prompt(self, messages: list[dict]) -> tuple[str, str]:
+        """Build agent instruction and user prompt from message history.
 
-        Pipeline sends multi-round context as a list of messages:
-          [system, user, assistant, user, assistant, user, ...]
-
-        We concatenate everything (except system — Agent has its own
-        instruction) into one prompt so the Agent sees full context.
+        Returns (merged_instruction, user_prompt):
+        - merged_instruction: adapter instruction + pipeline system prompt (both as system-level)
+        - user_prompt: user content + conversation history
         """
-        parts = []
+        system_parts = []
+        user_parts = []
+
         for msg in messages:
             role = msg.get("role", "")
             content = msg.get("content", "")
             if role == "system":
-                # Pipeline's flow prompt — include as context, not instruction
-                parts.append(f"[Task Instructions]\n{content}")
+                system_parts.append(content)
             elif role == "assistant":
-                parts.append(f"[Previous Output]\n{content}")
+                user_parts.append(f"[Previous Output]\n{content}")
             elif role == "user":
-                parts.append(content)
-        return "\n\n---\n\n".join(parts)
+                user_parts.append(content)
+
+        # Merge: adapter instruction + pipeline system prompts
+        merged_instruction = self._instruction
+        if system_parts:
+            pipeline_prompt = "\n\n".join(system_parts)
+            merged_instruction = f"{self._instruction}\n\n{pipeline_prompt}" if self._instruction else pipeline_prompt
+
+        user_prompt = "\n\n---\n\n".join(user_parts)
+        return merged_instruction, user_prompt
 
     def _broadcast_chunk(self, text: str, call_id: str | None = None):
         """Push a text chunk to the UI via broadcast."""
