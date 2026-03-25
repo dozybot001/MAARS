@@ -126,6 +126,7 @@ class BaseStage:
             if not self._is_stale(my_run_id):
                 self.state = StageState.FAILED
                 self._emit("error", {"message": str(e)})
+                self._emit("state", self.state.value)
             raise
 
     def retry(self):
