@@ -151,8 +151,10 @@ function updateTokenBadge() {
     tokenBadge.textContent = '';
     return;
   }
-  const display = totalTokens >= 1000
-    ? `${(totalTokens / 1000).toFixed(1)}k tokens`
-    : `${totalTokens} tokens`;
+  let display;
+  if (totalTokens >= 1e9)      display = `${(totalTokens / 1e9).toFixed(1)}B tokens`;
+  else if (totalTokens >= 1e6) display = `${(totalTokens / 1e6).toFixed(1)}M tokens`;
+  else if (totalTokens >= 1e3) display = `${(totalTokens / 1e3).toFixed(1)}k tokens`;
+  else                         display = `${totalTokens} tokens`;
   tokenBadge.textContent = display;
 }
