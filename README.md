@@ -80,8 +80,9 @@ flowchart TB
 | Principle | Detail |
 |-----------|--------|
 | Three-layer decoupling | `pipeline/` → `LLMClient` → `mock/gemini/agent` — pipeline never knows which adapter is active |
-| Unified streaming | Every LLM call emits `call_id`-tagged chunks; frontend routes by `call_id` |
-| String in, string out | Stages communicate via `stage.output` — no shared memory |
+| DB-only inter-stage communication | Stages read input from DB, write output to DB. No string passing between stages |
+| Read/write split | **Read**: Agent uses tools autonomously; Gemini/Mock pre-loaded by pipeline. **Write**: always deterministic via `finalize()` |
+| Broadcast split | `has_broadcast=False` (Gemini/Mock): pipeline emits chunks. `has_broadcast=True` (Agent): adapter broadcasts Think/Tool/Result |
 
 ## Quick start
 
@@ -94,6 +95,43 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 # Open http://localhost:8000
 ```
 
+## Data Flow
+
+### Gemini Mode
+
+Pipeline pre-loads content into prompts. GeminiClient streams text.
+
+```
+Idea → Refine (3 rounds, DB pre-loaded)
+     → Plan (recursive decompose, DB pre-loaded)
+     → Execute (batch parallel, deps pre-loaded into prompt)
+     → Write (outline → sections → polish, reads DB directly)
+     → Paper
+```
+
+### Agent Mode
+
+Agent reads inputs via tools autonomously. Pipeline only provides directives.
+
+```
+Idea → Refine (Agent searches arXiv, reads papers)
+     → Plan (AgentClient no tools, structured JSON)
+     → Execute (Agent reads deps via read_task_output,
+                runs code via code_execute → Docker artifacts)
+     → Write (Agent reads all tasks/plan/idea via tools,
+              searches for citations)
+     → Paper + artifacts/
+```
+
+| | Gemini | Agent |
+|---|---|---|
+| Read input | Pipeline pre-loads from DB | Agent reads via tools |
+| Write output | `finalize()` writes DB | Same (deterministic) |
+| Dependencies | Content in prompt | Agent calls `read_task_output` |
+| Tools | None | search, code, DB, fetch |
+| UI broadcast | Pipeline emits chunks | AgentClient broadcasts |
+| Artifacts | None | `artifacts/` (Docker) |
+
 ## Output
 
 Each run creates a timestamped folder:
@@ -104,8 +142,10 @@ research/{timestamp}-{slug}/
 ├── refined_idea.md   # Refine output
 ├── plan.json         # Flat atomic task list
 ├── plan_tree.json    # Decomposition tree
+├── tasks/            # Individual task outputs
+├── artifacts/        # Code scripts + experiment outputs (Agent mode)
 ├── paper.md          # Final paper
-└── tasks/            # Individual task outputs
+└── reasoning.log     # Full execution log
 ```
 
 ## Showcase
