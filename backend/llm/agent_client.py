@@ -4,18 +4,23 @@ Wraps Google ADK Agent's ReAct loop into the LLMClient.stream() interface.
 - stream() yields only the final conclusion text → pipeline accumulates as stage.output
 - Intermediate ReAct events (Think/Tool/Result) are pushed via broadcast → UI display
 - tools=[] degrades to a simple LLM call (used for Plan, Verify)
+- If MCP tools cause a runtime failure, retries once without MCP tools.
 """
 
+import logging
 from typing import AsyncIterator
 
 from google.adk import Runner
 from google.adk.runners import RunConfig
 from google.adk.agents.run_config import StreamingMode
 from google.adk.sessions import InMemorySessionService
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
 from backend.agent.factory import create_agent
 from backend.llm.client import LLMClient
+
+log = logging.getLogger(__name__)
 
 
 class AgentClient(LLMClient):
@@ -43,19 +48,32 @@ class AgentClient(LLMClient):
     async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
         """Run an ADK Agent and yield the final answer text.
 
-        Intermediate ReAct steps (Think/Tool/Result) are broadcast to the
-        UI but NOT yielded. Only the final conclusion is yielded so pipeline
-        accumulates clean output.
-
-        The full message history from pipeline is concatenated into a single
-        user prompt to preserve multi-round context.
+        If MCP tools cause a runtime error (e.g. timeout), retries once
+        with MCP tools removed so the Agent can still complete using
+        remaining tools (google_search, code_execute, etc.).
         """
         merged_instruction, user_text = self._build_agent_prompt(messages)
 
+        try:
+            async for chunk in self._run_agent(merged_instruction, user_text, self._tools):
+                yield chunk
+        except Exception as e:
+            # Filter out MCP tools and retry once
+            non_mcp_tools = [t for t in self._tools if not isinstance(t, McpToolset)]
+            if len(non_mcp_tools) < len(self._tools):
+                log.warning("Agent failed with MCP tools (%s), retrying without MCP", e)
+                self._broadcast_label("Retrying without MCP tools")
+                async for chunk in self._run_agent(merged_instruction, user_text, non_mcp_tools):
+                    yield chunk
+            else:
+                raise
+
+    async def _run_agent(self, instruction: str, user_text: str, tools: list) -> AsyncIterator[str]:
+        """Create and run an ADK Agent, yielding only the final conclusion."""
         agent = create_agent(
             name="maars_agent",
-            instruction=merged_instruction,
-            tools=self._tools,
+            instruction=instruction,
+            tools=tools,
             model=self._model,
             code_executor=self._code_executor,
         )
@@ -76,22 +94,15 @@ class AgentClient(LLMClient):
 
         final_text = ""
         step = 0
-        streaming = False  # True while receiving partial chunks for current step
+        streaming = False
 
-        try:
-            event_stream = runner.run_async(
-                user_id="maars_user",
-                session_id=session.id,
-                new_message=message,
-                run_config=RunConfig(streaming_mode=StreamingMode.SSE),
-            )
-        except Exception as e:
-            # MCP server connection failure at Agent creation time
-            yield f"[Agent error: {e}]"
-            return
-
-        async for event in event_stream:
-            # --- Think: partial = streaming chunks, complete = step boundary ---
+        async for event in runner.run_async(
+            user_id="maars_user",
+            session_id=session.id,
+            new_message=message,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
+        ):
+            # --- Think ---
             if event.content and event.content.parts:
                 for part in event.content.parts:
                     if part.text:
@@ -108,7 +119,7 @@ class AgentClient(LLMClient):
                             step += 1
                             streaming = False
 
-            # --- Tool calls: broadcast label + args ---
+            # --- Tool calls ---
             function_calls = event.get_function_calls()
             if function_calls:
                 for fc in function_calls:
@@ -119,7 +130,7 @@ class AgentClient(LLMClient):
                     )
                     self._broadcast_chunk(f"{fc.name}({args_str})", call_id=label)
 
-            # --- Tool results: broadcast label + result ---
+            # --- Tool results ---
             function_responses = event.get_function_responses()
             if function_responses:
                 for fr in function_responses:
@@ -128,7 +139,6 @@ class AgentClient(LLMClient):
                     result_text = str(fr.response) if fr.response else "(empty)"
                     self._broadcast_chunk(result_text[:500], call_id=label)
 
-        # Only yield the final conclusion → pipeline emits it
         if final_text:
             yield final_text
 
