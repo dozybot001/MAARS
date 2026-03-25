@@ -32,7 +32,9 @@ except (ImportError, AttributeError):
 # Agent-specific instructions (adapter layer — not pipeline flow)
 # ---------------------------------------------------------------------------
 
-_REFINE_INSTRUCTION = """\
+_AGENT_AUTO = "You are part of a fully automated pipeline. No human is in the loop. Do NOT ask questions, request input, or wait for decisions. Proceed autonomously.\n\n"
+
+_REFINE_INSTRUCTION = _AGENT_AUTO + """\
 You have access to research tools. Use them to ground your analysis in real sources.
 
 Available tools:
@@ -44,7 +46,7 @@ Available tools:
 Process: search for relevant papers, read key ones in depth, then produce your analysis.
 全文使用中文撰写。"""
 
-_EXECUTE_INSTRUCTION = """\
+_EXECUTE_INSTRUCTION = _AGENT_AUTO + """\
 You have access to research and experiment tools. You MUST use them — do NOT fabricate results.
 
 CRITICAL RULES:
@@ -60,7 +62,7 @@ Available tools:
 
 全文使用中文撰写。"""
 
-_WRITE_INSTRUCTION = """\
+_WRITE_INSTRUCTION = _AGENT_AUTO + """\
 You have access to research tools to verify and enrich the paper.
 
 Available tools:
