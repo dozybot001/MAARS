@@ -8,7 +8,7 @@ let activeStage = null;
 let callBlocks = {};      // call_id → DOM text element
 let callScrollers = {};   // call_id → autoscroller for chunk block
 let currentSection = null;
-let totalChars = 0;       // character count for token estimation
+let totalTokens = 0;
 let tokenBadge = null;
 
 export function initLogViewer() {
@@ -53,12 +53,12 @@ export function initLogViewer() {
       callBlocks = {};
       callScrollers = {};
       currentSection = null;
-      totalChars = 0;
+      totalTokens = 0;
       updateTokenBadge();
       scroller.reset();
     } else if (data === 'running' && stage !== activeStage) {
-      // Collapse previous section
-      if (currentSection) {
+      // Collapse previous section (respect user-expanded)
+      if (currentSection && !currentSection.classList.contains('user-expanded')) {
         currentSection.classList.add('collapsed');
         const prevSep = currentSection.previousElementSibling;
         if (prevSep) prevSep.classList.add('is-collapsed');
@@ -74,6 +74,15 @@ export function initLogViewer() {
     const callId = data.call_id;
 
     if (data.label && callId) {
+      // Auto-fold previous blocks, but respect user-expanded ones
+      if (currentSection) {
+        currentSection.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
+          el.classList.add('folded');
+          const prev = el.previousElementSibling;
+          if (prev && prev.classList.contains('log-label')) prev.classList.add('is-collapsed');
+        });
+      }
+
       const label = document.createElement('div');
       label.className = 'log-label';
       label.textContent = data.text;
@@ -82,6 +91,18 @@ export function initLogViewer() {
       const block = document.createElement('div');
       block.className = 'log-text';
       currentSection.appendChild(block);
+
+      label.addEventListener('click', () => {
+        const nowFolded = block.classList.toggle('folded');
+        label.classList.toggle('is-collapsed');
+        if (nowFolded) {
+          block.classList.remove('user-expanded');
+        } else {
+          // User expanding — protect from auto-fold
+          block.classList.add('user-expanded');
+        }
+      });
+
       callBlocks[callId] = block;
       callScrollers[callId] = createAutoScroller(block);
       scroller.scroll();
@@ -89,8 +110,6 @@ export function initLogViewer() {
     }
 
     const chunkText = data.text || data;
-    totalChars += chunkText.length;
-    updateTokenBadge();
 
     let block;
     if (callId && callBlocks[callId]) {
@@ -115,6 +134,11 @@ export function initLogViewer() {
     scroller.scroll();
   });
 
+  on('log:tokens', ({ data }) => {
+    totalTokens += data.total || 0;
+    updateTokenBadge();
+  });
+
   on('stage:error', ({ stage, data }) => {
     const msg = data.message || data;
     const el = document.createElement('div');
@@ -128,13 +152,13 @@ export function initLogViewer() {
 
 function updateTokenBadge() {
   if (!tokenBadge) return;
-  if (totalChars === 0) {
+  if (totalTokens === 0) {
     tokenBadge.textContent = '';
     return;
   }
-  // Heuristic: mixed CJK/English averages ~2 chars per token
-  const tokens = Math.round(totalChars / 2);
-  const display = tokens >= 1000 ? `~${(tokens / 1000).toFixed(1)}k tokens` : `~${tokens} tokens`;
+  const display = totalTokens >= 1000
+    ? `${(totalTokens / 1000).toFixed(1)}k tokens`
+    : `${totalTokens} tokens`;
   tokenBadge.textContent = display;
 }
 

@@ -32,8 +32,13 @@ export function appendSeparator(container, label, scroller) {
   sep.addEventListener('click', () => {
     const section = sep.nextElementSibling;
     if (section && section.classList.contains('log-section')) {
-      section.classList.toggle('collapsed');
+      const nowCollapsed = section.classList.toggle('collapsed');
       sep.classList.toggle('is-collapsed');
+      if (nowCollapsed) {
+        section.classList.remove('user-expanded');
+      } else {
+        section.classList.add('user-expanded');
+      }
     }
   });
   container.appendChild(sep);
