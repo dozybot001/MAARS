@@ -168,11 +168,10 @@ class PlanStage(BaseStage):
         self._emit("chunk", {"text": call_id, "call_id": call_id, "label": True})
 
         response = ""
-        async for chunk in client.stream(messages):
+        async for event in client.stream(messages):
             if self._is_stale(my_run_id):
                 return
-            response += chunk
-            self._emit("chunk", {"text": chunk, "call_id": call_id})
+            response += self._dispatch_stream(event, call_id)
 
         data = parse_json_fenced(response, fallback={"is_atomic": True})
 

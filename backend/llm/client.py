@@ -1,5 +1,18 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import AsyncIterator
+
+
+@dataclass
+class StreamEvent:
+    """Structured event yielded by LLMClient.stream().
+
+    Pipeline dispatches all events uniformly — clients never broadcast directly.
+    """
+    type: str  # "content" | "think" | "tool_call" | "tool_result" | "tokens"
+    text: str = ""
+    call_id: str = ""
+    metadata: dict = field(default_factory=dict)
 
 
 class LLMClient(ABC):
@@ -9,22 +22,18 @@ class LLMClient(ABC):
     pipeline layer never knows which provider is active.
     """
 
-    # If True, the client handles its own UI broadcasting (e.g., AgentClient).
-    # Pipeline will NOT emit text chunks to avoid duplication.
-    has_broadcast = False
+    # If True, the client has tools and reads dependencies via tools.
+    # Pipeline will NOT pre-load dependency outputs into prompts.
+    has_tools = False
 
     @abstractmethod
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        """Yield text chunks from the LLM response."""
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
+        """Yield StreamEvents from the LLM response."""
         ...
-
-    def set_broadcast(self, fn):
-        """Inject the SSE broadcast callback (called by orchestrator)."""
-        pass
 
     def request_stop(self):
         """Signal the client to stop after the current in-flight event.
-        Default no-op. AgentClient overrides to break the ReAct loop."""
+        Default no-op. AgentClient/AgnoClient override to break the loop."""
         pass
 
     def reset(self):

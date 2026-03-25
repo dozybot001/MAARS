@@ -2,7 +2,7 @@ import asyncio
 import random
 from typing import AsyncIterator
 
-from backend.llm.client import LLMClient
+from backend.llm.client import LLMClient, StreamEvent
 
 
 class MockClient(LLMClient):
@@ -16,10 +16,10 @@ class MockClient(LLMClient):
         self._index = 0
         self.chunk_delay = chunk_delay
 
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
         text = self._next()
         async for chunk in _stream_text(text, self.chunk_delay):
-            yield chunk
+            yield StreamEvent("content", text=chunk)
 
     def _next(self) -> str:
         if not self._responses:
@@ -44,10 +44,10 @@ class ParallelMockClient(LLMClient):
         self.chunk_delay = chunk_delay
         self._task_counters: dict[int, int] = {}
 
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
         text = self._next_for_task()
         async for chunk in _stream_text(text, self.chunk_delay):
-            yield chunk
+            yield StreamEvent("content", text=chunk)
 
     def _next_for_task(self) -> str:
         if not self._responses:

@@ -1,8 +1,8 @@
 """ADK Agent → LLMClient adapter.
 
 Wraps Google ADK Agent's ReAct loop into the LLMClient.stream() interface.
-- stream() yields only the final conclusion text → pipeline accumulates as stage.output
-- Intermediate ReAct events (Think/Tool/Result) are pushed via broadcast → UI display
+- stream() yields StreamEvents for Think/Tool/Result/Content/Tokens
+- Pipeline handles all broadcasting — client never touches SSE
 - tools=[] degrades to a simple LLM call (used for Plan, Verify)
 - If MCP tools cause a runtime failure, retries once without MCP tools.
 """
@@ -18,14 +18,14 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
 from backend.agent.factory import create_agent
-from backend.llm.client import LLMClient
+from backend.llm.client import LLMClient, StreamEvent
 
 log = logging.getLogger(__name__)
 
 
 class AgentClient(LLMClient):
 
-    has_broadcast = True  # AgentClient handles its own UI broadcasting
+    has_tools = True  # Agent reads dependencies via tools
 
     def __init__(
         self,
@@ -38,13 +38,7 @@ class AgentClient(LLMClient):
         self._model = model
         self._tools = tools or []
         self._code_executor = code_executor
-        self._broadcast = lambda event: None
-        self._step_counter = 0
         self._stop_requested = False
-
-    def set_broadcast(self, fn):
-        """Inject the SSE broadcast callback (called by orchestrator)."""
-        self._broadcast = fn
 
     def request_stop(self):
         """Signal the Agent to stop after the current event."""
@@ -54,8 +48,8 @@ class AgentClient(LLMClient):
         """Clear stop flag on pipeline restart."""
         self._stop_requested = False
 
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        """Run an ADK Agent and yield the final answer text.
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
+        """Run an ADK Agent and yield StreamEvents.
 
         If MCP tools cause a runtime error (e.g. timeout), retries once
         with MCP tools removed so the Agent can still complete using
@@ -64,21 +58,21 @@ class AgentClient(LLMClient):
         merged_instruction, user_text = self._build_agent_prompt(messages)
 
         try:
-            async for chunk in self._run_agent(merged_instruction, user_text, self._tools):
-                yield chunk
+            async for event in self._run_agent(merged_instruction, user_text, self._tools):
+                yield event
         except Exception as e:
             # Filter out MCP tools and retry once
             non_mcp_tools = [t for t in self._tools if not isinstance(t, McpToolset)]
             if len(non_mcp_tools) < len(self._tools):
                 log.warning("Agent failed with MCP tools (%s), retrying without MCP", e)
-                self._broadcast_label("Retrying without MCP tools")
-                async for chunk in self._run_agent(merged_instruction, user_text, non_mcp_tools):
-                    yield chunk
+                yield StreamEvent("think", text="Retrying without MCP tools", call_id="Retry")
+                async for event in self._run_agent(merged_instruction, user_text, non_mcp_tools):
+                    yield event
             else:
                 raise
 
-    async def _run_agent(self, instruction: str, user_text: str, tools: list) -> AsyncIterator[str]:
-        """Create and run an ADK Agent, yielding only the final conclusion."""
+    async def _run_agent(self, instruction: str, user_text: str, tools: list) -> AsyncIterator[StreamEvent]:
+        """Create and run an ADK Agent, yielding StreamEvents."""
         agent = create_agent(
             name="maars_agent",
             instruction=instruction,
@@ -116,16 +110,12 @@ class AgentClient(LLMClient):
             if self._stop_requested:
                 break
 
-            # Broadcast real token usage when available
+            # Token usage
             if event.usage_metadata:
-                self._broadcast({
-                    "stage": "_agent",
-                    "type": "tokens",
-                    "data": {
-                        "input": event.usage_metadata.prompt_token_count or 0,
-                        "output": event.usage_metadata.candidates_token_count or 0,
-                        "total": event.usage_metadata.total_token_count or 0,
-                    },
+                yield StreamEvent("tokens", metadata={
+                    "input": event.usage_metadata.prompt_token_count or 0,
+                    "output": event.usage_metadata.candidates_token_count or 0,
+                    "total": event.usage_metadata.total_token_count or 0,
                 })
 
             # --- Think ---
@@ -134,13 +124,11 @@ class AgentClient(LLMClient):
                     if part.text:
                         if event.partial:
                             if not streaming:
-                                self._broadcast_label(f"Think {step}")
                                 streaming = True
-                            self._broadcast_chunk(part.text, call_id=f"Think {step}")
+                            yield StreamEvent("think", text=part.text, call_id=f"Think {step}")
                         else:
                             if not streaming:
-                                self._broadcast_label(f"Think {step}")
-                                self._broadcast_chunk(part.text, call_id=f"Think {step}")
+                                yield StreamEvent("think", text=part.text, call_id=f"Think {step}")
                             final_text = part.text
                             step += 1
                             streaming = False
@@ -149,36 +137,35 @@ class AgentClient(LLMClient):
             function_calls = event.get_function_calls()
             if function_calls:
                 for fc in function_calls:
-                    label = f"Tool: {fc.name}"
-                    self._broadcast_label(label)
                     args_str = ", ".join(
                         f"{k}={v}" for k, v in (fc.args or {}).items()
                     )
-                    self._broadcast_chunk(f"{fc.name}({args_str})", call_id=label)
+                    yield StreamEvent(
+                        "tool_call",
+                        text=f"{fc.name}({args_str})",
+                        call_id=f"Tool: {fc.name}",
+                    )
 
             # --- Tool results ---
             function_responses = event.get_function_responses()
             if function_responses:
                 for fr in function_responses:
-                    label = f"Result: {fr.name}"
-                    self._broadcast_label(label)
                     result_text = str(fr.response) if fr.response else "(empty)"
-                    self._broadcast_chunk(result_text[:500], call_id=label)
+                    yield StreamEvent(
+                        "tool_result",
+                        text=result_text[:500],
+                        call_id=f"Result: {fr.name}",
+                    )
 
         if final_text:
-            yield final_text
+            yield StreamEvent("content", text=final_text)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _build_agent_prompt(self, messages: list[dict]) -> tuple[str, str]:
-        """Build agent instruction and user prompt from message history.
-
-        Returns (merged_instruction, user_prompt):
-        - merged_instruction: adapter instruction + pipeline system prompt (both as system-level)
-        - user_prompt: user content + conversation history
-        """
+        """Build agent instruction and user prompt from message history."""
         system_parts = []
         user_parts = []
 
@@ -192,7 +179,6 @@ class AgentClient(LLMClient):
             elif role == "user":
                 user_parts.append(content)
 
-        # Merge: adapter instruction + pipeline system prompts
         merged_instruction = self._instruction
         if system_parts:
             pipeline_prompt = "\n\n".join(system_parts)
@@ -200,19 +186,3 @@ class AgentClient(LLMClient):
 
         user_prompt = "\n\n---\n\n".join(user_parts)
         return merged_instruction, user_prompt
-
-    def _broadcast_chunk(self, text: str, call_id: str | None = None):
-        """Push a text chunk to the UI via broadcast."""
-        self._broadcast({
-            "stage": "_agent",
-            "type": "chunk",
-            "data": {"text": text, "call_id": call_id},
-        })
-
-    def _broadcast_label(self, label: str):
-        """Push a label (section header) to the UI via broadcast."""
-        self._broadcast({
-            "stage": "_agent",
-            "type": "chunk",
-            "data": {"text": label, "call_id": label, "label": True},
-        })

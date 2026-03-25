@@ -112,7 +112,7 @@ class WriteStage(BaseStage):
         return ""
 
     def load_input(self) -> str:
-        if self.llm_client and self.llm_client.has_broadcast:
+        if self.llm_client and self.llm_client.has_tools:
             return (
                 "Use list_tasks and read_task_output tools to read completed research outputs. "
                 "Use read_refined_idea for context and read_plan_tree for structure. "

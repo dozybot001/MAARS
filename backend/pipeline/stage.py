@@ -1,7 +1,7 @@
 import asyncio
 from enum import Enum
 
-from backend.llm.client import LLMClient
+from backend.llm.client import LLMClient, StreamEvent
 
 
 class StageState(str, Enum):
@@ -94,14 +94,12 @@ class BaseStage:
 
                 response = ""
 
-                async for chunk in self.llm_client.stream(messages):
+                async for event in self.llm_client.stream(messages):
                     if self._is_stale(my_run_id):
                         break
-
-                    response += chunk
-                    self.output += chunk
-                    if not self.llm_client.has_broadcast:
-                        self._emit("chunk", {"text": chunk, "call_id": call_id})
+                    text = self._dispatch_stream(event, call_id)
+                    response += text
+                    self.output += text
 
                 if self._is_stale(my_run_id):
                     return self.output
@@ -148,6 +146,19 @@ class BaseStage:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _dispatch_stream(self, event: StreamEvent, call_id: str) -> str:
+        """Dispatch a StreamEvent: broadcast to UI, return content text."""
+        if event.type == "content":
+            self._emit("chunk", {"text": event.text, "call_id": call_id})
+            return event.text
+        if event.type in ("think", "tool_call", "tool_result"):
+            self._emit("chunk", {"text": event.call_id, "call_id": event.call_id, "label": True})
+            if event.text:
+                self._emit("chunk", {"text": event.text, "call_id": event.call_id})
+        elif event.type == "tokens":
+            self._emit("tokens", event.metadata)
+        return ""
 
     def _is_stale(self, my_run_id: int) -> bool:
         return my_run_id != self._run_id

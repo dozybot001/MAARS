@@ -1,8 +1,8 @@
 """Agno Agent → LLMClient adapter.
 
 Wraps Agno's Agent streaming into the LLMClient.stream() interface.
-- stream() yields only the final conclusion text → pipeline accumulates as stage.output
-- Intermediate events (Think/Tool/Result) are pushed via broadcast → UI display
+- stream() yields StreamEvents for Think/Tool/Result/Content/Tokens
+- Pipeline handles all broadcasting — client never touches SSE
 - tools=[] degrades to a simple LLM call (used for Plan)
 """
 
@@ -11,14 +11,14 @@ from typing import AsyncIterator
 
 from agno.agent import Agent, RunEvent
 
-from backend.llm.client import LLMClient
+from backend.llm.client import LLMClient, StreamEvent
 
 log = logging.getLogger(__name__)
 
 
 class AgnoClient(LLMClient):
 
-    has_broadcast = True  # AgnoClient handles its own UI broadcasting
+    has_tools = True  # Agent reads dependencies via tools
 
     def __init__(
         self,
@@ -29,12 +29,7 @@ class AgnoClient(LLMClient):
         self._instruction = instruction
         self._model = model
         self._tools = tools or []
-        self._broadcast = lambda event: None
         self._stop_requested = False
-
-    def set_broadcast(self, fn):
-        """Inject the SSE broadcast callback (called by orchestrator)."""
-        self._broadcast = fn
 
     def request_stop(self):
         """Signal the Agent to stop after the current event."""
@@ -44,14 +39,14 @@ class AgnoClient(LLMClient):
         """Clear stop flag on pipeline restart."""
         self._stop_requested = False
 
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        """Run an Agno Agent and yield the final answer text."""
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
+        """Run an Agno Agent and yield StreamEvents."""
         merged_instruction, user_text = self._build_agent_prompt(messages)
-        async for chunk in self._run_agent(merged_instruction, user_text):
-            yield chunk
+        async for event in self._run_agent(merged_instruction, user_text):
+            yield event
 
-    async def _run_agent(self, instruction: str, user_text: str) -> AsyncIterator[str]:
-        """Create and run an Agno Agent, yielding only the final conclusion."""
+    async def _run_agent(self, instruction: str, user_text: str) -> AsyncIterator[StreamEvent]:
+        """Create and run an Agno Agent, yielding StreamEvents."""
         agent = Agent(
             model=self._model,
             instructions=instruction,
@@ -70,44 +65,40 @@ class AgnoClient(LLMClient):
             # --- Token usage ---
             if event.event == RunEvent.run_completed:
                 if event.metrics:
-                    self._broadcast({
-                        "stage": "_agent",
-                        "type": "tokens",
-                        "data": {
-                            "input": event.metrics.input_tokens or 0,
-                            "output": event.metrics.output_tokens or 0,
-                            "total": event.metrics.total_tokens or 0,
-                        },
+                    yield StreamEvent("tokens", metadata={
+                        "input": event.metrics.input_tokens or 0,
+                        "output": event.metrics.output_tokens or 0,
+                        "total": event.metrics.total_tokens or 0,
                     })
 
             # --- Reasoning ---
             elif event.event == RunEvent.reasoning_step:
-                label = f"Think {step}"
-                self._broadcast_label(label)
                 if event.content:
-                    self._broadcast_chunk(str(event.content), call_id=label)
-                step += 1
+                    yield StreamEvent("think", text=str(event.content), call_id=f"Think {step}")
+                    step += 1
 
             # --- Tool calls ---
             elif event.event == RunEvent.tool_call_started:
                 tool_name = event.tool.tool_name if event.tool else "tool"
-                label = f"Tool: {tool_name}"
-                self._broadcast_label(label)
                 args_str = ""
                 if event.tool and event.tool.tool_args:
                     args_str = ", ".join(
                         f"{k}={v}" for k, v in event.tool.tool_args.items()
                     )
-                self._broadcast_chunk(
-                    f"{tool_name}({args_str})", call_id=label
+                yield StreamEvent(
+                    "tool_call",
+                    text=f"{tool_name}({args_str})",
+                    call_id=f"Tool: {tool_name}",
                 )
 
             elif event.event == RunEvent.tool_call_completed:
                 tool_name = event.tool.tool_name if event.tool else "tool"
-                label = f"Result: {tool_name}"
-                self._broadcast_label(label)
                 result_text = str(event.content) if event.content else "(empty)"
-                self._broadcast_chunk(result_text[:500], call_id=label)
+                yield StreamEvent(
+                    "tool_result",
+                    text=result_text[:500],
+                    call_id=f"Result: {tool_name}",
+                )
 
             # --- Content ---
             elif event.event == RunEvent.run_content:
@@ -115,18 +106,14 @@ class AgnoClient(LLMClient):
                     final_text = str(event.content)
 
         if final_text:
-            yield final_text
+            yield StreamEvent("content", text=final_text)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _build_agent_prompt(self, messages: list[dict]) -> tuple[str, str]:
-        """Build agent instruction and user prompt from message history.
-
-        Same logic as AgentClient — both adapters receive the same
-        messages format from the pipeline.
-        """
+        """Build agent instruction and user prompt from message history."""
         system_parts = []
         user_parts = []
 
@@ -147,19 +134,3 @@ class AgnoClient(LLMClient):
 
         user_prompt = "\n\n---\n\n".join(user_parts)
         return merged_instruction, user_prompt
-
-    def _broadcast_chunk(self, text: str, call_id: str | None = None):
-        """Push a text chunk to the UI via broadcast."""
-        self._broadcast({
-            "stage": "_agent",
-            "type": "chunk",
-            "data": {"text": text, "call_id": call_id},
-        })
-
-    def _broadcast_label(self, label: str):
-        """Push a label (section header) to the UI via broadcast."""
-        self._broadcast({
-            "stage": "_agent",
-            "type": "chunk",
-            "data": {"text": label, "call_id": label, "label": True},
-        })

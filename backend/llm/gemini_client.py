@@ -4,7 +4,7 @@ from typing import AsyncIterator
 
 from google import genai
 
-from .client import LLMClient
+from .client import LLMClient, StreamEvent
 
 
 class GeminiClient(LLMClient):
@@ -20,12 +20,8 @@ class GeminiClient(LLMClient):
         self._client = genai.Client(api_key=api_key)
         self._model = model
         self._instruction = instruction
-        self._broadcast = lambda event: None
 
-    def set_broadcast(self, fn):
-        self._broadcast = fn
-
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
+    async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
         # Client's own instruction takes priority; fall back to
         # any system message in the messages list (backward compat)
         system_instruction = self._instruction
@@ -59,18 +55,14 @@ class GeminiClient(LLMClient):
         usage = None
         async for chunk in response:
             if chunk.text:
-                yield chunk.text
+                yield StreamEvent("content", text=chunk.text)
             if chunk.usage_metadata:
                 usage = chunk.usage_metadata
 
         if usage:
-            self._broadcast({
-                "stage": "_llm",
-                "type": "tokens",
-                "data": {
-                    "input": usage.prompt_token_count or 0,
-                    "output": getattr(usage, 'candidates_token_count', None)
-                             or getattr(usage, 'response_token_count', None) or 0,
-                    "total": usage.total_token_count or 0,
-                },
+            yield StreamEvent("tokens", metadata={
+                "input": usage.prompt_token_count or 0,
+                "output": getattr(usage, 'candidates_token_count', None)
+                         or getattr(usage, 'response_token_count', None) or 0,
+                "total": usage.total_token_count or 0,
             })

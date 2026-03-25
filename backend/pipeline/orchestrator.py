@@ -57,11 +57,9 @@ class PipelineOrchestrator:
                 pass
 
     def _wire_broadcast(self):
-        """Inject broadcast callback into all stages and their LLM clients."""
+        """Inject broadcast callback into all stages."""
         for stage in self.stages.values():
             stage._broadcast = self._broadcast
-            if hasattr(stage, 'llm_client') and hasattr(stage.llm_client, 'set_broadcast'):
-                stage.llm_client.set_broadcast(self._broadcast)
 
     # ------------------------------------------------------------------
     # Task lifecycle helpers

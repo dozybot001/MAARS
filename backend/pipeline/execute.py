@@ -213,7 +213,7 @@ class ExecuteStage(BaseStage):
         # Agent mode: Agent reads deps via tools, pipeline just lists dep IDs
         # Gemini/Mock: pipeline pre-loads dep content into prompt
         dep_outputs = {}
-        if not client.has_broadcast:
+        if not client.has_tools:
             for dep_id in task.get("dependencies", []):
                 output = self._task_results.get(dep_id, "")
                 if not output and self.db:
@@ -269,14 +269,12 @@ class ExecuteStage(BaseStage):
         return result
 
     async def _stream_llm(self, client, messages: list[dict], call_id: str, my_run_id: int) -> str:
-        """Stream LLM response, emitting chunks with call_id."""
+        """Stream LLM response, dispatching all events uniformly."""
         result = ""
-        async for chunk in client.stream(messages):
+        async for event in client.stream(messages):
             if self._is_stale(my_run_id):
                 break
-            result += chunk
-            if not client.has_broadcast:
-                self._emit("chunk", {"text": chunk, "call_id": call_id})
+            result += self._dispatch_stream(event, call_id)
         return result
 
     def _parse_verification(self, response: str) -> tuple[bool, str]:
