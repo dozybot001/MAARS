@@ -23,6 +23,7 @@ def create_arxiv_toolset() -> McpToolset:
                 command="python",
                 args=["-m", "arxiv_mcp_server"],
             ),
+            timeout=30.0,
         ),
     )
 
@@ -39,5 +40,6 @@ def create_fetch_toolset() -> McpToolset:
                 command="python",
                 args=["-m", "mcp_server_fetch"],
             ),
+            timeout=30.0,
         ),
     )
