@@ -75,7 +75,8 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
     docker_tools = create_docker_tools(db) if db else []
     arxiv_toolset = create_arxiv_toolset()
     fetch_toolset = create_fetch_toolset()
-    research_tools = _builtin_tools + [arxiv_toolset, fetch_toolset]
+    mcp_tools = [t for t in [arxiv_toolset, fetch_toolset] if t is not None]
+    research_tools = _builtin_tools + mcp_tools
 
     refine_client = AgentClient(
         instruction=_REFINE_INSTRUCTION,
