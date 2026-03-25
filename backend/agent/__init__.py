@@ -79,9 +79,11 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
     """
     db_tools = create_db_tools(db) if db else []
     docker_tools = create_docker_tools(db) if db else []
-    arxiv_toolset = create_arxiv_toolset()
+    # arXiv MCP disabled — API rate limits cause frequent timeouts.
+    # Agent uses google_search + url_context as alternative.
+    # arxiv_toolset = create_arxiv_toolset()
     fetch_toolset = create_fetch_toolset()
-    mcp_tools = [t for t in [arxiv_toolset, fetch_toolset] if t is not None]
+    mcp_tools = [t for t in [fetch_toolset] if t is not None]
     research_tools = _builtin_tools + mcp_tools
 
     refine_client = AgentClient(
