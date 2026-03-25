@@ -42,21 +42,6 @@ async def get_status(request: Request):
     )
 
 
-@router.post("/stage/{stage_name}/run", response_model=ActionResponse)
-async def run_stage(stage_name: str, request: Request):
-    _validate_stage(stage_name)
-    orch = _get_orchestrator(request)
-    err = orch.check_runnable(stage_name)
-    if err:
-        raise HTTPException(status_code=409, detail=err)
-    await orch.run_stage_background(stage_name)
-    return ActionResponse(
-        stage=stage_name,
-        state=orch.stages[stage_name].state.value,
-        message="Stage started",
-    )
-
-
 @router.post("/stage/{stage_name}/stop", response_model=ActionResponse)
 async def stop_stage(stage_name: str, request: Request):
     _validate_stage(stage_name)

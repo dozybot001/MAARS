@@ -100,15 +100,17 @@ class PipelineOrchestrator:
             if stage.llm_client:
                 stage.llm_client.reset()
 
-        task = asyncio.create_task(self._run_all())
+        task = asyncio.create_task(self._run_from("refine"))
         self._tasks["pipeline"] = task
 
-    async def _run_all(self):
-        """Run all stages sequentially. Each stage reads from and writes to DB."""
-        for name in STAGE_ORDER:
+    async def _run_from(self, stage_name: str):
+        """Run stages sequentially from the given stage to the end."""
+        idx = STAGE_ORDER.index(stage_name)
+        for name in STAGE_ORDER[idx:]:
             try:
-                await self.run_stage(name)
-                if self.stages[name].state != StageState.COMPLETED:
+                stage = self.stages[name]
+                await stage.run()
+                if stage.state != StageState.COMPLETED:
                     break
             except asyncio.CancelledError:
                 raise
@@ -118,27 +120,6 @@ class PipelineOrchestrator:
     # ------------------------------------------------------------------
     # Stage-level operations
     # ------------------------------------------------------------------
-
-    async def run_stage(self, stage_name: str):
-        """Run a single stage. Stage reads its input from DB."""
-        stage = self.stages[stage_name]
-        await stage.run()
-
-    def check_runnable(self, stage_name: str) -> str | None:
-        """Return an error message if this stage cannot run, or None if OK."""
-        idx = STAGE_ORDER.index(stage_name)
-        if idx == 0:
-            return "Use START to begin the pipeline"
-        prev = self.stages[STAGE_ORDER[idx - 1]]
-        if prev.state != StageState.COMPLETED:
-            return f"Previous stage '{prev.name}' has not completed"
-        return None
-
-    async def run_stage_background(self, stage_name: str):
-        """Cancel any existing task for this stage, then launch a new one."""
-        await self._cancel_task(stage_name)
-        task = asyncio.create_task(self.run_stage(stage_name))
-        self._tasks[stage_name] = task
 
     async def stop_stage(self, stage_name: str):
         """Stop a running stage by cancelling its task.
@@ -160,7 +141,7 @@ class PipelineOrchestrator:
         stage._emit("state", stage.state.value)
 
     async def resume_stage(self, stage_name: str):
-        """Resume a paused stage by restarting its run.
+        """Resume a paused stage, then auto-continue remaining stages.
 
         Execute stage loads checkpoint from DB and skips completed tasks.
         Other stages restart from scratch (resume ≡ retry for single-session stages).
@@ -170,11 +151,11 @@ class PipelineOrchestrator:
             return
         stage.output = ""
         stage.rounds = []
-        task = asyncio.create_task(self.run_stage(stage_name))
-        self._tasks[stage_name] = task
+        task = asyncio.create_task(self._run_from(stage_name))
+        self._tasks["pipeline"] = task
 
     async def retry_stage(self, stage_name: str):
-        """Reset and re-run a stage from scratch.
+        """Reset and re-run a stage from scratch, then auto-continue.
 
         Also invalidates all downstream stages since their inputs
         are now stale.
@@ -186,8 +167,8 @@ class PipelineOrchestrator:
             await self._cancel_task(name)
             self.stages[name].retry()
 
-        task = asyncio.create_task(self.run_stage(stage_name))
-        self._tasks[stage_name] = task
+        task = asyncio.create_task(self._run_from(stage_name))
+        self._tasks["pipeline"] = task
 
     # ------------------------------------------------------------------
     # Status

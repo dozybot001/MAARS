@@ -5,16 +5,17 @@ const STAGE_ORDER = ['refine', 'plan', 'execute', 'write'];
 
 /**
  * Declarative button enable/disable rules per state.
+ * No "run" — START is the only pipeline entry point.
  */
 const BUTTON_RULES = {
-  idle:      { run: true,  stop: false, resume: false, retry: false },
-  running:   { run: false, stop: true,  resume: false, retry: true  },
-  paused:    { run: false, stop: false, resume: true,  retry: true  },
-  completed: { run: false, stop: false, resume: false, retry: true  },
-  failed:    { run: false, stop: false, resume: false, retry: true  },
+  idle:      { stop: false, resume: false, retry: false },
+  running:   { stop: true,  resume: false, retry: true  },
+  paused:    { stop: false, resume: true,  retry: true  },
+  completed: { stop: false, resume: false, retry: true  },
+  failed:    { stop: false, resume: false, retry: true  },
 };
 
-// Track each stage's current state for cross-stage checks
+// Track each stage's current state
 const stageStates = {};
 STAGE_ORDER.forEach((name) => { stageStates[name] = 'idle'; });
 
@@ -44,7 +45,7 @@ export function initPipelineUI() {
 }
 
 function updateAllCards() {
-  STAGE_ORDER.forEach((stageName, idx) => {
+  STAGE_ORDER.forEach((stageName) => {
     const card = document.querySelector(`[data-stage="${stageName}"]`);
     if (!card) return;
 
@@ -58,22 +59,13 @@ function updateAllCards() {
     // Update active border
     card.dataset.active = (state === 'running') ? 'true' : 'false';
 
-    // Button rules for this stage's own state
+    // Button rules
     const rules = BUTTON_RULES[state];
     if (!rules) return;
 
-    // Check if previous stage is completed
-    const prevCompleted = idx > 0 && stageStates[STAGE_ORDER[idx - 1]] === 'completed';
-
     for (const [action, enabled] of Object.entries(rules)) {
       const btn = card.querySelector(`[data-action="${action}"]`);
-      if (!btn) continue;
-
-      if (action === 'run') {
-        btn.disabled = !(enabled && prevCompleted);
-      } else {
-        btn.disabled = !enabled;
-      }
+      if (btn) btn.disabled = !enabled;
     }
   });
 }
