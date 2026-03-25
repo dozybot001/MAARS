@@ -90,51 +90,43 @@ class AgentClient(LLMClient):
             yield f"[Agent error: {e}]"
             return
 
-        try:
-            async for event in event_stream:
-                # --- Think: partial = streaming chunks, complete = step boundary ---
-                if event.content and event.content.parts:
-                    for part in event.content.parts:
-                        if part.text:
-                            if event.partial:
-                                if not streaming:
-                                    self._broadcast_label(f"Think {step}")
-                                    streaming = True
+        async for event in event_stream:
+            # --- Think: partial = streaming chunks, complete = step boundary ---
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if part.text:
+                        if event.partial:
+                            if not streaming:
+                                self._broadcast_label(f"Think {step}")
+                                streaming = True
+                            self._broadcast_chunk(part.text, call_id=f"Think {step}")
+                        else:
+                            if not streaming:
+                                self._broadcast_label(f"Think {step}")
                                 self._broadcast_chunk(part.text, call_id=f"Think {step}")
-                            else:
-                                if not streaming:
-                                    self._broadcast_label(f"Think {step}")
-                                    self._broadcast_chunk(part.text, call_id=f"Think {step}")
-                                final_text = part.text
-                                step += 1
-                                streaming = False
+                            final_text = part.text
+                            step += 1
+                            streaming = False
 
-                # --- Tool calls: broadcast label + args ---
-                function_calls = event.get_function_calls()
-                if function_calls:
-                    for fc in function_calls:
-                        label = f"Tool: {fc.name}"
-                        self._broadcast_label(label)
-                        args_str = ", ".join(
-                            f"{k}={v}" for k, v in (fc.args or {}).items()
-                        )
-                        self._broadcast_chunk(f"{fc.name}({args_str})", call_id=label)
+            # --- Tool calls: broadcast label + args ---
+            function_calls = event.get_function_calls()
+            if function_calls:
+                for fc in function_calls:
+                    label = f"Tool: {fc.name}"
+                    self._broadcast_label(label)
+                    args_str = ", ".join(
+                        f"{k}={v}" for k, v in (fc.args or {}).items()
+                    )
+                    self._broadcast_chunk(f"{fc.name}({args_str})", call_id=label)
 
-                # --- Tool results: broadcast label + result ---
-                function_responses = event.get_function_responses()
-                if function_responses:
-                    for fr in function_responses:
-                        label = f"Result: {fr.name}"
-                        self._broadcast_label(label)
-                        result_text = str(fr.response) if fr.response else "(empty)"
-                        self._broadcast_chunk(result_text[:500], call_id=label)
-        except Exception as e:
-            # MCP server disconnection or other runtime error during Agent execution.
-            # Yield whatever we have so the task doesn't crash silently.
-            if final_text:
-                final_text += f"\n\n[Agent interrupted: {e}]"
-            else:
-                final_text = f"[Agent error: {e}]"
+            # --- Tool results: broadcast label + result ---
+            function_responses = event.get_function_responses()
+            if function_responses:
+                for fr in function_responses:
+                    label = f"Result: {fr.name}"
+                    self._broadcast_label(label)
+                    result_text = str(fr.response) if fr.response else "(empty)"
+                    self._broadcast_chunk(result_text[:500], call_id=label)
 
         # Only yield the final conclusion → pipeline emits it
         if final_text:
