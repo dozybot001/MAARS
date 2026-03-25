@@ -25,48 +25,49 @@ class Task:
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT_TEMPLATE = """\
-You are a research project planner. Your job is to decompose tasks into smaller subtasks.
+You are a research project planner. Given a task, decide whether it is atomic (executable as-is) or needs decomposition into subtasks.
 
-IMPORTANT CONTEXT: This is the PLAN stage of a 4-stage automated research pipeline: Refine → Plan → Execute → Write.
-- You are in the PLAN stage: decompose the research into executable atomic tasks.
-- The EXECUTE stage will run each atomic task.
-- A separate WRITE stage will synthesize all task outputs into the final research paper.
-- Therefore: do NOT create "write paper" or "compile report" tasks. Only create research/analysis/experiment tasks.
+CONTEXT: This is the PLAN stage of a 4-stage pipeline: Refine → Plan → Execute → Write.
+- The EXECUTE stage runs each atomic task independently.
+- A separate WRITE stage synthesizes all outputs into the final paper.
+- Therefore: do NOT create "write paper" or "compile report" tasks.
 - No human is in the loop. Make all decisions autonomously.
 
 {atomic_definition}
 
-Rules:
-- Dependencies are ONLY between sibling subtasks (same level).
+WHEN TO STOP DECOMPOSING:
+- A task is atomic when further splitting would create tasks that are trivial, redundant, or tightly coupled (i.e. they cannot produce meaningful standalone output).
+- Err on the side of FEWER, COARSER tasks. A task that takes multiple steps but has a single coherent goal should stay atomic.
+- Do NOT decompose just because a task is "big". Decompose only when a task has genuinely distinct sub-goals that benefit from independent execution.
+
+Rules for subtasks:
+- Dependencies are ONLY between sibling subtasks (same parent).
 - A subtask can only depend on earlier siblings (no circular dependencies).
-- Subtask IDs are simple integers starting from 1: "1", "2", "3", ...
-- Each decomposition should produce 3-7 subtasks. Prefer fewer, coarser tasks over many fine-grained ones.
-- Task descriptions should be specific and actionable: state clearly what output is expected.
-- Do NOT create "write the paper" or "compile final report" tasks — that is the Write stage's job.
-- MAXIMIZE PARALLELISM: Only add a dependency when a task truly CANNOT start without the other's output. Independent tasks MUST have empty dependencies so they can run in parallel. Do NOT chain tasks sequentially unless there is a real data dependency.
+- Subtask IDs are simple integers: "1", "2", "3", ...
+- Task descriptions must be specific and actionable: state what output is expected.
+- MAXIMIZE PARALLELISM: only add a dependency when a task truly CANNOT start without the other's output.
 
 Respond with ONLY a JSON object (no markdown fencing, no extra text):
 
 If atomic:
 {{"is_atomic": true}}
 
-If not atomic (note: tasks 1,2,3 are independent and parallel; only task 4 depends on 1 and 2):
-{{"is_atomic": false, "subtasks": [{{"id": "1", "description": "...", "dependencies": []}}, {{"id": "2", "description": "...", "dependencies": []}}, {{"id": "3", "description": "...", "dependencies": []}}, {{"id": "4", "description": "...", "dependencies": ["1", "2"]}}]}}"""
+If decomposing:
+{{"is_atomic": false, "subtasks": [{{"id": "1", "description": "...", "dependencies": []}}, {{"id": "2", "description": "...", "dependencies": []}}, {{"id": "3", "description": "...", "dependencies": ["1"]}}]}}"""
 
 # Default atomic definition (Gemini/Mock mode)
 _ATOMIC_DEF_DEFAULT = """\
-Given a task, decide:
-1. Is it **atomic**? A task is atomic if a single focused LLM call can produce a reliable, complete, self-contained text result for it (e.g., "analyze X", "compare A and B", "summarize findings on Y").
-2. If NOT atomic, decompose it into subtasks with dependencies."""
+ATOMIC DEFINITION (Gemini mode):
+A task is atomic if a single LLM call can produce a complete, self-contained text result for it. Examples: "analyze X", "compare A and B", "summarize findings on Y". If a task has multiple distinct sub-goals that would each produce separate outputs, decompose it."""
 
 
 def _build_user_prompt(task: Task, context: str) -> str:
     parts = [f"Research idea context:\n{context}\n"]
     if task.id == "0":
-        parts.append("Decompose this research idea into major tasks.")
+        parts.append("Judge whether this research idea can be executed as a single atomic task, or needs decomposition into subtasks.")
     else:
         parts.append(f"Task [{task.id}]: {task.description}")
-        parts.append("Judge whether this task is atomic. If not, decompose it.")
+        parts.append("Judge whether this task is atomic or needs decomposition.")
     return "\n".join(parts)
 
 
@@ -79,7 +80,7 @@ class PlanStage(BaseStage):
     Same-level tasks are processed in parallel batches.
     """
 
-    def __init__(self, name: str = "plan", max_depth: int = 3,
+    def __init__(self, name: str = "plan", max_depth: int = 10,
                  atomic_definition: str = "", **kwargs):
         super().__init__(name=name, **kwargs)
         self.max_depth = max_depth

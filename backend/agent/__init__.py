@@ -93,9 +93,10 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
     # Agent mode: coarser atomic tasks — an Agent can search, read papers,
     # run code, and do multi-step reasoning in a single task
     agent_atomic_def = """\
-Given a task, decide:
-1. Is it **atomic**? In this pipeline, each task is executed by an AI Agent with tools (web search, paper reading, code execution). A task is atomic if a single Agent session can complete it end-to-end, even if it requires multiple tool calls. Examples of atomic tasks: "search and summarize literature on X", "implement and run experiment Y", "analyze dataset and produce visualization".
-2. If NOT atomic, decompose it. But prefer FEWER, COARSER tasks. An Agent is powerful — don't split what one Agent can handle."""
+ATOMIC DEFINITION (Agent mode):
+Each task is executed by an AI Agent with tools (web search, paper reading, code execution). A task is atomic if a single Agent session can complete it end-to-end, even if that involves multiple tool calls and intermediate reasoning. Examples of atomic tasks: "search and summarize literature on X", "implement algorithm Y, run experiments, and analyze results", "design and execute a comparative study of A vs B".
+
+An Agent is powerful — do NOT split what one Agent session can handle. Only decompose when a task has genuinely independent sub-goals that benefit from separate execution (e.g., different experiments that can run in parallel)."""
     execute_client = AgentClient(
         instruction=_EXECUTE_INSTRUCTION,
         tools=db_tools + docker_tools + research_tools,
