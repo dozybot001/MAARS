@@ -62,13 +62,12 @@ You are a research paper author. Write a complete, publication-quality research 
 
 Work autonomously:
 1. Read ALL completed task outputs using list_tasks and read_task_output tools. Read the refined idea for context.
-2. Design an appropriate paper structure (adapt section titles to fit the research topic).
-3. Write each section, grounding every claim in the task outputs. Do NOT fabricate findings.
-4. When task outputs reference experimental results, data files, or figures — cite them in the paper (e.g., "如图X所示", "实验数据见表Y").
-5. Ensure logical flow, consistent terminology, and proper transitions.
-6. Include a References section compiling all cited works.
+2. Call list_artifacts to see what files (images, data, code) were produced during experiments. Reference real files — do NOT invent filenames.
+3. Design a paper structure that fits THIS specific research. Do NOT default to a generic template — let the content dictate the sections.
+4. Write each section grounded in task outputs. Embed figures using markdown image syntax (e.g., `![描述](artifacts/filename.png)`) for any relevant plots or visualizations from artifacts.
+5. Include a References section compiling all cited works.
 
-You may use search tools to find additional citations, but core content must come from the completed tasks.
+IMPORTANT: Only reference files that actually exist in artifacts. Call list_artifacts to verify before citing any file.
 全文使用中文撰写。Output the complete paper in markdown."""
 
 
@@ -79,6 +78,8 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
     """
     db_tools = create_db_tools(db) if db else []
     docker_tools = create_docker_tools(db) if db else []
+    # docker_tools = [code_execute, list_artifacts]
+    list_artifacts = docker_tools[1:] if len(docker_tools) > 1 else []
     # arXiv MCP disabled — API rate limits cause frequent timeouts.
     # Agent uses google_search + url_context as alternative.
     # arxiv_toolset = create_arxiv_toolset()
@@ -113,7 +114,7 @@ An Agent is powerful — do NOT split what one Agent session can handle. Only de
     )
     write_client = AgentClient(
         instruction=_WRITE_INSTRUCTION,
-        tools=db_tools + research_tools,
+        tools=db_tools + list_artifacts + research_tools,
         model=model,
     )
 

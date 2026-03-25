@@ -22,9 +22,7 @@ For each section, specify which task IDs provide the relevant content. A task ma
 Respond with ONLY a JSON object:
 {"sections": [{"title": "Abstract", "task_ids": ["1_1", "1_2"]}, {"title": "Introduction", "task_ids": ["1_3"]}, ...]}
 
-Include standard academic sections appropriate for the research topic. Common sections:
-Abstract, Introduction, Related Work / Literature Review, Methodology / Theoretical Framework, Analysis / Results, Discussion, Conclusion.
-Adapt section titles and structure to best fit the specific research."""
+Design section titles and structure to best fit THIS specific research. Do NOT default to a generic template — let the content dictate the organization."""
 
 _SECTION_SYSTEM = _AUTO + """\
 You are a research paper writer. Write one section of a research paper.
