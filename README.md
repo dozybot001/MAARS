@@ -77,7 +77,7 @@ flowchart TB
     ORCH -."SSE".-> PROC
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed data flow and design principles.
+See [docs/CN/architecture.md](docs/CN/architecture.md) for detailed data flow and design principles.
 
 ## Quick start
 
