@@ -94,9 +94,8 @@ def _build_polish_prompt(draft: str) -> list[dict]:
 class WriteStage(BaseStage):
     """Generates a research paper: outline → section-by-section → polish."""
 
-    def __init__(self, name: str = "write", db: ResearchDB | None = None, **kwargs):
+    def __init__(self, name: str = "write", **kwargs):
         super().__init__(name=name, max_rounds=999, **kwargs)
-        self.db = db
         self._outline: list[dict] = []  # [{"title": ..., "task_ids": [...]}, ...]
         self._sections: dict[str, str] = {}  # title -> content
         self._phase = "outline"  # outline | sections | polish
@@ -113,9 +112,13 @@ class WriteStage(BaseStage):
             return "Polish"
         return ""
 
+    def load_input(self) -> str:
+        """Write reads everything from DB, no stage-to-stage string passing."""
+        return ""  # not used — build_messages reads DB directly
+
     def build_messages(self, input_text: str, round_index: int) -> list[dict]:
         if round_index == 0:
-            self._tasks_meta = self._parse_task_meta(input_text)
+            self._tasks_meta = self._load_tasks_from_db()
             self._refined_idea = self.db.get_refined_idea() if self.db else ""
             self._phase = "outline"
             return _build_outline_prompt(self._tasks_meta, self._refined_idea)
@@ -156,9 +159,10 @@ class WriteStage(BaseStage):
         return self._phase == "done"
 
     def finalize(self) -> str:
-        if self.rounds:
-            return self.rounds[-1]["content"]
-        return self._assemble_draft()
+        result = self.rounds[-1]["content"] if self.rounds else self._assemble_draft()
+        if self.db:
+            self.db.save_paper(result)
+        return result
 
     def retry(self):
         super().retry()
@@ -177,17 +181,18 @@ class WriteStage(BaseStage):
             parts.append(f"# {title}\n\n{content}")
         return "\n\n---\n\n".join(parts)
 
-    def _parse_task_meta(self, execute_output: str) -> list[dict]:
-        """Extract task IDs and descriptions from execute output."""
-        tasks = []
-        for line in execute_output.split("\n"):
-            if line.startswith("## Task ["):
-                match = re.match(r"## Task \[(.+?)\]\s*(.*)", line)
-                if match:
-                    tid = match.group(1)
-                    desc = match.group(2).strip() or tid
-                    tasks.append({"id": tid, "description": desc})
-        return tasks
+    def _load_tasks_from_db(self) -> list[dict]:
+        """Load task list from plan.json in DB."""
+        if not self.db:
+            return []
+        plan_json = self.db.get_plan_json()
+        if not plan_json:
+            return []
+        try:
+            tasks = json.loads(plan_json)
+            return [{"id": t["id"], "description": t.get("description", t["id"])} for t in tasks]
+        except (json.JSONDecodeError, KeyError):
+            return []
 
     def _parse_outline(self, response: str) -> list[dict]:
         """Parse outline JSON from LLM response."""

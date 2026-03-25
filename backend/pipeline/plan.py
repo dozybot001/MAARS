@@ -83,7 +83,10 @@ class PlanStage(BaseStage):
         self._pending: list[str] = []
         self._context: str = ""
 
-    async def run(self, input_text: str) -> str:
+    def load_input(self) -> str:
+        return self.db.get_refined_idea()
+
+    async def run(self) -> str:
         """Override: batch-parallel decomposition loop."""
         self._run_id += 1
         my_run_id = self._run_id
@@ -94,6 +97,7 @@ class PlanStage(BaseStage):
         self.output = ""
 
         try:
+            input_text = self.load_input()
             self._context = input_text
             root = Task(id="0", description=input_text)
             self._tasks["0"] = root
@@ -193,7 +197,7 @@ class PlanStage(BaseStage):
             self._pending.append(child_id)
 
     def _finalize_output(self) -> str:
-        """Resolve dependencies and return flat atomic task list as JSON."""
+        """Resolve dependencies, save to DB, return flat atomic task list as JSON."""
         atomic_tasks = {
             tid: t for tid, t in self._tasks.items()
             if t.is_atomic
@@ -207,7 +211,10 @@ class PlanStage(BaseStage):
             }
             for tid, deps in resolved.items()
         ]
-        return json.dumps(output, indent=2, ensure_ascii=False)
+        json_str = json.dumps(output, indent=2, ensure_ascii=False)
+        if self.db:
+            self.db.save_plan(json_str, self._serialize_tree())
+        return json_str
 
     def get_artifacts(self) -> dict | None:
         return self._serialize_tree()

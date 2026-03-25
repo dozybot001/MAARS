@@ -110,8 +110,8 @@ def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) 
     )
 
     return {
-        "refine": RefineStage(llm_client=refine_client),
-        "plan": PlanStage(llm_client=plan_client),
+        "refine": RefineStage(llm_client=refine_client, db=db),
+        "plan": PlanStage(llm_client=plan_client, db=db),
         "execute": ExecuteStage(llm_client=execute_client, db=db),
         "write": WriteStage(llm_client=write_client, db=db),
     }

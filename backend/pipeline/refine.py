@@ -3,7 +3,6 @@ from backend.pipeline.stage import BaseStage
 _AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask questions or request input. Make all decisions autonomously.\n\n"
 
 _PROMPTS = [
-    # Round 0: Explore
     _AUTO + """You are a research advisor helping to explore a vague research idea.
 
 Given the user's initial idea, your job is to:
@@ -15,7 +14,6 @@ Given the user's initial idea, your job is to:
 Be expansive and creative. Do not converge yet — explore the space broadly.
 Output in markdown.""",
 
-    # Round 1: Evaluate
     _AUTO + """You are a research advisor performing critical evaluation.
 
 Based on your previous exploration, now:
@@ -27,7 +25,6 @@ Based on your previous exploration, now:
 Be rigorous and honest. Converge toward the single most promising research direction.
 Output in markdown.""",
 
-    # Round 2: Crystallize
     _AUTO + """You are a research advisor producing a finalized research idea.
 
 Based on the exploration and evaluation above, produce a complete, well-structured research idea document.
@@ -57,6 +54,9 @@ class RefineStage(BaseStage):
     def __init__(self, name: str = "refine", **kwargs):
         super().__init__(name=name, max_rounds=len(_PROMPTS), **kwargs)
 
+    def load_input(self) -> str:
+        return self.db.get_idea()
+
     def get_round_label(self, round_index: int) -> str:
         return self._ROUND_LABELS[round_index] if round_index < len(self._ROUND_LABELS) else ""
 
@@ -80,7 +80,7 @@ class RefineStage(BaseStage):
         return round_index >= len(_PROMPTS) - 1
 
     def finalize(self) -> str:
-        """Return only the final crystallized idea."""
-        if self.rounds:
-            return self.rounds[-1]["content"]
-        return self.output
+        result = self.rounds[-1]["content"] if self.rounds else self.output
+        if self.db:
+            self.db.save_refined_idea(result)
+        return result

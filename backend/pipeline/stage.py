@@ -15,13 +15,12 @@ class StageState(str, Enum):
 class BaseStage:
     """Base class for all pipeline stages.
 
-    Each stage runs a multi-round LLM conversation. Concrete stages
-    will override build_messages / is_complete once the specific
-    LLM call flow is defined. For now the default implementation
-    does a fixed number of rounds.
+    Each stage reads its input from DB, runs a multi-round LLM conversation,
+    and writes its output back to DB. Stages communicate only through DB.
     """
 
-    def __init__(self, name: str, llm_client: LLMClient | None = None, broadcast=None, max_rounds: int = 2):
+    def __init__(self, name: str, llm_client: LLMClient | None = None,
+                 db=None, broadcast=None, max_rounds: int = 2):
         self.name = name
         self.state = StageState.IDLE
         self.output = ""
@@ -29,64 +28,54 @@ class BaseStage:
         self.max_rounds = max_rounds
 
         self.llm_client = llm_client
+        self.db = db
         self._broadcast = broadcast or (lambda event: None)
         self._pause_event = asyncio.Event()
-        self._pause_event.set()  # starts unpaused
-        self._run_id = 0  # generation counter — prevents stale coroutines from mutating state
+        self._pause_event.set()
+        self._run_id = 0
 
     # ------------------------------------------------------------------
-    # Methods to be overridden by concrete stages (later)
+    # Methods to be overridden by concrete stages
     # ------------------------------------------------------------------
+
+    def load_input(self) -> str:
+        """Load this stage's input from DB. Override per stage."""
+        return ""
 
     def build_messages(self, input_text: str, round_index: int) -> list[dict]:
-        """Build LLM messages for the current round.
-
-        Default implementation: system prompt with stage name + user input.
-        Concrete stages will override this.
-        """
+        """Build LLM messages for the current round."""
         messages = [
             {"role": "system", "content": f"You are the {self.name} stage of a research pipeline."},
         ]
         if round_index == 0:
             messages.append({"role": "user", "content": input_text})
         else:
-            # Include conversation history for subsequent rounds
             messages.extend(self.rounds)
             messages.append({"role": "user", "content": "Please continue and refine the previous output."})
         return messages
 
     def is_complete(self, response: str, round_index: int) -> bool:
-        """Whether this stage needs more rounds. Default: fixed count."""
         return round_index >= self.max_rounds - 1
 
     def get_round_label(self, round_index: int) -> str:
-        """Return a label for the current round. Override per stage."""
         return ""
 
     def process_response(self, response: str, round_index: int):
-        """Hook called after each LLM round. Override to parse/process."""
         pass
 
     def finalize(self) -> str:
-        """Hook called after all rounds complete. Returns final output for next stage."""
+        """Finalize output and persist to DB. Override per stage."""
         return self.output
 
     def get_artifacts(self) -> dict | None:
-        """Return stage-specific artifacts for DB persistence. Override per stage."""
         return None
 
     # ------------------------------------------------------------------
     # Execution control
     # ------------------------------------------------------------------
 
-    async def run(self, input_text: str) -> str:
-        """Execute the stage: multi-round LLM loop.
-
-        Each invocation captures a run_id snapshot. If retry() is called
-        while this coroutine is still running, _run_id increments and
-        this coroutine becomes "stale" — it will stop mutating shared
-        state and exit quietly.
-        """
+    async def run(self) -> str:
+        """Execute the stage: load input from DB → multi-round LLM → save to DB."""
         self._run_id += 1
         my_run_id = self._run_id
 
@@ -94,10 +83,11 @@ class BaseStage:
         self.state = StageState.RUNNING
         self._emit("state", self.state.value)
 
+        input_text = self.load_input()
+
         round_index = 0
         try:
             while True:
-                # Pause gate — blocks here if paused, then re-checks stale
                 await self._pause_event.wait()
                 if self._is_stale(my_run_id):
                     return self.output
@@ -134,7 +124,6 @@ class BaseStage:
             return self.output
 
         except asyncio.CancelledError:
-            # Task was cancelled externally — don't touch state if stale
             if not self._is_stale(my_run_id):
                 self.state = StageState.IDLE
                 self._emit("state", self.state.value)
@@ -147,27 +136,20 @@ class BaseStage:
             raise
 
     def stop(self):
-        """Pause execution at the next chunk boundary."""
         if self.state == StageState.RUNNING:
             self._pause_event.clear()
             self.state = StageState.PAUSED
             self._emit("state", self.state.value)
 
     def resume(self):
-        """Resume from paused state."""
         if self.state == StageState.PAUSED:
             self._pause_event.set()
             self.state = StageState.RUNNING
             self._emit("state", self.state.value)
 
     def retry(self):
-        """Cancel current execution, reset state, ready for re-run.
-
-        Bumps _run_id so any in-flight coroutine becomes stale and
-        stops touching shared state immediately.
-        """
-        self._run_id += 1  # invalidate any running coroutine
-        self._pause_event.set()  # unblock if paused so the stale coroutine can exit
+        self._run_id += 1
+        self._pause_event.set()
         self.output = ""
         self.rounds = []
         self.state = StageState.IDLE
@@ -186,14 +168,11 @@ class BaseStage:
     # ------------------------------------------------------------------
 
     def _is_stale(self, my_run_id: int) -> bool:
-        """Check if this coroutine has been superseded by a newer run."""
         return my_run_id != self._run_id
 
     def _emit(self, event_type: str, data):
-        """Broadcast an event to all SSE subscribers."""
         self._broadcast({
             "stage": self.name,
             "type": event_type,
             "data": data,
         })
-

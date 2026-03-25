@@ -101,37 +101,25 @@ class PipelineOrchestrator:
         self._tasks["pipeline"] = task
 
     async def _run_all(self):
-        """Run all stages sequentially, saving outputs to DB."""
+        """Run all stages sequentially. Each stage reads from and writes to DB."""
         for name in STAGE_ORDER:
             try:
                 await self.run_stage(name)
                 if self.stages[name].state != StageState.COMPLETED:
                     break
-                self._save_stage_output(name)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 break
-
-    def _save_stage_output(self, stage_name: str):
-        """Persist stage output to the research DB."""
-        stage = self.stages[stage_name]
-        if stage_name == "refine":
-            self.db.save_refined_idea(stage.output)
-        elif stage_name == "plan":
-            self.db.save_plan(stage.output, stage.get_artifacts())
-        elif stage_name == "write":
-            self.db.save_paper(stage.output)
 
     # ------------------------------------------------------------------
     # Stage-level operations
     # ------------------------------------------------------------------
 
     async def run_stage(self, stage_name: str):
-        """Run a single stage. Input comes from the previous stage's output."""
+        """Run a single stage. Stage reads its input from DB."""
         stage = self.stages[stage_name]
-        input_text = self._get_stage_input(stage_name)
-        await stage.run(input_text)
+        await stage.run()
 
     def check_runnable(self, stage_name: str) -> str | None:
         """Return an error message if this stage cannot run, or None if OK."""
@@ -181,28 +169,3 @@ class PipelineOrchestrator:
             "stages": [self.stages[name].get_status() for name in STAGE_ORDER],
         }
 
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
-
-    def _get_stage_input(self, stage_name: str) -> str:
-        """Determine the input for a given stage."""
-        idx = STAGE_ORDER.index(stage_name)
-        if idx == 0:
-            return self.research_input
-        prev_name = STAGE_ORDER[idx - 1]
-        prev_stage = self.stages[prev_name]
-        if prev_stage.state != StageState.COMPLETED:
-            raise RuntimeError(f"Cannot run '{stage_name}': previous stage '{prev_name}' not completed")
-
-        # Write stage: don't pass Execute's full output (too large for context).
-        # Instead, instruct it to use tools to read task outputs on demand.
-        if stage_name == "write":
-            return (
-                "All Execute stage tasks have completed. "
-                "Use list_tasks to see available outputs, then read_task_output for each. "
-                "Use read_refined_idea for research context and read_plan_tree for structure. "
-                "Write the complete research paper based on these sources."
-            )
-
-        return prev_stage.output

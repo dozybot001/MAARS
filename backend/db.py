@@ -72,6 +72,13 @@ class ResearchDB:
 
     # --- Read ---
 
+    def get_idea(self) -> str:
+        self._ensure_root()
+        path = self._root / "idea.md"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+        return ""
+
     def get_task_output(self, task_id: str) -> str:
         self._ensure_root()
         safe_id = task_id.replace("/", "_")

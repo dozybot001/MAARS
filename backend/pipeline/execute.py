@@ -116,12 +116,14 @@ def topological_batches(tasks: list[dict]) -> list[list[dict]]:
 class ExecuteStage(BaseStage):
     """Executes atomic tasks with parallel batches and verification."""
 
-    def __init__(self, name: str = "execute", db: ResearchDB | None = None, **kwargs):
+    def __init__(self, name: str = "execute", **kwargs):
         super().__init__(name=name, **kwargs)
-        self.db = db
         self._task_results: dict[str, str] = {}
 
-    async def run(self, input_text: str) -> str:
+    def load_input(self) -> str:
+        return self.db.get_plan_json()
+
+    async def run(self) -> str:
         """Override the base run loop entirely — Execute has its own parallel execution model."""
         self._run_id += 1
         my_run_id = self._run_id
@@ -133,7 +135,7 @@ class ExecuteStage(BaseStage):
         self._task_results = {}
 
         try:
-            tasks = json.loads(input_text)
+            tasks = json.loads(self.load_input())
             batches = topological_batches(tasks)
 
             # Emit execution tree for frontend

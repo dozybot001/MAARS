@@ -1,7 +1,4 @@
-"""Gemini mode: pipeline stages + GeminiClient.
-
-Each client instance carries its stage-specific instruction.
-"""
+"""Gemini mode: pipeline stages + GeminiClient."""
 
 from backend.llm.gemini_client import GeminiClient
 from backend.pipeline.refine import RefineStage
@@ -12,15 +9,10 @@ from backend.pipeline.write import WriteStage
 
 def create_gemini_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) -> dict:
     """Assemble all pipeline stages with Gemini LLM client."""
+    client = GeminiClient(api_key=api_key, model=model)
     return {
-        "refine": RefineStage(llm_client=GeminiClient(api_key=api_key, model=model)),
-        "plan": PlanStage(llm_client=GeminiClient(api_key=api_key, model=model)),
-        "execute": ExecuteStage(
-            llm_client=GeminiClient(api_key=api_key, model=model),
-            db=db,
-        ),
-        "write": WriteStage(
-            llm_client=GeminiClient(api_key=api_key, model=model),
-            db=db,
-        ),
+        "refine": RefineStage(llm_client=client, db=db),
+        "plan": PlanStage(llm_client=client, db=db),
+        "execute": ExecuteStage(llm_client=client, db=db),
+        "write": WriteStage(llm_client=client, db=db),
     }
