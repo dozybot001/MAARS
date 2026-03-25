@@ -91,6 +91,9 @@
 .exec-verifying { background: rgba(210, 153, 34, 0.15); }
 .exec-verifying::after { content: "verifying"; color: var(--yellow); font-size: 11px; flex-shrink: 0; margin-left: auto; }
 
+.exec-retrying { background: rgba(188, 140, 255, 0.15); }
+.exec-retrying::after { content: "retrying"; color: var(--purple); font-size: 11px; flex-shrink: 0; margin-left: auto; }
+
 .exec-completed { background: rgba(63, 185, 80, 0.12); }
 .exec-completed::after { content: "\2713"; color: var(--green); font-size: 11px; flex-shrink: 0; margin-left: auto; }
 

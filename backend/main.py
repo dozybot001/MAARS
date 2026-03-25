@@ -32,8 +32,7 @@ else:
     stages = create_mock_stages(chunk_delay=settings.mock_chunk_delay, db=orchestrator.db)
 
 orchestrator.stages.update(stages)
-for stage in orchestrator.stages.values():
-    stage._broadcast = orchestrator._broadcast
+orchestrator._wire_broadcast()
 
 # Inject orchestrator into route modules
 pipeline_routes.set_orchestrator(orchestrator)

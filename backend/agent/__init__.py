@@ -1,11 +1,18 @@
-from backend.agent.base import AgentStage
-from backend.agent.execute import ExecuteAgentStage
+"""Agent mode: pipeline stages + AgentClient.
+
+Same pipeline stages as gemini/mock modes, only the LLM client differs.
+AgentClient wraps ADK Agent's ReAct loop into the LLMClient.stream() interface.
+"""
+
 from backend.agent.tools import (
     create_db_tools, create_docker_tools,
     create_arxiv_toolset, create_fetch_toolset,
 )
-from backend.llm.gemini_client import GeminiClient
+from backend.llm.agent_client import AgentClient
+from backend.pipeline.refine import RefineStage
 from backend.pipeline.plan import PlanStage
+from backend.pipeline.execute import ExecuteStage
+from backend.pipeline.write import WriteStage
 
 # ADK built-in tools
 try:
@@ -21,95 +28,90 @@ try:
 except (ImportError, AttributeError):
     _code_executor = None
 
-_REFINE_INSTRUCTION = """\
-You are a research advisor in a fully automated research system (MAARS).
-No human is in the loop. Make all decisions autonomously.
+# ---------------------------------------------------------------------------
+# Agent-specific instructions (adapter layer — not pipeline flow)
+# ---------------------------------------------------------------------------
 
-Your job: take a vague research idea and refine it into a complete, well-structured research proposal.
+_REFINE_INSTRUCTION = """\
+You have access to research tools. Use them to ground your analysis in real sources.
 
 Available tools:
 - Google Search: Web search for trends and context
-- url_context: Automatically read content from URLs in the conversation
-- search: Search arXiv for papers (via arXiv MCP)
-- download + read_paper: Download and read a paper's full text
+- url_context: Read content from URLs
+- search + download + read_paper: arXiv paper search and full-text reading
 - fetch: Retrieve content from any URL
-- Code execution: You can write and run Python code for data analysis
 
-Process:
-1. Use search to find relevant papers on arXiv
-2. Use download + read_paper to read key papers in depth
-3. Identify gaps, trends, and promising directions grounded in actual literature
-4. Evaluate directions on novelty, feasibility, and impact
-5. Produce a finalized research idea citing real papers and researchers
+Process: search for relevant papers, read key ones in depth, then produce your analysis.
+全文使用中文撰写。"""
 
-Output in markdown."""
+_EXECUTE_INSTRUCTION = """\
+You have access to research and experiment tools. You MUST use them — do NOT fabricate results.
 
-_WRITE_INSTRUCTION = """\
-You are a research paper writer in a fully automated research system (MAARS).
-No human is in the loop. Make all decisions autonomously.
-
-Your job: write a complete research paper based on the provided task outputs.
+CRITICAL RULES:
+- When a task involves code, data analysis, or experiments: you MUST call code_execute to run real Python code. Do NOT describe code or simulate results — actually execute it.
+- When a task involves literature: you MUST call search/fetch tools. Do NOT make up citations.
+- NEVER pretend to have executed something. If you didn't call a tool, you didn't do it.
 
 Available tools:
-- list_tasks: See all completed task IDs and sizes
-- read_task_output: Read a specific task's output by ID
-- read_refined_idea: Get the research context from Refine stage
-- read_plan_tree: See the full task decomposition structure
-- search / download / read_paper: Find and read arXiv papers for citations
-- fetch: Retrieve content from any URL for verification
+- Google Search + arXiv: Find papers, data, and evidence
+- fetch: Retrieve content from any URL
+- code_execute: Run Python in Docker (outputs persist as artifacts in /workspace/output/)
+- list_artifacts: See experiment outputs produced so far
+
+全文使用中文撰写。"""
+
+_WRITE_INSTRUCTION = """\
+You have access to research tools to verify and enrich the paper.
+
+Available tools:
+- list_tasks + read_task_output: Read completed research outputs
+- read_refined_idea + read_plan_tree: Research context and structure
+- search + download + read_paper: arXiv papers for citations
+- fetch: Retrieve content from any URL
+- code_execute + list_artifacts: Reference experiment outputs
 - Google Search: Broader verification
-- code_execute: Run Python in Docker — use for formal experiments, outputs persist as paper artifacts
-- list_artifacts: See all experiment scripts and outputs produced so far
-- Code execution (built-in): Quick calculations and data analysis
 
-Process:
-1. Use list_tasks to see what's available, then read_task_output for each
-2. Use read_refined_idea for research context and read_plan_tree for structure
-3. Search arXiv to verify claims and add real citations
-4. Use list_artifacts to reference experiment outputs in the paper
-5. Design paper structure, write each section based on task outputs
-6. Polish for coherence and academic tone
-
-Do not fabricate findings. Output in markdown."""
+Do not fabricate findings. 全文使用中文撰写。"""
 
 
 def create_agent_stages(api_key: str, model: str = "gemini-2.0-flash", db=None) -> dict:
-    """Assemble all pipeline stages with ADK Agents.
+    """Assemble pipeline stages with AgentClient.
 
-    Uses:
-    - ADK built-in: google_search, url_context, BuiltInCodeExecutor
-    - MCP servers: arXiv, fetch
-    - Custom: DB tools, Docker tools
+    Identical structure to gemini/mock modes — only the client differs.
     """
     db_tools = create_db_tools(db) if db else []
     docker_tools = create_docker_tools(db) if db else []
     arxiv_toolset = create_arxiv_toolset()
     fetch_toolset = create_fetch_toolset()
-
-    plan_client = GeminiClient(api_key=api_key, model=model)
-
     research_tools = _builtin_tools + [arxiv_toolset, fetch_toolset]
 
+    refine_client = AgentClient(
+        instruction=_REFINE_INSTRUCTION,
+        tools=research_tools,
+        model=model,
+        code_executor=_code_executor,
+    )
+    plan_client = AgentClient(
+        instruction="",  # Plan prompt is flow logic, managed by PlanStage
+        tools=[],
+        model=model,
+    )
+    execute_client = AgentClient(
+        instruction=_EXECUTE_INSTRUCTION,
+        tools=db_tools + docker_tools + research_tools,
+        model=model,
+        code_executor=_code_executor,
+    )
+    write_client = AgentClient(
+        instruction=_WRITE_INSTRUCTION,
+        tools=db_tools + docker_tools + research_tools,
+        model=model,
+        code_executor=_code_executor,
+    )
+
     return {
-        "refine": AgentStage(
-            name="refine",
-            instruction=_REFINE_INSTRUCTION,
-            tools=research_tools,
-            model=model,
-            code_executor=_code_executor,
-        ),
+        "refine": RefineStage(llm_client=refine_client),
         "plan": PlanStage(llm_client=plan_client),
-        "execute": ExecuteAgentStage(
-            db=db,
-            tools=db_tools + docker_tools + research_tools,
-            model=model,
-            code_executor=_code_executor,
-        ),
-        "write": AgentStage(
-            name="write",
-            instruction=_WRITE_INSTRUCTION,
-            tools=db_tools + docker_tools + research_tools,
-            model=model,
-            code_executor=_code_executor,
-        ),
+        "execute": ExecuteStage(llm_client=execute_client, db=db),
+        "write": WriteStage(llm_client=write_client, db=db),
     }

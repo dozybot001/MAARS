@@ -33,43 +33,53 @@ Modes replace the engine at each stage, not the pipeline logic:
 
 | Stage | Mock | Gemini | Agent |
 |-------|------|--------|-------|
-| **Refine** | replay | LLM | ADK Agent + Google Search |
-| **Plan** | replay | LLM | LLM (same as Gemini) |
-| **Execute** | replay | LLM | ADK Agent per task + Google Search |
-| **Write** | replay | LLM | ADK Agent + DB tools + Google Search |
+| **Refine** | replay | GeminiClient | AgentClient + search tools |
+| **Plan** | replay | GeminiClient | AgentClient (no tools) |
+| **Execute** | replay | GeminiClient | AgentClient + search + code + DB tools |
+| **Write** | replay | GeminiClient | AgentClient + search + DB tools |
 
-> Agent Plan deliberately stays on the LLM engine — each step is a structured JSON judgment (atomic? → yes/no + subtasks), where deterministic calls outperform ReAct loops.
+> All three modes use the same pipeline stages. Only the `LLMClient` implementation differs.
 
 ## Architecture
 
+Three-layer decoupling — pipeline depends on an interface, adapters implement it:
+
 ```mermaid
-flowchart LR
+flowchart TB
+    subgraph Pipeline["Pipeline Layer · flow logic"]
+        ORCH["orchestrator"] --> STAGES["refine → plan → execute → write"]
+        STAGES --> DB["file DB"]
+    end
+
+    subgraph Interface["Interface Layer"]
+        LLM["LLMClient.stream()"]
+    end
+
+    subgraph Adapters["Adapter Layer · swappable"]
+        MOCK["MockClient"]
+        GEMINI["GeminiClient"]
+        AGENT["AgentClient\n(ADK + tools)"]
+    end
+
+    STAGES --> LLM
+    LLM -.-> MOCK
+    LLM -.-> GEMINI
+    LLM -.-> AGENT
+
     subgraph FE["Frontend · Vanilla JS"]
         UI["Input + controls"]
-        LOG["LLM Output Log"]
+        LOG["Reasoning Log"]
         PROC["Process & Output"]
     end
 
-    subgraph BE["Backend · FastAPI"]
-        ROUTES["routes/"]
-        ORCH["orchestrator"]
-        STAGES["pipeline stages"]
-        LLM["LLMClient"]
-        MODES["mock / gemini / agent"]
-        DB["file DB"]
-    end
-
-    UI --> ROUTES --> ORCH --> STAGES
-    STAGES --> LLM
-    MODES -."injects".-> STAGES
-    STAGES --> DB
+    UI --> ORCH
     ORCH -."SSE".-> LOG
     ORCH -."SSE".-> PROC
 ```
 
 | Principle | Detail |
 |-----------|--------|
-| Three-layer decoupling | `llm/` → `pipeline/` → `mode/` — pipeline never knows which mode is active |
+| Three-layer decoupling | `pipeline/` → `LLMClient` → `mock/gemini/agent` — pipeline never knows which adapter is active |
 | Unified streaming | Every LLM call emits `call_id`-tagged chunks; frontend routes by `call_id` |
 | String in, string out | Stages communicate via `stage.output` — no shared memory |
 

@@ -22,16 +22,35 @@
 }
 
 .panel-header {
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  height: 36px;
 }
 
 .panel-header h3 {
   font-size: 14px;
   font-weight: 600;
+}
+
+#copy-log {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+#copy-log:hover {
+  color: var(--text-primary);
 }
 
 .panel-body {

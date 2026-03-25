@@ -103,9 +103,17 @@ export function initProcessViewer() {
     const { task_id, status } = data;
     const node = processBody.querySelector(`.exec-node[data-task-id="${task_id}"]`);
     if (!node) return;
-    node.classList.remove('exec-pending', 'exec-running', 'exec-verifying', 'exec-completed', 'exec-failed');
+    node.classList.remove(
+      'exec-pending', 'exec-running', 'exec-verifying',
+      'exec-retrying', 'exec-completed', 'exec-failed',
+    );
     node.classList.add(`exec-${status}`);
-    scroller.scroll();
+
+    // Scroll to the batch containing this task (not bottom)
+    const batch = node.closest('.exec-batch');
+    if (batch && scroller.isLocked()) {
+      batch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   });
 }
 

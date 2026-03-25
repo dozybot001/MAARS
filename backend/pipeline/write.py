@@ -12,7 +12,9 @@ from backend.pipeline.stage import BaseStage
 # Prompts
 # ---------------------------------------------------------------------------
 
-_OUTLINE_SYSTEM = """\
+_AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask questions or request input. Make all decisions autonomously.\n\n"
+
+_OUTLINE_SYSTEM = _AUTO + """\
 You are a research paper architect. Given a list of completed research tasks and their IDs, design a paper outline.
 
 For each section, specify which task IDs provide the relevant content. A task may appear in multiple sections if relevant.
@@ -24,7 +26,7 @@ Include standard academic sections appropriate for the research topic. Common se
 Abstract, Introduction, Related Work / Literature Review, Methodology / Theoretical Framework, Analysis / Results, Discussion, Conclusion.
 Adapt section titles and structure to best fit the specific research."""
 
-_SECTION_SYSTEM = """\
+_SECTION_SYSTEM = _AUTO + """\
 You are a research paper writer. Write one section of a research paper.
 
 Rules:
@@ -34,9 +36,9 @@ Rules:
 - Ensure logical flow within the section
 - Be substantive — each section should make a clear contribution to the paper's argument
 
-Write in English. Output in markdown."""
+Output in markdown."""
 
-_POLISH_SYSTEM = """\
+_POLISH_SYSTEM = _AUTO + """\
 You are a research paper editor. Given a complete draft assembled from individual sections, produce a polished final paper.
 
 Your editing tasks:

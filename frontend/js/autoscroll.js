@@ -28,5 +28,8 @@ export function createAutoScroller(el) {
       locked = true;
       el.scrollTop = el.scrollHeight;
     },
+    isLocked() {
+      return locked;
+    },
   };
 }

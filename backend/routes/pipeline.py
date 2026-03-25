@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend.models import StartRequest, ActionResponse, PipelineStatus, StageStatus
 from backend.pipeline.orchestrator import STAGE_ORDER
@@ -99,3 +100,19 @@ async def retry_stage(stage_name: str):
         state=orch.stages[stage_name].state.value,
         message="Stage retrying from scratch",
     )
+
+
+class SaveLogRequest(BaseModel):
+    content: str
+
+
+@router.post("/pipeline/save-log")
+async def save_log(req: SaveLogRequest):
+    orch = _get_orchestrator()
+    try:
+        orch.db._ensure_root()
+        path = orch.db._root / "reasoning.log"
+        path.write_text(req.content, encoding="utf-8")
+        return {"status": "saved", "path": str(path)}
+    except RuntimeError:
+        raise HTTPException(status_code=400, detail="No active research session")

@@ -9,6 +9,10 @@ class LLMClient(ABC):
     pipeline layer never knows which provider is active.
     """
 
+    # If True, the client handles its own UI broadcasting (e.g., AgentClient).
+    # Pipeline will NOT emit text chunks to avoid duplication.
+    has_broadcast = False
+
     @abstractmethod
     async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
         """Yield text chunks from the LLM response."""

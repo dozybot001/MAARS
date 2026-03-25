@@ -27,7 +27,12 @@ class Task:
 _SYSTEM_PROMPT = """\
 You are a research project planner. Your job is to decompose tasks into smaller subtasks.
 
-IMPORTANT CONTEXT: This is a fully automated LLM-only research pipeline with NO human in the loop. All tasks will be executed by a single LLM call producing text output. There is NO access to internet, code execution, or external tools. Every task must be completable through text-based reasoning and analysis alone. Make all decisions autonomously.
+IMPORTANT CONTEXT: This is the PLAN stage of a 4-stage automated research pipeline: Refine → Plan → Execute → Write.
+- You are in the PLAN stage: decompose the research into executable atomic tasks.
+- The EXECUTE stage will run each atomic task (with tools: search, code execution, etc.).
+- A separate WRITE stage will synthesize all task outputs into the final research paper.
+- Therefore: do NOT create "write paper" or "compile report" tasks. Only create research/analysis/experiment tasks. The final synthesis is handled by the Write stage, not here.
+- No human is in the loop. Make all decisions autonomously.
 
 Given a task, decide:
 1. Is it **atomic**? A task is atomic if a single focused LLM call can produce a reliable, complete, self-contained text result for it (e.g., "analyze X", "compare A and B", "summarize findings on Y").
@@ -38,16 +43,18 @@ Rules:
 - A subtask can only depend on earlier siblings (no circular dependencies).
 - Subtask IDs are simple integers starting from 1: "1", "2", "3", ...
 - Each decomposition should produce 3-7 subtasks. Prefer fewer, coarser tasks over many fine-grained ones.
-- Task descriptions should be specific and actionable: state clearly what text output is expected.
-- Do NOT create tasks that require internet access, data collection, code execution, or real experiments.
+- Task descriptions should be specific and actionable: state clearly what output is expected.
+- Do NOT create "write the paper" or "compile final report" tasks — that is the Write stage's job.
+- Tasks CAN involve literature search, data analysis, code experiments — the Execute stage has tools for these.
+- MAXIMIZE PARALLELISM: Only add a dependency when a task truly CANNOT start without the other's output. Independent tasks MUST have empty dependencies so they can run in parallel. Do NOT chain tasks sequentially unless there is a real data dependency.
 
 Respond with ONLY a JSON object (no markdown fencing, no extra text):
 
 If atomic:
 {"is_atomic": true}
 
-If not atomic:
-{"is_atomic": false, "subtasks": [{"id": "1", "description": "...", "dependencies": []}, {"id": "2", "description": "...", "dependencies": ["1"]}]}"""
+If not atomic (note: tasks 1,2,3 are independent and parallel; only task 4 depends on 1 and 2):
+{"is_atomic": false, "subtasks": [{"id": "1", "description": "...", "dependencies": []}, {"id": "2", "description": "...", "dependencies": []}, {"id": "3", "description": "...", "dependencies": []}, {"id": "4", "description": "...", "dependencies": ["1", "2"]}]}"""
 
 
 def _build_user_prompt(task: Task, context: str) -> str:

@@ -16,6 +16,7 @@ class PipelineOrchestrator:
         # SSE subscribers — each connection gets its own queue
         self._subscribers: list[asyncio.Queue] = []
 
+
         # Merge: externally provided stages override, rest default to BaseStage
         self.stages: dict[str, BaseStage] = {
             name: BaseStage(name=name)
@@ -24,9 +25,8 @@ class PipelineOrchestrator:
         if stages:
             self.stages.update(stages)
 
-        # Wire all stages to broadcast through us
-        for stage in self.stages.values():
-            stage._broadcast = self._broadcast
+        # Wire all stages (and their clients) to broadcast through us
+        self._wire_broadcast()
 
         # Track background tasks
         self._tasks: dict[str, asyncio.Task] = {}
@@ -52,6 +52,13 @@ class PipelineOrchestrator:
         """Push an event to every active subscriber."""
         for q in self._subscribers:
             q.put_nowait(event)
+
+    def _wire_broadcast(self):
+        """Inject broadcast callback into all stages and their LLM clients."""
+        for stage in self.stages.values():
+            stage._broadcast = self._broadcast
+            if hasattr(stage, 'llm_client') and hasattr(stage.llm_client, 'set_broadcast'):
+                stage.llm_client.set_broadcast(self._broadcast)
 
     # ------------------------------------------------------------------
     # Task lifecycle helpers
@@ -187,4 +194,15 @@ class PipelineOrchestrator:
         prev_stage = self.stages[prev_name]
         if prev_stage.state != StageState.COMPLETED:
             raise RuntimeError(f"Cannot run '{stage_name}': previous stage '{prev_name}' not completed")
+
+        # Write stage: don't pass Execute's full output (too large for context).
+        # Instead, instruct it to use tools to read task outputs on demand.
+        if stage_name == "write":
+            return (
+                "All Execute stage tasks have completed. "
+                "Use list_tasks to see available outputs, then read_task_output for each. "
+                "Use read_refined_idea for research context and read_plan_tree for structure. "
+                "Write the complete research paper based on these sources."
+            )
+
         return prev_stage.output

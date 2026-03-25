@@ -13,35 +13,32 @@ from backend.pipeline.stage import BaseStage, StageState
 # Prompts
 # ---------------------------------------------------------------------------
 
-_EXECUTE_SYSTEM = """\
+_AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask questions or request input. Make all decisions autonomously.\n\n"
+
+_EXECUTE_SYSTEM = _AUTO + """\
 You are a research assistant executing a specific task as part of a larger research project.
 
-IMPORTANT: You are working within a fully automated LLM pipeline with NO human in the loop. You have NO access to internet, databases, code execution, or external tools. Your output must be based entirely on your existing knowledge and reasoning ability. Do NOT ask questions or request clarification — proceed autonomously.
-
-For this task, produce a thorough, well-structured text result:
-- Synthesize relevant knowledge from your training data
-- Provide specific examples, evidence, and citations where possible (from memory)
-- Structure your output clearly with headings and bullet points where appropriate
+Produce a thorough, well-structured result:
+- Provide specific examples, evidence, and citations where possible
+- Structure your output clearly with headings and bullet points
 - Be substantive — aim for depth and insight, not generic summaries
-- If the task involves analysis, provide concrete analytical frameworks and apply them
+- If the task involves analysis, provide concrete analytical frameworks
 
-Write in English. Output in markdown."""
+Output in markdown."""
 
 _VERIFY_SYSTEM = """\
-You are a research quality reviewer. You are given a task description and its execution result.
+You are a research quality reviewer. Evaluate whether the task result SUBSTANTIALLY meets the goal.
 
-Evaluate whether the result:
-1. Directly addresses the task requirements
-2. Provides sufficient depth and specificity (not just generic statements)
-3. Is well-structured and clearly written
-4. Contains concrete evidence, examples, or reasoning (not just assertions)
+Criteria:
+1. Does it address the core intent of the task? (not literal word-matching — reasonable engineering decisions like sampling representative points instead of exhaustive iteration are acceptable)
+2. Does it provide real substance, not just descriptions or plans?
+3. Is it well-structured and clearly written?
+
+Be pragmatic, not pedantic. A result that achieves the task's purpose through a slightly different approach should PASS. Only fail results that fundamentally miss the point or fabricate data.
 
 Respond with ONLY a JSON object:
-If the result is acceptable:
-{"pass": true}
-
-If the result needs improvement:
-{"pass": false, "review": "Specific feedback on what needs to be fixed or improved."}"""
+If acceptable: {"pass": true}
+If needs improvement: {"pass": false, "review": "What is fundamentally missing or wrong."}"""
 
 
 def _build_execute_prompt(task: dict, dep_outputs: dict[str, str]) -> list[dict]:
@@ -170,6 +167,10 @@ class ExecuteStage(BaseStage):
                         return self.output
                     if isinstance(result, Exception):
                         self._emit("task_state", {"task_id": task["id"], "status": "failed"})
+                        self.state = StageState.FAILED
+                        self._emit("error", {"message": f"Task {task['id']} failed: {result}"})
+                        self._emit("state", self.state.value)
+                        return self.output
 
             # Combine all task results as final output
             self.output = self._build_final_output()
@@ -225,15 +226,25 @@ class ExecuteStage(BaseStage):
 
         passed, review = self._parse_verification(verify_response)
 
-        if passed:
-            self._emit("task_state", {"task_id": task_id, "status": "completed"})
-        else:
-            # --- Retry once ---
-            self._emit("task_state", {"task_id": task_id, "status": "running"})
+        if not passed:
+            # --- Retry once with feedback ---
+            self._emit("task_state", {"task_id": task_id, "status": "retrying"})
 
             retry_messages = _build_retry_prompt(task, result, review, dep_outputs)
             result = await self._stream_llm(client, retry_messages, call_id, my_run_id)
-            self._emit("task_state", {"task_id": task_id, "status": "completed"})
+            if self._is_stale(my_run_id):
+                return result
+
+            # --- Verify again ---
+            self._emit("task_state", {"task_id": task_id, "status": "verifying"})
+            verify_messages = _build_verify_prompt(task, result)
+            verify_response = await self._stream_llm(client, verify_messages, call_id, my_run_id)
+            passed, review = self._parse_verification(verify_response)
+            if not passed:
+                self._emit("task_state", {"task_id": task_id, "status": "failed"})
+                raise RuntimeError(f"Task {task_id} failed verification after retry: {review}")
+
+        self._emit("task_state", {"task_id": task_id, "status": "completed"})
 
         # Save to DB
         if self.db:
@@ -250,7 +261,8 @@ class ExecuteStage(BaseStage):
             if self._is_stale(my_run_id):
                 break
             result += chunk
-            self._emit("chunk", {"text": chunk, "call_id": call_id})
+            if not client.has_broadcast:
+                self._emit("chunk", {"text": chunk, "call_id": call_id})
         return result
 
     def _parse_verification(self, response: str) -> tuple[bool, str]:

@@ -115,7 +115,8 @@ class BaseStage:
 
                     response += chunk
                     self.output += chunk
-                    self._emit("chunk", {"text": chunk, "call_id": call_id})
+                    if not self.llm_client.has_broadcast:
+                        self._emit("chunk", {"text": chunk, "call_id": call_id})
 
                 if self._is_stale(my_run_id):
                     return self.output

@@ -19,7 +19,37 @@ export function initLogViewer() {
   logOutput = document.getElementById('log-output');
   scroller = createAutoScroller(logOutput);
 
+  document.getElementById('copy-log').addEventListener('click', () => {
+    const text = logOutput.innerText;
+    const btn = document.getElementById('copy-log');
+    try {
+      // Fallback for non-HTTPS: use textarea + execCommand
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      btn.textContent = 'Copied!';
+    } catch (e) {
+      // Try modern API as fallback
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+      }).catch(() => {
+        btn.textContent = 'Failed';
+      });
+    }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+
   on('stage:state', ({ stage, data }) => {
+    // Auto-save log when pipeline finishes or a stage fails
+    if ((stage === 'write' && data === 'completed') || data === 'failed') {
+      saveLogToDisk();
+    }
+
     if (data === 'idle') {
       logOutput.innerHTML = '';
       activeStage = null;
@@ -111,4 +141,14 @@ function appendSeparator(label) {
   currentSection.className = 'log-section';
   logOutput.appendChild(currentSection);
   scroller.scroll();
+}
+
+function saveLogToDisk() {
+  const text = logOutput.innerText;
+  if (!text.trim()) return;
+  fetch('/api/pipeline/save-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: text }),
+  }).catch(() => {});
 }
