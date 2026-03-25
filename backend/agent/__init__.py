@@ -103,9 +103,8 @@ Given a task, decide:
     )
     write_client = AgentClient(
         instruction=_WRITE_INSTRUCTION,
-        tools=db_tools + docker_tools + research_tools,
+        tools=db_tools + research_tools,
         model=model,
-        code_executor=_code_executor,
     )
 
     return {
