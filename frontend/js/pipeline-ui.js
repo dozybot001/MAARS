@@ -65,7 +65,13 @@ function updateAllCards() {
 
     for (const [action, enabled] of Object.entries(rules)) {
       const btn = card.querySelector(`[data-action="${action}"]`);
-      if (btn) btn.disabled = !enabled;
+      if (!btn) continue;
+      // Resume only meaningful for Execute (checkpoint resume)
+      if (action === 'resume' && stageName !== 'execute') {
+        btn.disabled = true;
+      } else {
+        btn.disabled = !enabled;
+      }
     }
   });
 }
