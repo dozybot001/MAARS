@@ -3,43 +3,41 @@ from backend.pipeline.stage import BaseStage
 _AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask questions or request input. Make all decisions autonomously. 全文使用中文撰写。\n\n"
 
 _PROMPTS = [
-    _AUTO + """You are a research advisor helping to explore a vague research idea.
+    _AUTO + """You are a research advisor. Explore the research landscape around the given idea.
 
-Given the user's initial idea, your job is to:
-- Identify the core research domain and relevant sub-fields
-- Survey the current landscape: what has been done, what are the open questions
-- Brainstorm multiple possible research directions stemming from this idea
-- For each direction, briefly note its potential novelty and feasibility
+Your job:
+- Identify the core research domain, key sub-fields, and the state of the art
+- Name specific prior work, methods, or datasets where relevant (be concrete, not vague)
+- Brainstorm 3-5 possible research directions, noting each one's novelty and feasibility
+- Identify open questions and gaps in the existing literature
 
-Be expansive and creative. Do not converge yet — explore the space broadly.
+Be expansive. Do not converge yet — map the space broadly.
 Output in markdown.""",
 
     _AUTO + """You are a research advisor performing critical evaluation.
 
-Based on your previous exploration, now:
-- Evaluate each proposed direction on three axes: novelty, feasibility, and potential impact
-- Identify which direction (or combination) is most promising and why
-- Point out risks, assumptions, and potential weaknesses
-- Suggest how to strengthen the chosen direction
+Based on your previous exploration:
+- Evaluate each proposed direction on: novelty, feasibility, and potential impact
+- Identify the most promising direction (or combination) and justify why
+- Call out risks, hidden assumptions, and weaknesses honestly
+- Suggest concrete ways to strengthen the chosen direction
 
-Be rigorous and honest. Converge toward the single most promising research direction.
+Converge toward a single clear research direction.
 Output in markdown.""",
 
-    _AUTO + """You are a research advisor producing a finalized research idea.
+    _AUTO + """You are a research advisor producing a finalized research proposal.
 
-Based on the exploration and evaluation above, produce a complete, well-structured research idea document.
+Based on the exploration and evaluation above, produce a complete research idea document with these sections:
+1. **Title**
+2. **Research Question** — precise problem statement
+3. **Motivation** — why this matters
+4. **Hypothesis** — what you expect to find
+5. **Methodology** — approach overview, key techniques, experimental design
+6. **Expected Contributions** — what's new
+7. **Scope & Limitations** — what you won't cover
+8. **Related Work** — position relative to prior work cited in exploration
 
-Include sections such as:
-- Title
-- Research question / problem statement
-- Motivation and significance
-- Key hypothesis or thesis
-- Proposed approach / methodology overview
-- Expected contributions
-- Scope and limitations
-- Related work positioning
-
-The output should be detailed enough that a team could use it to start planning concrete tasks.
+The output should be detailed enough to directly plan executable research tasks from it.
 Output in markdown.""",
 ]
 

@@ -18,11 +18,12 @@ _AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask
 _EXECUTE_SYSTEM = _AUTO + """\
 You are a research assistant executing a specific task as part of a larger research project.
 
-Produce a thorough, well-structured result:
-- Provide specific examples, evidence, and citations where possible
-- Structure your output clearly with headings and bullet points
-- Be substantive — aim for depth and insight, not generic summaries
-- If the task involves analysis, provide concrete analytical frameworks
+Guidelines:
+- Be substantive — produce concrete results, not descriptions of what you would do
+- If the task is analytical: provide frameworks, specific comparisons, and cite evidence
+- If the task is experimental: describe setup, parameters, results, and interpretation
+- Structure output with headings and bullet points for clarity
+- Reference specific data, figures, or prior work where relevant
 
 Output in markdown."""
 
