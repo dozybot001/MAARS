@@ -99,7 +99,6 @@ class PlanStage(BaseStage):
         self._run_id += 1
         my_run_id = self._run_id
 
-        self._pause_event.set()
         self.state = StageState.RUNNING
         self._emit("state", self.state.value)
         self.output = ""
@@ -112,7 +111,6 @@ class PlanStage(BaseStage):
             self._pending = ["0"]
 
             while self._pending:
-                await self._pause_event.wait()
                 if self._is_stale(my_run_id):
                     return self.output
 
@@ -171,7 +169,6 @@ class PlanStage(BaseStage):
 
         response = ""
         async for chunk in client.stream(messages):
-            await self._pause_event.wait()
             if self._is_stale(my_run_id):
                 return
             response += chunk

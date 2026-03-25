@@ -30,8 +30,6 @@ class BaseStage:
         self.llm_client = llm_client
         self.db = db
         self._broadcast = broadcast or (lambda event: None)
-        self._pause_event = asyncio.Event()
-        self._pause_event.set()
         self._run_id = 0
 
     # ------------------------------------------------------------------
@@ -79,7 +77,6 @@ class BaseStage:
         self._run_id += 1
         my_run_id = self._run_id
 
-        self._pause_event.set()
         self.state = StageState.RUNNING
         self._emit("state", self.state.value)
 
@@ -88,7 +85,6 @@ class BaseStage:
         round_index = 0
         try:
             while True:
-                await self._pause_event.wait()
                 if self._is_stale(my_run_id):
                     return self.output
 
@@ -99,7 +95,6 @@ class BaseStage:
                 response = ""
 
                 async for chunk in self.llm_client.stream(messages):
-                    await self._pause_event.wait()
                     if self._is_stale(my_run_id):
                         break
 
@@ -135,21 +130,8 @@ class BaseStage:
                 self._emit("error", {"message": str(e)})
             raise
 
-    def stop(self):
-        if self.state == StageState.RUNNING:
-            self._pause_event.clear()
-            self.state = StageState.PAUSED
-            self._emit("state", self.state.value)
-
-    def resume(self):
-        if self.state == StageState.PAUSED:
-            self._pause_event.set()
-            self.state = StageState.RUNNING
-            self._emit("state", self.state.value)
-
     def retry(self):
         self._run_id += 1
-        self._pause_event.set()
         self.output = ""
         self.rounds = []
         self.state = StageState.IDLE

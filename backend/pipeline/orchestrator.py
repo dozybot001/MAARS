@@ -134,10 +134,8 @@ class PipelineOrchestrator:
             stage.llm_client.request_stop()
         # Invalidate current run so CancelledError handler won't change state
         stage._run_id += 1
-        await self._cancel_task(stage_name)
         await self._cancel_task("pipeline")
         stage.state = StageState.PAUSED
-        stage._pause_event.set()
         stage._emit("state", stage.state.value)
 
     async def resume_stage(self, stage_name: str):
@@ -164,7 +162,6 @@ class PipelineOrchestrator:
 
         idx = STAGE_ORDER.index(stage_name)
         for name in STAGE_ORDER[idx:]:
-            await self._cancel_task(name)
             self.stages[name].retry()
 
         task = asyncio.create_task(self._run_from(stage_name))

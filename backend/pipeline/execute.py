@@ -137,7 +137,6 @@ class ExecuteStage(BaseStage):
         self._run_id += 1
         my_run_id = self._run_id
 
-        self._pause_event.set()
         self.state = StageState.RUNNING
         self._emit("state", self.state.value)
         self.output = ""
@@ -162,7 +161,6 @@ class ExecuteStage(BaseStage):
             })
 
             for batch_idx, batch in enumerate(batches):
-                await self._pause_event.wait()
                 if self._is_stale(my_run_id):
                     return self.output
 
@@ -274,7 +272,6 @@ class ExecuteStage(BaseStage):
         """Stream LLM response, emitting chunks with call_id."""
         result = ""
         async for chunk in client.stream(messages):
-            await self._pause_event.wait()
             if self._is_stale(my_run_id):
                 break
             result += chunk
