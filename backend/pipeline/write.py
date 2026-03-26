@@ -1,17 +1,17 @@
 """Write stage: generates a research paper section by section.
 
 Pipeline: outline → sections → structure → style → format → done
-Outputs both paper.md (markdown) and paper.tex (LaTeX IEEE format).
+Outputs paper.md (markdown).
 """
 
 from __future__ import annotations
 
 import json
-import re
 
 from backend.db import ResearchDB
 from backend.pipeline.stage import BaseStage
 from backend.utils import parse_json_fenced
+
 
 # ---------------------------------------------------------------------------
 # Prompts
@@ -153,205 +153,8 @@ def _build_format_prompt(draft: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Markdown → LaTeX conversion
+# Markdown → LaTeX conversion (via pandoc)
 # ---------------------------------------------------------------------------
-
-_LATEX_PREAMBLE = r"""\documentclass[conference]{IEEEtran}
-\usepackage{cite}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{graphicx}
-\usepackage{textcomp}
-\usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{hyperref}
-\usepackage{titlesec}
-
-\titleformat{\section}
-  {\normalfont\Large\bfseries}
-  {\arabic{section}.}
-  {1em}
-  {}
-\titleformat{\subsection}
-  {\normalfont\large\bfseries}
-  {\arabic{section}.\arabic{subsection}}
-  {1em}
-  {}
-\titleformat{\subsubsection}
-  {\normalfont\normalsize\bfseries}
-  {\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
-  {1em}
-  {}
-
-\begin{document}
-"""
-
-
-def _md_to_latex(md_text: str) -> str:
-    """Convert markdown paper to LaTeX with IEEE conference format."""
-    lines = md_text.split("\n")
-    out: list[str] = [_LATEX_PREAMBLE]
-
-    # Extract title from first H1
-    title = "Research Paper"
-    for line in lines:
-        m = re.match(r"^#\s+(.+)$", line)
-        if m:
-            title = m.group(1).strip()
-            break
-
-    out.append(f"\\title{{{_latex_escape(title)}}}")
-    out.append(r"\author{\IEEEauthorblockN{MAARS Research Pipeline}}")
-    out.append(r"\maketitle")
-    out.append("")
-
-    in_table = False
-    table_rows: list[str] = []
-    table_alignments: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Skip the title line (already used)
-        if re.match(r"^#\s+", stripped) and _latex_escape(stripped.lstrip("# ").strip()) == _latex_escape(title):
-            continue
-
-        # Horizontal rules → skip
-        if re.match(r"^-{3,}$", stripped):
-            continue
-
-        # Table handling
-        if "|" in stripped and not in_table:
-            cells = [c.strip() for c in stripped.strip("|").split("|")]
-            if cells:
-                in_table = True
-                table_rows = [cells]
-                table_alignments = []
-                continue
-
-        if in_table:
-            if "|" in stripped:
-                cells = [c.strip() for c in stripped.strip("|").split("|")]
-                # Check if this is the alignment row
-                if all(re.match(r"^:?-+:?$", c) for c in cells if c):
-                    table_alignments = []
-                    for c in cells:
-                        if c.startswith(":") and c.endswith(":"):
-                            table_alignments.append("c")
-                        elif c.endswith(":"):
-                            table_alignments.append("r")
-                        else:
-                            table_alignments.append("l")
-                    continue
-                table_rows.append(cells)
-                continue
-            else:
-                # End of table
-                out.append(_render_latex_table(table_rows, table_alignments))
-                in_table = False
-                table_rows = []
-
-        # Section headings
-        m = re.match(r"^(#{2,4})\s+(.+)$", stripped)
-        if m:
-            level = len(m.group(1))
-            heading = m.group(2).strip()
-            # Strip leading numbers like "1. " or "1.2 "
-            heading = re.sub(r"^\d+(\.\d+)*\.?\s+", "", heading)
-            if level == 2:
-                out.append(f"\\section{{{_latex_escape(heading)}}}")
-            elif level == 3:
-                out.append(f"\\subsection{{{_latex_escape(heading)}}}")
-            elif level == 4:
-                out.append(f"\\subsubsection{{{_latex_escape(heading)}}}")
-            continue
-
-        # H1 that isn't the title → treat as section
-        m = re.match(r"^#\s+(.+)$", stripped)
-        if m:
-            heading = re.sub(r"^\d+(\.\d+)*\.?\s+", "", m.group(1).strip())
-            out.append(f"\\section{{{_latex_escape(heading)}}}")
-            continue
-
-        # Images: ![caption](file)
-        m = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)$", stripped)
-        if m:
-            caption = m.group(1)
-            filename = m.group(2)
-            out.append(r"\begin{figure}[htbp]")
-            out.append(r"\centering")
-            out.append(f"\\includegraphics[width=\\linewidth]{{{filename}}}")
-            out.append(f"\\caption{{{_latex_escape(caption)}}}")
-            out.append(r"\end{figure}")
-            continue
-
-        # Bold and italic inline
-        converted = _convert_inline(stripped)
-        out.append(converted)
-
-    # Flush any remaining table
-    if in_table and table_rows:
-        out.append(_render_latex_table(table_rows, table_alignments))
-
-    out.append("")
-    out.append(r"\end{document}")
-    return "\n".join(out)
-
-
-def _latex_escape(text: str) -> str:
-    """Escape special LaTeX characters, preserving already-escaped sequences."""
-    # Don't escape if it looks like it already contains LaTeX commands
-    if "\\" in text:
-        return text
-    replacements = [
-        ("&", r"\&"), ("%", r"\%"), ("$", r"\$"),
-        ("#", r"\#"), ("_", r"\_"), ("{", r"\{"),
-        ("}", r"\}"), ("~", r"\textasciitilde{}"),
-        ("^", r"\textasciicircum{}"),
-    ]
-    for old, new in replacements:
-        text = text.replace(old, new)
-    return text
-
-
-def _convert_inline(text: str) -> str:
-    """Convert markdown inline formatting to LaTeX."""
-    # Bold: **text** → \textbf{text}
-    text = re.sub(r"\*\*(.+?)\*\*", r"\\textbf{\1}", text)
-    # Italic: *text* → \textit{text}
-    text = re.sub(r"\*(.+?)\*", r"\\textit{\1}", text)
-    # Inline code: `text` → \texttt{text}
-    text = re.sub(r"`(.+?)`", r"\\texttt{\1}", text)
-    return text
-
-
-def _render_latex_table(rows: list[list[str]], alignments: list[str]) -> str:
-    """Render a markdown table as LaTeX."""
-    if not rows:
-        return ""
-    ncols = max(len(r) for r in rows)
-    if not alignments:
-        alignments = ["l"] * ncols
-    while len(alignments) < ncols:
-        alignments.append("l")
-
-    lines = []
-    lines.append(r"\begin{table}[htbp]")
-    lines.append(r"\centering")
-    lines.append(f"\\begin{{tabular}}{{{' '.join(alignments)}}}")
-    lines.append(r"\toprule")
-
-    for i, row in enumerate(rows):
-        while len(row) < ncols:
-            row.append("")
-        cells = " & ".join(_latex_escape(c) for c in row)
-        lines.append(f"{cells} \\\\")
-        if i == 0:
-            lines.append(r"\midrule")
-
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}")
-    lines.append(r"\end{table}")
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +280,6 @@ class WriteStage(BaseStage):
         )
         if self.db:
             self.db.save_paper(result)
-            self.db.save_paper_tex(_md_to_latex(result))
         return result
 
     def retry(self):
