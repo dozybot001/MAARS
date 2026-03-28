@@ -714,6 +714,28 @@ Rules:
 
         # Track best score
         best = getattr(self, "_kaggle_best_score", 0.0)
+
+        # Score 0.0 usually means submission format error — treat as failure, not "no improvement"
+        if score < 0.01:
+            self._emit("chunk", {
+                "text": f"Kaggle score: {score:.5f} — likely a submission format error.\n",
+                "call_id": "Kaggle Submit",
+            })
+            return {
+                "satisfied": False,
+                "score": score,
+                "feedback": (
+                    f"Kaggle returned score {score:.5f}, which indicates a submission "
+                    f"format error. The submission.csv likely has wrong column names, "
+                    f"float values instead of integers, or missing rows. "
+                    f"Fix the submission format and regenerate."
+                ),
+                "suggestions": [
+                    "Fix submission.csv: ensure integer Survived values (0 or 1, not 0.0/1.0), "
+                    "correct column names (PassengerId,Survived), and all test rows present"
+                ],
+            }
+
         improved = score > best
         if improved:
             self._kaggle_best_score = score
