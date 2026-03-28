@@ -147,8 +147,7 @@
 }
 
 .task-group-header {
-  display: flex;
-  align-items: center;
+  display: block;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
@@ -158,18 +157,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 
 .task-group-header::before {
   content: "▾ ";
   font-size: 10px;
   color: var(--accent);
-  flex-shrink: 0;
 }
 
 .task-group-header.is-collapsed::before {
   content: "▸ ";
+}
+
+/* Show full title when task body is expanded */
+.task-group-header:not(.is-collapsed) {
+  white-space: normal;
+  overflow: visible;
 }
 
 .task-group-body {

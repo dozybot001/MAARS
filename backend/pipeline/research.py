@@ -314,15 +314,37 @@ class ResearchStage(BaseStage):
                         f"- {s}" for s in suggestions
                     )
 
-                new_tasks, _ = await decompose(
-                    idea=feedback_text,
-                    llm_client=self.llm_client,
-                    atomic_definition=self._atomic_definition,
-                    stream_callback=lambda t, d: self._emit(t, d),
-                    is_stale=lambda: self._is_stale(my_run_id),
-                )
-                if self._is_stale(my_run_id):
-                    return self.output
+                from backend.config import settings as _eval_settings
+                if _eval_settings.kaggle_competition_id:
+                    # Kaggle mode: single optimization task with full context
+                    # (don't decompose from scratch — build on existing work)
+                    artifacts = [f.name for f in self.db.get_artifacts_dir().iterdir()
+                                 if f.is_file() and not f.name.startswith("run_")]
+                    score = evaluation.get("score", "unknown")
+                    new_tasks = [{
+                        "id": f"opt_{iteration + 1}",
+                        "description": (
+                            f"Kaggle score optimization (current score: {score}).\n\n"
+                            f"Previous artifacts available at /workspace/output/: {', '.join(artifacts)}\n"
+                            f"Previous scripts are also in /workspace/output/ (run_*.py files).\n\n"
+                            f"Read the previous scripts to understand what was done, then improve:\n"
+                            f"{feedback_text}\n\n"
+                            f"IMPORTANT: Build on the existing work. Load/modify previous models "
+                            f"and code rather than starting from scratch. "
+                            f"Save improved submission to /workspace/output/submission.csv"
+                        ),
+                        "dependencies": [],
+                    }]
+                else:
+                    new_tasks, _ = await decompose(
+                        idea=feedback_text,
+                        llm_client=self.llm_client,
+                        atomic_definition=self._atomic_definition,
+                        stream_callback=lambda t, d: self._emit(t, d),
+                        is_stale=lambda: self._is_stale(my_run_id),
+                    )
+                    if self._is_stale(my_run_id):
+                        return self.output
 
                 if not new_tasks:
                     break
