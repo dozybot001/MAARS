@@ -121,6 +121,7 @@ results/{timestamp}-{slug}/
 | [Research Workflow (CN)](docs/CN/research-workflow.md) | Calibrate → Decompose → Execute → Verify → Redecompose → Evaluate |
 | [Prompt Engineering (CN)](docs/CN/prompt-engineering.md) | All prompts, modification guide |
 | [Code Smells (CN)](docs/CN/code-smells.md) | Known issues and fix priorities |
+| [Multi-Agent Design (CN)](docs/CN/multi-agent-design.md) | Future: 3-agent architecture (Orchestrator + Scholar + Critic) |
 
 ## Community
 

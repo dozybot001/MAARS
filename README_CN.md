@@ -120,6 +120,7 @@ results/{timestamp}-{slug}/
 | [Research 工作流](docs/CN/research-workflow.md) | 校准 → 分解 → 执行 → 验证 → 重分解 → 评估 |
 | [Prompt 工程](docs/CN/prompt-engineering.md) | 全部 prompt 清单与修改指南 |
 | [代码坏味道](docs/CN/code-smells.md) | 已知问题与修复优先级 |
+| [多智能体设计](docs/CN/multi-agent-design.md) | 未来：3 Agent 架构（Orchestrator + Scholar + Critic） |
 
 ## 社区
 
