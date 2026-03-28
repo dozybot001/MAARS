@@ -126,11 +126,6 @@ export function initLogViewer() {
 
       const block = document.createElement('div');
       block.className = 'log-text';
-      // Inside task groups: new blocks start folded (user clicks to expand)
-      if (taskId) {
-        block.classList.add('folded');
-        label.classList.add('is-collapsed');
-      }
       if (appendTarget) appendTarget.appendChild(block);
 
       label.addEventListener('click', () => {

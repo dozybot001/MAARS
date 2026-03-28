@@ -173,7 +173,7 @@
 }
 
 .task-group-body {
-  max-height: 300px;
+  max-height: 50vh;
   overflow-y: auto;
 }
 
