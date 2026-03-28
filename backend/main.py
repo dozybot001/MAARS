@@ -14,11 +14,72 @@ app = FastAPI(title="MAARS", version="0.1.0")
 # "agents" = multi-agent (Orchestrator + Scholar + Critic)
 
 if settings.architecture == "agents":
-    from backend.agents.session import AgentSession
+    from backend.agents import create_agent_session
 
-    session = AgentSession()
-    # TODO (Phase 2+): create and configure Scholar, Critic, Orchestrator agents
-    # session.configure(orchestrator=..., scholar=..., critic=...)
+    if settings.llm_mode in ("agent", "adk"):
+        from backend.llm.agent_client import AgentClient
+        try:
+            from google.adk.tools import google_search, url_context
+            _search_tools = [google_search, url_context]
+        except (ImportError, AttributeError):
+            _search_tools = []
+
+        session = create_agent_session(
+            orchestrator_client=AgentClient(
+                instruction="", tools=[], model=settings.gemini_model,
+            ),
+            worker_client=AgentClient(
+                instruction="", tools=_search_tools,
+                model=settings.gemini_model,
+            ),
+            scholar_client=AgentClient(
+                instruction="", tools=_search_tools, model=settings.gemini_model,
+            ),
+            critic_client=AgentClient(
+                instruction="", tools=[], model=settings.gemini_model,
+            ),
+        )
+    elif settings.llm_mode == "agno":
+        from backend.llm.agno_client import AgnoClient
+        from backend.agno.models import create_model
+        _model = create_model(
+            settings.agno_model_provider,
+            settings.agno_model_id or settings.gemini_model,
+        )
+        try:
+            from agno.tools.duckduckgo import DuckDuckGoTools
+            from agno.tools.arxiv import ArxivTools
+            _agno_search = [DuckDuckGoTools(), ArxivTools()]
+        except ImportError:
+            _agno_search = []
+
+        session = create_agent_session(
+            orchestrator_client=AgnoClient(instruction="", model=_model, tools=[]),
+            worker_client=AgnoClient(instruction="", model=_model, tools=_agno_search),
+            scholar_client=AgnoClient(instruction="", model=_model, tools=_agno_search),
+            critic_client=AgnoClient(instruction="", model=_model, tools=[]),
+        )
+    elif settings.llm_mode == "gemini":
+        from backend.llm.gemini_client import GeminiClient
+        _gc = lambda: GeminiClient(api_key=settings.google_api_key, model=settings.gemini_model)
+        session = create_agent_session(
+            orchestrator_client=_gc(),
+            worker_client=_gc(),
+            scholar_client=_gc(),
+            critic_client=_gc(),
+        )
+    else:
+        from backend.mock.client import MockClient
+        _mc = lambda: MockClient(
+            responses=["Mock agent response."], chunk_delay=settings.mock_chunk_delay,
+        )
+        session = create_agent_session(
+            orchestrator_client=_mc(),
+            worker_client=_mc(),
+            scholar_client=_mc(),
+            critic_client=_mc(),
+        )
+
     app.state.orchestrator = session
 
 else:
