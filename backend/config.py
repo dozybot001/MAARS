@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Research stage iteration
     research_max_iterations: int = 3  # 1 = no evaluate loop, 3 = up to 2 feedback rounds
 
+    # Kaggle
+    kaggle_api_token: str = ""  # KAGGLE_API_TOKEN for API authentication
     # External dataset directory (e.g., Kaggle data)
     dataset_dir: str = ""  # mounted read-only at /workspace/data in sandbox
 
@@ -41,3 +43,5 @@ if settings.openai_api_key:
     os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
 if settings.anthropic_api_key:
     os.environ.setdefault("ANTHROPIC_API_KEY", settings.anthropic_api_key)
+if settings.kaggle_api_token:
+    os.environ.setdefault("KAGGLE_API_TOKEN", settings.kaggle_api_token)
