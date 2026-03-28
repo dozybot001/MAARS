@@ -293,6 +293,11 @@ class ResearchStage(BaseStage):
                 self.db.save_plan_amendment(new_tasks, iteration + 1)
 
             # ── Phase 3: FINALIZE ──
+            if self.state == StageState.FAILED:
+                # A task hard-failed during execution — don't mark as completed
+                self._emit("state", self.state.value)
+                return self.output
+
             self.output = self._build_final_output()
             self.state = StageState.COMPLETED
             self._emit("state", self.state.value)
