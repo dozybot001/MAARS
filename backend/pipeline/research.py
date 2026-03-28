@@ -307,44 +307,9 @@ class ResearchStage(BaseStage):
                     break
 
                 # Decompose again with feedback
-                feedback_text = evaluation.get("feedback", "")
-                suggestions = evaluation.get("suggestions", [])
-                if suggestions:
-                    feedback_text += "\n\nSpecific suggestions:\n" + "\n".join(
-                        f"- {s}" for s in suggestions
-                    )
-
-                from backend.config import settings as _eval_settings
-                if _eval_settings.kaggle_competition_id:
-                    # Kaggle mode: single optimization task with full context
-                    # (don't decompose from scratch — build on existing work)
-                    artifacts = [f.name for f in self.db.get_artifacts_dir().iterdir()
-                                 if f.is_file() and not f.name.startswith("run_")]
-                    score = evaluation.get("score", "unknown")
-                    new_tasks = [{
-                        "id": f"opt_{iteration + 1}",
-                        "description": (
-                            f"Kaggle score optimization (current score: {score}).\n\n"
-                            f"Previous artifacts available at /workspace/output/: {', '.join(artifacts)}\n"
-                            f"Previous scripts are also in /workspace/output/ (run_*.py files).\n\n"
-                            f"Read the previous scripts to understand what was done, then improve:\n"
-                            f"{feedback_text}\n\n"
-                            f"IMPORTANT: Build on the existing work. Load/modify previous models "
-                            f"and code rather than starting from scratch. "
-                            f"Save improved submission to /workspace/output/submission.csv"
-                        ),
-                        "dependencies": [],
-                    }]
-                else:
-                    new_tasks, _ = await decompose(
-                        idea=feedback_text,
-                        llm_client=self.llm_client,
-                        atomic_definition=self._atomic_definition,
-                        stream_callback=lambda t, d: self._emit(t, d),
-                        is_stale=lambda: self._is_stale(my_run_id),
-                    )
-                    if self._is_stale(my_run_id):
-                        return self.output
+                # Build supplementary tasks from evaluation feedback.
+                # These tasks reference existing results — NOT a fresh decompose.
+                new_tasks = self._build_supplement_tasks(evaluation, iteration)
 
                 if not new_tasks:
                     break
@@ -584,6 +549,74 @@ class ResearchStage(BaseStage):
             data.get("summary", ""),
             data.get("redecompose", False),
         )
+
+    # ------------------------------------------------------------------
+    # Supplement tasks (iterate on existing work, don't re-decompose)
+    # ------------------------------------------------------------------
+
+    def _build_supplement_tasks(self, evaluation: dict, iteration: int) -> list[dict]:
+        """Build supplementary tasks from evaluation feedback.
+
+        Instead of decomposing from scratch, creates tasks that reference
+        existing results and focus on what's missing or needs improvement.
+        This avoids duplicate work and preserves context.
+        """
+        feedback = evaluation.get("feedback", "")
+        suggestions = evaluation.get("suggestions", [])
+
+        if not feedback and not suggestions:
+            return []
+
+        # Completed task summaries for context
+        completed_ids = sorted(self._task_results.keys())
+        completed_summary = "\n".join(
+            f"- Task [{tid}]: {self._task_summaries.get(tid, 'completed')}"
+            for tid in completed_ids
+        )
+
+        # Artifacts list (if any code was executed)
+        artifacts_dir = self.db.get_artifacts_dir()
+        artifacts = []
+        if artifacts_dir.exists():
+            artifacts = [f.name for f in artifacts_dir.iterdir()
+                         if f.is_file() and not f.name.startswith("run_")]
+
+        context_parts = [
+            f"## Completed work so far\n{completed_summary}",
+        ]
+        if artifacts:
+            context_parts.append(
+                f"\n## Available artifacts at /workspace/output/\n{', '.join(artifacts)}"
+            )
+        context_parts.append(f"\n## Evaluation feedback\n{feedback}")
+        context = "\n".join(context_parts)
+
+        # Build one task per suggestion, or one combined task if no suggestions
+        if suggestions:
+            tasks = []
+            for i, suggestion in enumerate(suggestions, 1):
+                tasks.append({
+                    "id": str(i),
+                    "description": (
+                        f"{suggestion}\n\n"
+                        f"Context:\n{context}\n\n"
+                        f"IMPORTANT: Build on existing work. Use read_task_output to "
+                        f"read previous results. Do NOT redo completed tasks."
+                    ),
+                    "dependencies": [],
+                })
+            return tasks
+        else:
+            return [{
+                "id": "1",
+                "description": (
+                    f"Address the following feedback:\n{feedback}\n\n"
+                    f"Context:\n{context}\n\n"
+                    f"IMPORTANT: Build on existing work. Use read_task_output to "
+                    f"read previous results. Do NOT redo completed tasks."
+                ),
+                "dependencies": [],
+            }]
 
     # ------------------------------------------------------------------
     # Kaggle evaluation
