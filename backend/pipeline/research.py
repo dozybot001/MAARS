@@ -276,12 +276,15 @@ class ResearchStage(BaseStage):
                 if failed:
                     break
 
-                # Last iteration: skip evaluation
-                if iteration >= self._max_iterations - 1:
-                    break
-
                 # Evaluate results
                 from backend.config import settings as _settings
+                is_last = iteration >= self._max_iterations - 1
+
+                # Last iteration: skip evaluation for normal mode (no replan needed)
+                # Kaggle mode: always evaluate (need to submit for score)
+                if is_last and not _settings.kaggle_competition_id:
+                    break
+
                 if _settings.kaggle_competition_id:
                     evaluation = await self._evaluate_kaggle(
                         _settings.kaggle_competition_id, iteration,
@@ -303,7 +306,7 @@ class ResearchStage(BaseStage):
 
                 self.db.save_evaluation(evaluation, iteration)
 
-                if evaluation.get("satisfied", True):
+                if evaluation.get("satisfied", True) or is_last:
                     break
 
                 # Replan: one LLM call that sees all completed work + feedback
