@@ -14,6 +14,7 @@ let tokenBadge = null;
 // Task grouping for Research stage
 let taskGroups = {};      // task_id → DOM container element
 let taskDescriptions = {}; // task_id → description (from exec_tree)
+let taskBodyScrollers = {}; // task_id → autoscroller for task group body
 
 export function initLogViewer() {
   logOutput = document.getElementById('log-output');
@@ -67,7 +68,22 @@ export function initLogViewer() {
       callBlocks = {};
       callScrollers = {};
       taskGroups = {};
+      taskBodyScrollers = {};
       currentSection = appendSeparator(logOutput, STAGE_LABELS[stage] || stage.toUpperCase(), scroller);
+    }
+  });
+
+  // --- Task state: auto-collapse completed tasks ---
+  on('task:state', ({ data }) => {
+    const { task_id, status } = data;
+    if ((status === 'completed' || status === 'failed') && taskGroups[task_id]) {
+      const group = taskGroups[task_id];
+      const body = group.querySelector('.task-group-body');
+      const header = group.querySelector('.task-group-header');
+      if (body && !body.classList.contains('user-expanded')) {
+        body.classList.add('collapsed');
+        if (header) header.classList.add('is-collapsed');
+      }
     }
   });
 
@@ -150,6 +166,10 @@ export function initLogViewer() {
     } else if (block) {
       block.scrollTop = block.scrollHeight;
     }
+    // Scroll task body container if within a task group
+    if (taskId && taskBodyScrollers[taskId]) {
+      taskBodyScrollers[taskId].scroll();
+    }
     scroller.scroll();
   });
 
@@ -186,6 +206,9 @@ function getOrCreateTaskGroup(taskId) {
 
   const body = document.createElement('div');
   body.className = 'task-group-body';
+
+  // Auto-scroller for the task body (same logic as global panels)
+  taskBodyScrollers[taskId] = createAutoScroller(body);
 
   // Click header to collapse/expand body
   header.addEventListener('click', () => {
