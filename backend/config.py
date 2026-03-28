@@ -17,12 +17,15 @@ class Settings(BaseSettings):
     # Research stage iteration
     research_max_iterations: int = 3  # 1 = no evaluate loop, 3 = up to 2 feedback rounds
 
+    # External dataset directory (e.g., Kaggle data)
+    dataset_dir: str = ""  # mounted read-only at /workspace/data in sandbox
+
     # Docker sandbox
     docker_sandbox_image: str = "maars-sandbox:latest"
-    docker_sandbox_timeout: int = 120  # seconds
-    docker_sandbox_memory: str = "512m"
+    docker_sandbox_timeout: int = 600  # seconds
+    docker_sandbox_memory: str = "4g"
     docker_sandbox_cpu: float = 1.0
-    docker_sandbox_network: bool = False
+    docker_sandbox_network: bool = True
 
     class Config:
         env_prefix = "MAARS_"

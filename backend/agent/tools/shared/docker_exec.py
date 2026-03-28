@@ -80,6 +80,12 @@ def create_docker_tools(db: ResearchDB) -> list:
         if tasks_dir and tasks_dir.exists():
             volumes[str(tasks_dir.resolve())] = {"bind": "/workspace/input", "mode": "ro"}
 
+        # External dataset (e.g., Kaggle data) — read-only
+        if settings.dataset_dir:
+            dataset_path = Path(settings.dataset_dir).resolve()
+            if dataset_path.exists():
+                volumes[str(dataset_path)] = {"bind": "/workspace/data", "mode": "ro"}
+
         # Run container
         try:
             container = client.containers.run(
