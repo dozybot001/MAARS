@@ -7,6 +7,7 @@ and result evaluation into a single iterative stage.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 
 from backend.db import ResearchDB
@@ -14,6 +15,13 @@ from backend.pipeline.stage import BaseStage, StageState
 from backend.pipeline.decompose import decompose
 from backend.pipeline.evaluate import evaluate_results
 from backend.utils import parse_json_fenced
+
+# Per-coroutine task ID tracking for parallel execution.
+# When set, ResearchStage._emit() injects task_id into all SSE events
+# so the frontend can group chunks by task.
+_current_task_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_task_id", default=None,
+)
 
 
 class _RedecomposeNeeded(Exception):
@@ -186,6 +194,13 @@ class ResearchStage(BaseStage):
         # Redecompose state: partial outputs and parent tracking
         self._partial_outputs: dict[str, str] = {}      # parent_id -> partial output
         self._redecompose_parent: dict[str, str] = {}    # subtask_id -> parent_id
+
+    def _emit(self, event_type: str, data):
+        """Override to inject task_id into events during task execution."""
+        tid = _current_task_id.get()
+        if tid and isinstance(data, dict) and "task_id" not in data:
+            data = {**data, "task_id": tid}
+        super()._emit(event_type, data)
 
     def load_input(self) -> str:
         return self.db.get_plan_json()
@@ -406,6 +421,15 @@ class ResearchStage(BaseStage):
 
     async def _execute_task(self, task: dict, my_run_id: int) -> str:
         """Execute a single task: run → verify → retry or redecompose."""
+        task_id = task["id"]
+        token = _current_task_id.set(task_id)
+        try:
+            return await self._execute_task_inner(task, my_run_id)
+        finally:
+            _current_task_id.reset(token)
+
+    async def _execute_task_inner(self, task: dict, my_run_id: int) -> str:
+        """Inner implementation of _execute_task (with task_id context set)."""
         task_id = task["id"]
         client = self.llm_client
 

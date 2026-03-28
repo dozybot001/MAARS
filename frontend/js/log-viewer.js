@@ -11,6 +11,10 @@ let currentSection = null;
 let totalTokens = 0;
 let tokenBadge = null;
 
+// Task grouping for Research stage
+let taskGroups = {};      // task_id → DOM container element
+let taskDescriptions = {}; // task_id → description (from exec_tree)
+
 export function initLogViewer() {
   logOutput = document.getElementById('log-output');
   scroller = createAutoScroller(logOutput);
@@ -20,7 +24,6 @@ export function initLogViewer() {
     const text = logOutput.innerText;
     const btn = document.getElementById('copy-log');
     try {
-      // Fallback for non-HTTPS: use textarea + execCommand
       const textarea = document.createElement('textarea');
       textarea.value = text;
       textarea.style.position = 'fixed';
@@ -31,7 +34,6 @@ export function initLogViewer() {
       document.body.removeChild(textarea);
       btn.textContent = 'Copied!';
     } catch (e) {
-      // Try modern API as fallback
       navigator.clipboard.writeText(text).then(() => {
         btn.textContent = 'Copied!';
       }).catch(() => {
@@ -41,6 +43,7 @@ export function initLogViewer() {
     setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
   });
 
+  // --- Stage transitions ---
   on('stage:state', ({ stage, data }) => {
     if (data === 'idle') {
       logOutput.innerHTML = '';
@@ -48,6 +51,8 @@ export function initLogViewer() {
       callBlocks = {};
       callScrollers = {};
       currentSection = null;
+      taskGroups = {};
+      taskDescriptions = {};
       totalTokens = 0;
       updateTokenBadge();
       scroller.reset();
@@ -61,17 +66,33 @@ export function initLogViewer() {
       activeStage = stage;
       callBlocks = {};
       callScrollers = {};
+      taskGroups = {};
       currentSection = appendSeparator(logOutput, STAGE_LABELS[stage] || stage.toUpperCase(), scroller);
     }
   });
 
+  // --- Exec tree: capture task descriptions for group headers ---
+  on('exec:tree', ({ data }) => {
+    if (!data || !data.batches) return;
+    for (const batch of data.batches) {
+      for (const task of batch.tasks) {
+        taskDescriptions[task.id] = task.description;
+      }
+    }
+  });
+
+  // --- Chunk streaming ---
   on('log:chunk', ({ stage, data }) => {
     const callId = data.call_id;
+    const taskId = data.task_id || null;
+
+    // Determine target container: task group or section
+    const target = taskId ? getOrCreateTaskGroup(taskId) : currentSection;
 
     if (data.label && callId) {
-      // Auto-fold previous blocks, but respect user-expanded ones
-      if (currentSection) {
-        currentSection.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
+      // Auto-fold previous blocks in the target container
+      if (target) {
+        target.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
           el.classList.add('folded');
           const prev = el.previousElementSibling;
           if (prev && prev.classList.contains('log-label')) prev.classList.add('is-collapsed');
@@ -81,11 +102,14 @@ export function initLogViewer() {
       const label = document.createElement('div');
       label.className = 'log-label';
       label.textContent = data.text;
-      currentSection.appendChild(label);
+
+      // For task groups, use the inner body container
+      const appendTarget = taskId ? getTaskGroupBody(taskId) : target;
+      if (appendTarget) appendTarget.appendChild(label);
 
       const block = document.createElement('div');
       block.className = 'log-text';
-      currentSection.appendChild(block);
+      if (appendTarget) appendTarget.appendChild(block);
 
       label.addEventListener('click', () => {
         const nowFolded = block.classList.toggle('folded');
@@ -93,7 +117,6 @@ export function initLogViewer() {
         if (nowFolded) {
           block.classList.remove('user-expanded');
         } else {
-          // User expanding — protect from auto-fold
           block.classList.add('user-expanded');
         }
       });
@@ -104,6 +127,7 @@ export function initLogViewer() {
       return;
     }
 
+    // Non-label chunk: append text to existing block
     const chunkText = data.text || data;
 
     let block;
@@ -111,19 +135,19 @@ export function initLogViewer() {
       block = callBlocks[callId];
       block.appendChild(document.createTextNode(chunkText));
     } else {
-      block = currentSection
-        ? currentSection.lastElementChild
-        : logOutput.lastElementChild;
+      // Fallback: append to last block in target
+      const fallback = taskId ? getTaskGroupBody(taskId) : (currentSection || logOutput);
+      block = fallback ? fallback.lastElementChild : null;
       if (!block || !block.classList.contains('log-text')) {
         block = document.createElement('div');
         block.className = 'log-text';
-        (currentSection || logOutput).appendChild(block);
+        if (fallback) fallback.appendChild(block);
       }
       block.appendChild(document.createTextNode(chunkText));
     }
     if (callId && callScrollers[callId]) {
       callScrollers[callId].scroll();
-    } else {
+    } else if (block) {
       block.scrollTop = block.scrollHeight;
     }
     scroller.scroll();
@@ -143,6 +167,50 @@ export function initLogViewer() {
     (currentSection || logOutput).appendChild(el);
     scroller.scroll();
   });
+}
+
+// --- Task group helpers ---
+
+function getOrCreateTaskGroup(taskId) {
+  if (taskGroups[taskId]) return taskGroups[taskId];
+  if (!currentSection) return null;
+
+  const group = document.createElement('div');
+  group.className = 'task-group';
+  group.dataset.taskId = taskId;
+
+  const header = document.createElement('div');
+  header.className = 'task-group-header';
+  const desc = taskDescriptions[taskId];
+  header.textContent = desc ? `Task [${taskId}]: ${desc}` : `Task [${taskId}]`;
+
+  const body = document.createElement('div');
+  body.className = 'task-group-body';
+
+  // Click header to collapse/expand body
+  header.addEventListener('click', () => {
+    const nowCollapsed = body.classList.toggle('collapsed');
+    header.classList.toggle('is-collapsed');
+    if (nowCollapsed) {
+      body.classList.remove('user-expanded');
+    } else {
+      body.classList.add('user-expanded');
+    }
+  });
+
+  group.appendChild(header);
+  group.appendChild(body);
+  currentSection.appendChild(group);
+
+  taskGroups[taskId] = group;
+  scroller.scroll();
+  return group;
+}
+
+function getTaskGroupBody(taskId) {
+  const group = taskGroups[taskId];
+  if (!group) return currentSection;
+  return group.querySelector('.task-group-body') || currentSection;
 }
 
 function updateTokenBadge() {
