@@ -524,13 +524,26 @@ class ResearchStage(BaseStage):
             self.db.save_task_output(task_id, result)
         self._task_results[task_id] = result
 
-    async def _stream_llm(self, client, messages: list[dict], call_id: str, my_run_id: int) -> str:
-        """Stream LLM response, dispatching all events uniformly."""
+    async def _stream_llm(self, client, messages: list[dict], call_id: str,
+                          my_run_id: int, timeout: float = 300) -> str:
+        """Stream LLM response, dispatching all events uniformly.
+
+        Args:
+            timeout: Max seconds to wait for the full stream (default 5 min).
+                     Prevents hanging on unresponsive API calls.
+        """
         result = ""
-        async for event in client.stream(messages):
-            if self._is_stale(my_run_id):
-                break
-            result += self._dispatch_stream(event, call_id)
+        try:
+            async with asyncio.timeout(timeout):
+                async for event in client.stream(messages):
+                    if self._is_stale(my_run_id):
+                        break
+                    result += self._dispatch_stream(event, call_id)
+        except TimeoutError:
+            self._emit("chunk", {
+                "text": f"\n[TIMEOUT] LLM stream exceeded {timeout}s\n",
+                "call_id": call_id,
+            })
         return result
 
     def _parse_verification(self, response: str) -> tuple[bool, str, str, bool]:
