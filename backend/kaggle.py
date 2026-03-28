@@ -146,22 +146,16 @@ def submit_and_score(competition_id: str, submission_path: str) -> float | None:
 
 
 def build_kaggle_idea(info: dict) -> str:
-    """Build a structured research input from Kaggle competition info.
+    """Format competition info as the refined idea.
 
-    The output serves as both the idea and the refined_idea (Refine is skipped).
+    Just the facts — no prescriptive workflow template.
+    Calibrate and decompose decide the approach.
     """
     files_str = ", ".join(info["files"]) if info["files"] else "see /workspace/data/"
     return (
         f"# Kaggle Competition: {info['title']}\n\n"
-        f"**Description**: {info['description']}\n\n"
-        f"**Evaluation Metric**: {info['metric']}\n\n"
-        f"**Dataset Files** (located at /workspace/data/): {files_str}\n\n"
-        f"## Task\n"
-        f"Build a predictive model for this competition. Requirements:\n"
-        f"1. Exploratory data analysis on the training data\n"
-        f"2. Feature engineering (handle missing values, encode categoricals, create derived features)\n"
-        f"3. Train and compare at least 3 different models\n"
-        f"4. Generate predictions on the test set\n"
-        f"5. Save submission file to /workspace/output/submission.csv\n"
-        f"6. Optimize for the competition metric: {info['metric']}\n"
+        f"{info['description']}\n\n"
+        f"- **Evaluation Metric**: {info['metric']}\n"
+        f"- **Dataset Files** (at /workspace/data/): {files_str}\n"
+        f"- **Submission**: save to /workspace/output/submission.csv\n"
     )

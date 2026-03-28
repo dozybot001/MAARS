@@ -562,27 +562,29 @@ class ResearchStage(BaseStage):
     # ------------------------------------------------------------------
 
     _REPLAN_SYSTEM = """\
-You are a research project planner. Given completed work and evaluation feedback, \
-decide what NEW tasks to add to address gaps. Do NOT redo completed tasks.
+You are a research planner with tools. Given completed work and evaluation feedback, \
+investigate what went wrong or what's missing, then decide what NEW tasks to add.
 
-You will receive:
-1. The research goal
-2. Completed tasks with summaries
-3. Available artifacts (code outputs, files)
-4. Evaluation feedback with improvement suggestions
+WORKFLOW:
+1. First, USE YOUR TOOLS to investigate:
+   - Search for better approaches or techniques relevant to the feedback
+   - Read previous task outputs (read_task_output) to understand what was actually done
+   - Check artifacts (list_artifacts) to see what files exist
+2. Based on your investigation, decide what new tasks to add
+3. Output a JSON block at the end of your response:
 
-Respond with ONLY a JSON object:
+```json
 {"add": [
   {"id": "1", "description": "Specific actionable task", "dependencies": []},
   {"id": "2", "description": "Another task that depends on 1", "dependencies": ["1"]}
 ]}
+```
 
 Rules:
 - IDs are simple integers: "1", "2", "3"
 - Dependencies are ONLY between NEW tasks (siblings), not existing completed tasks
 - Each task description must be specific and actionable
-- Tasks should BUILD ON existing work (reference previous task outputs and artifacts)
-- Do NOT create tasks that duplicate already-completed work
+- Tasks should BUILD ON existing work, not redo it
 - MAXIMIZE PARALLELISM: only add dependency when truly needed
 全文使用中文。"""
 
