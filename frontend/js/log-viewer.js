@@ -106,7 +106,8 @@ export function initLogViewer() {
     const target = taskId ? getOrCreateTaskGroup(taskId) : currentSection;
 
     if (data.label && callId) {
-      // Auto-fold previous blocks in the target container
+      // Inside task groups: fold ALL previous blocks (keep everything collapsed)
+      // Outside task groups: fold previous blocks as before
       if (target) {
         target.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
           el.classList.add('folded');
@@ -125,6 +126,11 @@ export function initLogViewer() {
 
       const block = document.createElement('div');
       block.className = 'log-text';
+      // Inside task groups: new blocks start folded (user clicks to expand)
+      if (taskId) {
+        block.classList.add('folded');
+        label.classList.add('is-collapsed');
+      }
       if (appendTarget) appendTarget.appendChild(block);
 
       label.addEventListener('click', () => {

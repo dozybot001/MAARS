@@ -50,7 +50,7 @@ export function initProcessViewer() {
     scroller.scroll();
   });
 
-  // --- Execute: task list ---
+  // --- Execute: task list (incremental — preserves existing nodes on redecompose) ---
   on('exec:tree', ({ data }) => {
     if (!data || !data.batches || !currentSection) return;
     let container = currentSection.querySelector('#exec-output');
@@ -60,7 +60,15 @@ export function initProcessViewer() {
       container.className = 'po-exec';
       currentSection.appendChild(container);
     }
-    container.innerHTML = '';
+
+    // Collect existing task nodes to preserve their state
+    const existingNodes = {};
+    container.querySelectorAll('.exec-node').forEach(node => {
+      existingNodes[node.dataset.taskId] = node;
+    });
+
+    // Rebuild batch structure, reusing existing nodes
+    const fragment = document.createDocumentFragment();
     for (const batch of data.batches) {
       const batchDiv = document.createElement('div');
       batchDiv.className = 'exec-batch';
@@ -71,24 +79,34 @@ export function initProcessViewer() {
       batchDiv.appendChild(label);
 
       for (const task of batch.tasks) {
-        const node = document.createElement('div');
-        node.className = 'exec-node exec-pending';
-        node.dataset.taskId = task.id;
+        const existing = existingNodes[task.id];
+        if (existing) {
+          // Reuse existing node (preserves completed/failed/running state)
+          batchDiv.appendChild(existing);
+          delete existingNodes[task.id];
+        } else {
+          // New task (from redecompose) — create fresh
+          const node = document.createElement('div');
+          node.className = 'exec-node exec-pending';
+          node.dataset.taskId = task.id;
 
-        const id = document.createElement('span');
-        id.className = 'tree-id';
-        id.textContent = task.id;
+          const id = document.createElement('span');
+          id.className = 'tree-id';
+          id.textContent = task.id;
 
-        const desc = document.createElement('span');
-        desc.className = 'exec-desc';
-        desc.textContent = task.description;
+          const desc = document.createElement('span');
+          desc.className = 'exec-desc';
+          desc.textContent = task.description;
 
-        node.appendChild(id);
-        node.appendChild(desc);
-        batchDiv.appendChild(node);
+          node.appendChild(id);
+          node.appendChild(desc);
+          batchDiv.appendChild(node);
+        }
       }
-      container.appendChild(batchDiv);
+      fragment.appendChild(batchDiv);
     }
+    container.innerHTML = '';
+    container.appendChild(fragment);
     scroller.scroll();
   });
 
