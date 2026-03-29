@@ -15,9 +15,9 @@ orchestrator = PipelineOrchestrator()
 
 from backend.agno import create_agno_stages
 stages = create_agno_stages(
-    model_provider=settings.agno_model_provider,
-    model_id=settings.agno_model_id or settings.gemini_model,
-    api_key=settings.google_api_key,
+    model_provider=settings.model_provider,
+    model_id=settings.active_model,
+    api_key=settings.active_api_key,
     db=orchestrator.db,
     max_iterations=settings.research_max_iterations,
 )
