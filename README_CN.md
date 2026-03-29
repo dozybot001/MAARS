@@ -4,20 +4,52 @@
 
 **多智能体自动化研究系统** — 从一个想法到一篇完整论文，全自动。
 
-## 管线
+MAARS 更准确的设计定位，是一种以 workflow 为骨架的混合式研究架构：`Research` 既是 workflow 主干，也是一种 research-task 级的 harness engineering；`Refine` 和 `Write` 是未来优先演进为 multi-agent 的两个阶段。
+
+当前状态：
+
+- `Refine`：当前是单 agent stage，目标是 multi-agent
+- `Research`：已实现为 agentic workflow 核心
+- `Write`：当前是单 agent stage，目标是 multi-agent
+
+## 架构
+
+```mermaid
+flowchart TB
+    INPUT["想法 / Kaggle URL"] --> ORCH["Pipeline Orchestrator"]
+
+    ORCH --> REF["Refine<br/>当前：single-agent<br/>目标：multi-agent"]
+    ORCH --> RES["Research<br/>workflow 核心<br/>calibrate → strategy → decompose<br/>→ execute → verify → evaluate → replan"]
+    ORCH --> WRI["Write<br/>当前：single-agent<br/>目标：multi-agent"]
+
+    REF --> DB["Session DB<br/>results/{id}/"]
+    RES --> DB
+    WRI --> DB
+
+    REF --> LLM["LLM 接口 / Agent Adapter"]
+    RES --> LLM
+    WRI --> LLM
+
+    LLM --> TOOLS["搜索 / DB 工具 / Docker Sandbox"]
+    ORCH -. SSE .-> UI["前端"]
+```
 
 三个阶段，基于 Agno Agent 框架，支持多 provider（Google、Anthropic、OpenAI）。
 
-```mermaid
-flowchart LR
-    I[想法] --> R["精炼\n1 agent session"] --> RS["研究\n校准 → 分解\n→ 执行 → 评估"] --> W["写作\n1 agent session"] --> O[论文]
-```
+| 阶段 | 设计职责 | 当前实现 |
+|------|---------|---------|
+| **精炼** | 研究问题形成，长期适合 multi-agent 探索与收敛 | 单 agent session |
+| **研究** | workflow 主干：校准、分解、执行、验证、评估、重规划 | 已实现为 agentic workflow runtime |
+| **写作** | 论文综合，长期适合 multi-agent 规划、分章与审稿 | 单 agent session |
 
-| 阶段 | 做什么 |
-|------|-------|
-| **精炼** | Agent 自主搜索文献、评估方向、结晶为结构化研究提案 |
-| **研究** | 校准能力边界 → 递归分解 → 并行执行 + 验证（通过 / 重试 / 重新分解）→ 评估。不满足则迭代 |
-| **写作** | Agent 通过工具读取所有任务产出，自主设计论文结构并一次性撰写完整论文 |
+## 设计说明
+
+- 顶层是 `refine → research → write` 三阶段编排。
+- 核心设计判断是：确定性控制逻辑交给 runtime，不确定性执行交给 agent。
+- Research 不只是 agent 调用链，而是一个 harness：runtime 控制、状态外化、工具边界和反馈回路共同构成执行环境。
+- 状态外化到 `results/{session}/`，这样执行过程可审计、可恢复、可复现。
+- 真实代码执行统一走 Docker sandbox，产物落在 `artifacts/`。
+- 前端通过 SSE 持续观察 stage 状态、research phase、task 状态和流式日志。
 
 ## 配置
 
@@ -30,43 +62,6 @@ MAARS_GOOGLE_API_KEY=your-key
 # MAARS_AGNO_MODEL_ID=claude-sonnet-4-5
 # MAARS_ANTHROPIC_API_KEY=your-key
 ```
-
-## 架构
-
-三层解耦 — pipeline 依赖接口，适配器实现接口：
-
-```mermaid
-flowchart TB
-    subgraph Pipeline["Pipeline 层 · 流程逻辑"]
-        ORCH["orchestrator"] --> STAGES["refine → research → write"]
-        STAGES --> DB["文件 DB"]
-    end
-
-    subgraph Interface["接口层"]
-        LLM["LLMClient.stream() → StreamEvent"]
-        CAP["LLMClient.describe_capabilities()"]
-    end
-
-    subgraph Adapters["适配层"]
-        AGNO["AgnoClient\n(Agno · 40+ 模型)"]
-    end
-
-    STAGES --> LLM
-    STAGES --> CAP
-    LLM -.-> AGNO
-
-    subgraph FE["前端 · Vanilla JS"]
-        UI["输入 + 控制"]
-        LOG["推理日志"]
-        PROC["流程 & 产出"]
-    end
-
-    UI --> ORCH
-    ORCH -."SSE".-> LOG
-    ORCH -."SSE".-> PROC
-```
-
-详细架构与数据流见 [架构文档](docs/CN/architecture.md)。
 
 ## 快速开始
 
@@ -102,11 +97,7 @@ results/{timestamp}-{slug}/
 
 | 文档 | 内容 |
 |------|------|
-| [架构](docs/CN/architecture.md) | 三层设计、数据流 |
-| [Research 工作流](docs/CN/research-workflow.md) | 校准 → 分解 → 执行 → 验证 → 重分解 → 评估 |
-| [Prompt 工程](docs/CN/prompt-engineering.md) | 全部 prompt 清单与修改指南 |
-| [代码坏味道](docs/CN/code-smells.md) | 已知问题与修复优先级 |
-| [多智能体设计](docs/CN/multi-agent-design.md) | 未来：3 Agent 架构（Orchestrator + Scholar + Critic） |
+| [架构设计](docs/CN/architecture.md) | 当前系统设计的主文档 |
 
 ## 社区
 

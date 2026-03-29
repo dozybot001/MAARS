@@ -4,20 +4,52 @@
 
 **Multi-Agent Automated Research System** — From one idea to a full research paper, fully automated.
 
-## Pipeline
+MAARS follows a workflow-centered hybrid architecture: `Research` is the workflow spine and a form of research-task harness engineering, while `Refine` and `Write` are the stages that will evolve toward multi-agent collaboration.
 
-Three stages, powered by Agno agent framework with multi-provider support (Google, Anthropic, OpenAI).
+Current status:
+
+- `Refine`: single-agent stage today, multi-agent target
+- `Research`: implemented as the agentic workflow core
+- `Write`: single-agent stage today, multi-agent target
+
+## Architecture
 
 ```mermaid
-flowchart LR
-    I[Idea] --> R["Refine\n1 agent session"] --> RS["Research\ncalibrate → decompose\n→ execute → evaluate"] --> W["Write\n1 agent session"] --> O[Paper]
+flowchart TB
+    INPUT["Idea / Kaggle URL"] --> ORCH["Pipeline Orchestrator"]
+
+    ORCH --> REF["Refine<br/>single-agent now<br/>multi-agent target"]
+    ORCH --> RES["Research<br/>workflow core<br/>calibrate → strategy → decompose<br/>→ execute → verify → evaluate → replan"]
+    ORCH --> WRI["Write<br/>single-agent now<br/>multi-agent target"]
+
+    REF --> DB["Session DB<br/>results/{id}/"]
+    RES --> DB
+    WRI --> DB
+
+    REF --> LLM["LLM Interface / Agent Adapter"]
+    RES --> LLM
+    WRI --> LLM
+
+    LLM --> TOOLS["Search / DB Tools / Docker Sandbox"]
+    ORCH -. SSE .-> UI["Frontend"]
 ```
 
-| Stage | What it does |
-|-------|-------------|
-| **Refine** | Agent autonomously explores literature, evaluates directions, and crystallizes a structured research proposal |
-| **Research** | Calibrate capability → recursive decompose → parallel execute with verify (pass / retry / redecompose) → evaluate. Iterates until satisfied |
-| **Write** | Agent reads all task outputs via tools, designs paper structure, and writes the complete paper in one session |
+Three stages, powered by the Agno agent framework with multi-provider support (Google, Anthropic, OpenAI).
+
+| Stage | Design Role | Current Implementation |
+|-------|-------------|------------------------|
+| **Refine** | Problem formation; ultimately suited for multi-agent exploration and convergence | Single-agent session |
+| **Research** | Workflow spine: calibrate, decompose, execute, verify, evaluate, replan | Implemented as an agentic workflow runtime |
+| **Write** | Paper synthesis; ultimately suited for multi-agent planning, drafting, and review | Single-agent session |
+
+## Design Notes
+
+- The top level is a three-stage orchestrated flow: `refine → research → write`.
+- The core design judgment is: keep deterministic control in the runtime, and give open-ended execution to agents.
+- Research is not just an agent loop; it is a harness: runtime control, externalized state, tool boundaries, and feedback loops working together.
+- State is externalized into `results/{session}/` so runs are inspectable, resumable, and reproducible.
+- Real code execution goes through a Docker sandbox; outputs are persisted under `artifacts/`.
+- Frontend observability is built on SSE, so users can see stage state, research phases, task status, and streamed logs in real time.
 
 ## Configuration
 
@@ -30,43 +62,6 @@ MAARS_GOOGLE_API_KEY=your-key
 # MAARS_AGNO_MODEL_ID=claude-sonnet-4-5
 # MAARS_ANTHROPIC_API_KEY=your-key
 ```
-
-## Architecture
-
-Three-layer decoupling — pipeline depends on an interface, adapter implements it:
-
-```mermaid
-flowchart TB
-    subgraph Pipeline["Pipeline Layer · flow logic"]
-        ORCH["orchestrator"] --> STAGES["refine → research → write"]
-        STAGES --> DB["file DB"]
-    end
-
-    subgraph Interface["Interface Layer"]
-        LLM["LLMClient.stream() → StreamEvent"]
-        CAP["LLMClient.describe_capabilities()"]
-    end
-
-    subgraph Adapters["Adapter Layer"]
-        AGNO["AgnoClient\n(Agno · 40+ models)"]
-    end
-
-    STAGES --> LLM
-    STAGES --> CAP
-    LLM -.-> AGNO
-
-    subgraph FE["Frontend · Vanilla JS"]
-        UI["Input + controls"]
-        LOG["Reasoning Log"]
-        PROC["Process & Output"]
-    end
-
-    UI --> ORCH
-    ORCH -."SSE".-> LOG
-    ORCH -."SSE".-> PROC
-```
-
-See [docs/EN/architecture.md](docs/EN/architecture.md) for detailed data flow and design principles.
 
 ## Quick start
 
@@ -102,12 +97,7 @@ results/{timestamp}-{slug}/
 
 | Doc | Content |
 |-----|---------|
-| [Architecture (EN)](docs/EN/architecture.md) | Three-layer design, data flow |
-| [Architecture (CN)](docs/CN/architecture.md) | 同上，中文版 |
-| [Research Workflow (CN)](docs/CN/research-workflow.md) | Calibrate → Decompose → Execute → Verify → Redecompose → Evaluate |
-| [Prompt Engineering (CN)](docs/CN/prompt-engineering.md) | All prompts, modification guide |
-| [Code Smells (CN)](docs/CN/code-smells.md) | Known issues and fix priorities |
-| [Multi-Agent Design (CN)](docs/CN/multi-agent-design.md) | Future: 3-agent architecture (Orchestrator + Scholar + Critic) |
+| [Architecture Design (CN)](docs/CN/architecture.md) | Current source of truth for the system design |
 
 ## Community
 
