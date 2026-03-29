@@ -91,7 +91,7 @@ class PersistentAgent:
 
     name: str                   # "orchestrator" | "scholar" | "critic"
     system_prompt: str          # 角色定义
-    llm_client: LLMClient       # 任意模式（mock/gemini/adk/agno）
+    llm_client: LLMClient       # AgnoClient
     history: list[dict]         # 累积对话
     db: ResearchDB              # 持久化
 
@@ -208,7 +208,7 @@ results/{id}/
 | Phase 4 | 前端扩展 + 路由适配 | 中 |
 | Phase 5 | 模式支持 + Resume/Retry + 稳定性 | 中 |
 
-旧 pipeline 通过 `MAARS_ARCHITECTURE=pipeline|agents` 配置保留为 fallback。
+旧 pipeline 通过 git tag `v8.2.0` 保留为 fallback。
 
 ## 风险
 

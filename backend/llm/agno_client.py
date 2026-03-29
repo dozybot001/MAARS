@@ -1,9 +1,8 @@
 """Agno Agent → LLMClient adapter.
 
-Wraps Agno's Agent streaming into the LLMClient.stream() interface.
-- stream() yields StreamEvents for Think/Tool/Result/Content/Tokens
-- Pipeline handles all broadcasting — client never touches SSE
-- tools=[] degrades to a simple LLM call (used for Plan)
+Pure adapter: takes messages (system + user), creates an Agno Agent
+with system content as instruction, streams events back.
+No baked-in instruction — all prompts come from the pipeline.
 """
 
 import logging
@@ -18,15 +17,11 @@ log = logging.getLogger(__name__)
 
 class AgnoClient(LLMClient):
 
-    has_tools = True  # Agent reads dependencies via tools
-
     def __init__(
         self,
-        instruction: str,
         model,  # Agno model instance (Gemini, Claude, OpenAIResponses, etc.)
         tools: list | None = None,
     ):
-        self._instruction = instruction
         self._model = model
         self._tools = tools or []
         self._stop_requested = False
@@ -49,8 +44,8 @@ class AgnoClient(LLMClient):
 
     async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
         """Run an Agno Agent and yield StreamEvents."""
-        merged_instruction, user_text = self._build_agent_prompt(messages)
-        async for event in self._run_agent(merged_instruction, user_text):
+        instruction, user_text = self._extract_prompt(messages)
+        async for event in self._run_agent(instruction, user_text):
             yield event
 
     async def _run_agent(self, instruction: str, user_text: str) -> AsyncIterator[StreamEvent]:
@@ -121,8 +116,9 @@ class AgnoClient(LLMClient):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_agent_prompt(self, messages: list[dict]) -> tuple[str, str]:
-        """Build agent instruction and user prompt from message history."""
+    @staticmethod
+    def _extract_prompt(messages: list[dict]) -> tuple[str, str]:
+        """Extract instruction (from system messages) and user text."""
         system_parts = []
         user_parts = []
 
@@ -136,10 +132,6 @@ class AgnoClient(LLMClient):
             elif role == "user":
                 user_parts.append(content)
 
-        merged_instruction = self._instruction
-        if system_parts:
-            pipeline_prompt = "\n\n".join(system_parts)
-            merged_instruction = f"{self._instruction}\n\n{pipeline_prompt}" if self._instruction else pipeline_prompt
-
+        instruction = "\n\n".join(system_parts)
         user_prompt = "\n\n---\n\n".join(user_parts)
-        return merged_instruction, user_prompt
+        return instruction, user_prompt

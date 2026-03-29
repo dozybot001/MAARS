@@ -10,11 +10,10 @@ Brief description of the change.
 - [ ] New feature
 - [ ] Refactoring
 - [ ] Documentation
-- [ ] New mode / tool / skill
 
 ## Checklist
 
-- [ ] Pipeline layer remains mode-agnostic (no mock/gemini/agent imports in `pipeline/`)
-- [ ] Tested with mock mode (`MAARS_LLM_MODE=mock`)
+- [ ] Pipeline layer remains adapter-agnostic (no `agno/` imports in `pipeline/`)
+- [ ] Tested with a real API key
 - [ ] Frontend has no build step (vanilla JS/CSS only)
 - [ ] No API keys or secrets in the commit

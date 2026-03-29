@@ -3,10 +3,8 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    llm_mode: str = "mock"  # "mock", "gemini", "adk", or "agno"
-    google_api_key: str = ""  # shared across all modes
-    gemini_model: str = "gemini-2.5-flash"  # shared across gemini, adk, and agno (google)
-    mock_chunk_delay: float = 0.08  # seconds between mock chunks
+    google_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"  # default model for agno (google provider)
 
     # Agno mode — non-google providers
     agno_model_provider: str = "google"  # "google", "anthropic", or "openai"
@@ -37,7 +35,7 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Bridge API keys to standard env vars (ADK and Agno read from env)
+# Bridge API keys to standard env vars (Agno reads from env)
 if settings.google_api_key:
     os.environ.setdefault("GOOGLE_API_KEY", settings.google_api_key)
 if settings.openai_api_key:

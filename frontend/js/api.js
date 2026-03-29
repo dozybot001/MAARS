@@ -37,6 +37,7 @@ export function connectSSE() {
 
   for (const [event, signal] of [
     ['state', 'stage:state'],
+    ['phase', 'stage:phase'],
     ['chunk', 'log:chunk'],
     ['task_state', 'task:state'],
     ['exec_tree', 'exec:tree'],

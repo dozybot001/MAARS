@@ -2,11 +2,9 @@
 
 #workspace {
   display: flex;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
   overflow: hidden;
-  height: 600px;
+  height: calc(100vh - 64px); /* full height minus progress bar */
 }
 
 .panel {
@@ -36,6 +34,14 @@
   font-weight: 600;
 }
 
+.timer-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
 .token-badge {
   font-size: 11px;
   color: var(--text-muted);
@@ -43,7 +49,7 @@
   font-weight: 400;
 }
 
-#copy-log {
+#copy-log, #copy-process {
   position: absolute;
   right: 10px;
   top: 50%;
@@ -56,7 +62,7 @@
   padding: 2px 6px;
 }
 
-#copy-log:hover {
+#copy-log:hover, #copy-process:hover {
   color: var(--text-primary);
 }
 
@@ -78,9 +84,7 @@
 }
 
 #log-output:empty::before {
-  content: "AI reasoning will appear here...";
-  color: var(--text-muted);
-  font-style: italic;
+  content: "";
 }
 
 /* Stage section collapse */
@@ -216,10 +220,7 @@
 }
 
 #process-body:empty::before {
-  content: "Process and output will appear here...";
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: 13px;
+  content: "";
 }
 
 /* File item (Refined Idea / Paper) */

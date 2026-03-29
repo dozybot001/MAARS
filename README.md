@@ -6,42 +6,34 @@
 
 ## Pipeline
 
-Three stages. Every mode runs the same pipeline — modes only swap the engine underneath.
+Three stages, powered by Agno agent framework with multi-provider support (Google, Anthropic, OpenAI).
 
 ```mermaid
 flowchart LR
-    I[Idea] --> R["Refine\n3 rounds"] --> RS["Research\ncalibrate → decompose\n→ execute → evaluate"] --> W["Write\n5 phases"] --> O[Paper]
+    I[Idea] --> R["Refine\n1 agent session"] --> RS["Research\ncalibrate → decompose\n→ execute → evaluate"] --> W["Write\n1 agent session"] --> O[Paper]
 ```
 
 | Stage | What it does |
 |-------|-------------|
-| **Refine** | Explore → Evaluate → Crystallize. Turns a vague idea into a structured research proposal |
+| **Refine** | Agent autonomously explores literature, evaluates directions, and crystallizes a structured research proposal |
 | **Research** | Calibrate capability → recursive decompose → parallel execute with verify (pass / retry / redecompose) → evaluate. Iterates until satisfied |
-| **Write** | Outline → Sections → Structure review → Style polish → Format check. Each section receives only its relevant task outputs |
+| **Write** | Agent reads all task outputs via tools, designs paper structure, and writes the complete paper in one session |
 
-## Modes
-
-`.env` one-line switch:
+## Configuration
 
 ```env
-MAARS_LLM_MODE=mock      # or gemini, adk, or agno
+# .env
 MAARS_GOOGLE_API_KEY=your-key
+
+# Model provider: google (default), anthropic, or openai
+# MAARS_AGNO_MODEL_PROVIDER=google
+# MAARS_AGNO_MODEL_ID=claude-sonnet-4-5
+# MAARS_ANTHROPIC_API_KEY=your-key
 ```
-
-Modes replace the engine, not the pipeline logic:
-
-| Stage | Mock | Gemini | ADK | Agno |
-|-------|------|--------|-----|------|
-| **Refine** | replay | GeminiClient (3 rounds) | AgentClient + google_search (1 session) | AgnoClient + DuckDuckGo + arXiv (1 session) |
-| **Research** | replay | GeminiClient (parallel calls) | AgentClient + search + code_execute + DB (parallel agent sessions) | AgnoClient + DuckDuckGo + arXiv + code + DB (parallel agent sessions) |
-| **Write** | replay | GeminiClient (5 phases) | AgentClient + search + DB (1 session) | AgnoClient + DuckDuckGo + arXiv + DB (1 session) |
-
-> All modes use the same pipeline stages. Only the `LLMClient` implementation differs.
-> ADK uses Google ADK framework (Gemini-only). Agno uses Agno framework (40+ model providers).
 
 ## Architecture
 
-Three-layer decoupling — pipeline depends on an interface, adapters implement it:
+Three-layer decoupling — pipeline depends on an interface, adapter implements it:
 
 ```mermaid
 flowchart TB
@@ -55,18 +47,12 @@ flowchart TB
         CAP["LLMClient.describe_capabilities()"]
     end
 
-    subgraph Adapters["Adapter Layer · swappable"]
-        MOCK["MockClient"]
-        GEMINI["GeminiClient"]
-        ADK["AgentClient\n(Google ADK)"]
+    subgraph Adapters["Adapter Layer"]
         AGNO["AgnoClient\n(Agno · 40+ models)"]
     end
 
     STAGES --> LLM
     STAGES --> CAP
-    LLM -.-> MOCK
-    LLM -.-> GEMINI
-    LLM -.-> ADK
     LLM -.-> AGNO
 
     subgraph FE["Frontend · Vanilla JS"]
@@ -104,7 +90,7 @@ results/{timestamp}-{slug}/
 ├── plan.json         # Flat atomic task list
 ├── plan_tree.json    # Decomposition tree
 ├── tasks/            # Individual task outputs
-├── artifacts/        # Code scripts + experiment outputs (Agent mode)
+├── artifacts/        # Code scripts + experiment outputs
 ├── evaluations/      # Iteration evaluations (if multi-iteration)
 ├── paper.md          # Final paper
 ├── Dockerfile.experiment  # Auto-generated Docker reproduction
@@ -116,7 +102,7 @@ results/{timestamp}-{slug}/
 
 | Doc | Content |
 |-----|---------|
-| [Architecture (EN)](docs/EN/architecture.md) | Three-layer design, data flow, mode comparison |
+| [Architecture (EN)](docs/EN/architecture.md) | Three-layer design, data flow |
 | [Architecture (CN)](docs/CN/architecture.md) | 同上，中文版 |
 | [Research Workflow (CN)](docs/CN/research-workflow.md) | Calibrate → Decompose → Execute → Verify → Redecompose → Evaluate |
 | [Prompt Engineering (CN)](docs/CN/prompt-engineering.md) | All prompts, modification guide |

@@ -10,11 +10,11 @@ assignees: ''
 
 A clear and concise description of what the bug is.
 
-## Mode
+## Provider
 
-- [ ] Mock
-- [ ] Gemini
-- [ ] Agent
+- [ ] Google (Gemini)
+- [ ] Anthropic (Claude)
+- [ ] OpenAI
 
 ## Steps to reproduce
 

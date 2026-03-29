@@ -15,17 +15,20 @@ class StageState(str, Enum):
 class BaseStage:
     """Base class for all pipeline stages.
 
-    Each stage reads its input from DB, runs a multi-round LLM conversation,
+    Each stage reads its input from DB, runs a single-pass LLM call,
     and writes its output back to DB. Stages communicate only through DB.
+
+    Subclasses set `system_instruction` for the Agent's system prompt.
     """
 
+    system_instruction: str = ""
+
     def __init__(self, name: str, llm_client: LLMClient | None = None,
-                 db=None, broadcast=None, max_rounds: int = 2):
+                 db=None, broadcast=None, **kwargs):
         self.name = name
         self.state = StageState.IDLE
         self.output = ""
         self.rounds: list[dict] = []
-        self.max_rounds = max_rounds
 
         self.llm_client = llm_client
         self.db = db
@@ -40,40 +43,19 @@ class BaseStage:
         """Load this stage's input from DB. Override per stage."""
         return ""
 
-    def build_messages(self, input_text: str, round_index: int) -> list[dict]:
-        """Build LLM messages for the current round."""
-        messages = [
-            {"role": "system", "content": f"You are the {self.name} stage of a research pipeline."},
-        ]
-        if round_index == 0:
-            messages.append({"role": "user", "content": input_text})
-        else:
-            messages.extend(self.rounds)
-            messages.append({"role": "user", "content": "Please continue and refine the previous output."})
-        return messages
-
-    def is_complete(self, response: str, round_index: int) -> bool:
-        return round_index >= self.max_rounds - 1
-
     def get_round_label(self, round_index: int) -> str:
         return ""
-
-    def process_response(self, response: str, round_index: int):
-        pass
 
     def finalize(self) -> str:
         """Finalize output and persist to DB. Override per stage."""
         return self.output
-
-    def get_artifacts(self) -> dict | None:
-        return None
 
     # ------------------------------------------------------------------
     # Execution control
     # ------------------------------------------------------------------
 
     async def run(self) -> str:
-        """Execute the stage: load input from DB → multi-round LLM → save to DB."""
+        """Execute the stage: load input from DB → LLM call → save to DB."""
         self._run_id += 1
         my_run_id = self._run_id
 
@@ -82,34 +64,30 @@ class BaseStage:
 
         input_text = self.load_input()
 
-        round_index = 0
         try:
-            while True:
+            if self._is_stale(my_run_id):
+                return self.output
+
+            messages = []
+            if self.system_instruction:
+                messages.append({"role": "system", "content": self.system_instruction})
+            messages.append({"role": "user", "content": input_text})
+            call_id = self.get_round_label(0) or self.name
+            self._emit("chunk", {"text": call_id, "call_id": call_id, "label": True})
+
+            response = ""
+
+            async for event in self.llm_client.stream(messages):
                 if self._is_stale(my_run_id):
-                    return self.output
-
-                messages = self.build_messages(input_text, round_index)
-                call_id = self.get_round_label(round_index) or f"round_{round_index}"
-                self._emit("chunk", {"text": call_id, "call_id": call_id, "label": True})
-
-                response = ""
-
-                async for event in self.llm_client.stream(messages):
-                    if self._is_stale(my_run_id):
-                        break
-                    text = self._dispatch_stream(event, call_id)
-                    response += text
-                    self.output += text
-
-                if self._is_stale(my_run_id):
-                    return self.output
-
-                self.rounds.append({"role": "assistant", "content": response})
-                self.process_response(response, round_index)
-
-                if self.is_complete(response, round_index):
                     break
-                round_index += 1
+                text = self._dispatch_stream(event, call_id)
+                response += text
+                self.output += text
+
+            if self._is_stale(my_run_id):
+                return self.output
+
+            self.rounds.append({"role": "assistant", "content": response})
 
             self.output = self.finalize()
             self.state = StageState.COMPLETED

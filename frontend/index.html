@@ -3,69 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MAARS - Multi-Agent Automated Research System</title>
+  <title>MAARS</title>
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-  <header>
-    <h1>MAARS</h1>
-    <p class="subtitle">Multi-Agent Automated Research System</p>
-  </header>
 
+  <!-- Slim progress bar at top -->
+  <div id="pipeline-progress">
+    <div class="progress-track">
+      <div class="progress-node" data-node="refine"><span>Refine</span></div>
+      <div class="progress-line" data-after="refine"></div>
+      <div class="progress-node" data-node="calibrate"><span>Calibrate</span></div>
+      <div class="progress-line" data-after="calibrate"></div>
+      <div class="progress-node" data-node="strategy"><span>Strategy</span></div>
+      <div class="progress-line" data-after="strategy"></div>
+      <div class="progress-node" data-node="decompose"><span>Decompose</span></div>
+      <div class="progress-line" data-after="decompose"></div>
+      <div class="progress-node" data-node="execute"><span>Execute</span></div>
+      <div class="progress-line" data-after="execute"></div>
+      <div class="progress-node" data-node="evaluate"><span>Evaluate</span></div>
+      <div class="progress-line" data-after="evaluate"></div>
+      <div class="progress-node" data-node="write"><span>Write</span></div>
+    </div>
+  </div>
+
+  <!-- Main workspace -->
   <main>
-    <section id="input-area">
-      <div class="input-wrapper">
-        <input
-          type="text"
-          id="research-input"
-          placeholder="Enter your research idea and press Enter..."
-          autocomplete="off"
-        >
-        <button id="start-btn">Start</button>
-      </div>
-    </section>
-
-    <section id="pipeline-cards">
-      <div class="stage-card" data-stage="refine">
-        <div class="card-header">
-          <h3>Refine</h3>
-          <span class="stage-badge" data-status="idle">idle</span>
-        </div>
-        <p class="card-desc">Clarify and refine the research idea</p>
-        <div class="stage-controls">
-          <button data-action="stop" title="Stop" disabled>&#9724;</button>
-          <button data-action="retry" title="Retry" disabled>&#8634;</button>
-        </div>
-      </div>
-
-      <div class="stage-card" data-stage="research">
-        <div class="card-header">
-          <h3>Research</h3>
-          <span class="stage-badge" data-status="idle">idle</span>
-        </div>
-        <p class="card-desc">Decompose, execute, and evaluate</p>
-        <div class="stage-controls">
-          <button data-action="stop" title="Stop" disabled>&#9724;</button>
-          <button data-action="resume" title="Resume" disabled>&#9654;&#9654;</button>
-          <button data-action="retry" title="Retry" disabled>&#8634;</button>
-        </div>
-      </div>
-
-      <div class="stage-card" data-stage="write">
-        <div class="card-header">
-          <h3>Write</h3>
-          <span class="stage-badge" data-status="idle">idle</span>
-        </div>
-        <p class="card-desc">Write the research paper</p>
-        <div class="stage-controls">
-          <button data-action="stop" title="Stop" disabled>&#9724;</button>
-          <button data-action="retry" title="Retry" disabled>&#8634;</button>
-        </div>
-      </div>
-    </section>
-
     <section id="workspace">
-      <!-- Left: Reasoning Log -->
       <div class="panel">
         <div class="panel-header">
           <h3>Reasoning Log</h3>
@@ -77,15 +41,31 @@
 
       <div class="panel-divider"></div>
 
-      <!-- Right: Process & Output -->
       <div class="panel">
         <div class="panel-header">
           <h3>Process & Output</h3>
+          <span id="elapsed-timer" class="timer-badge"></span>
+          <button id="copy-process" title="Copy process">Copy</button>
         </div>
         <div id="process-body" class="panel-body"></div>
       </div>
     </section>
   </main>
+
+  <!-- Command palette (Cmd+K) -->
+  <div id="cmd-overlay" class="hidden">
+    <div id="cmd-panel">
+      <input
+        type="text"
+        id="research-input"
+        placeholder="Research idea or Kaggle URL..."
+        autocomplete="off"
+      >
+      <button id="start-btn">Start</button>
+      <button id="pause-btn" disabled>Pause</button>
+      <button id="resume-btn" disabled>Resume</button>
+    </div>
+  </div>
 
   <script type="module" src="js/app.js"></script>
 </body>

@@ -1,0 +1,6 @@
+{
+    "metric": "RMSLE",
+    "score": 0.108528,
+    "model": "Stacking (Lasso)",
+    "details": "Optimized Stacking ensemble"
+}

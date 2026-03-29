@@ -1,107 +1,174 @@
-.stage-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px;
-  transition: border-color 0.2s;
+/* ── Slim progress bar ── */
+#pipeline-progress {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-primary);
+  padding: 10px 32px;
 }
 
-.stage-card[data-active="true"] {
-  border-color: var(--accent);
-}
-
-.card-header {
+.progress-track {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
-.card-header h3 {
-  font-size: 16px;
-  font-weight: 600;
+.progress-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
-.card-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 14px;
+.progress-node::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-light);
+  background: transparent;
+  flex-shrink: 0;
+  transition: all 0.3s;
 }
 
-/* Stage badge */
-.stage-badge {
+.progress-node span {
   font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stage-badge[data-status="idle"] {
-  background: var(--bg-input);
+  font-weight: 500;
   color: var(--text-muted);
+  letter-spacing: 0.3px;
+  transition: color 0.3s;
 }
 
-.stage-badge[data-status="running"] {
-  background: rgba(88, 166, 255, 0.15);
+.progress-line {
+  flex: 1;
+  height: 1.5px;
+  background: var(--border);
+  margin: 0 6px;
+  transition: background 0.3s;
+}
+
+/* Node states */
+.progress-node[data-state="active"]::before {
+  border-color: var(--blue);
+  background: var(--blue);
+  box-shadow: 0 0 6px rgba(88, 166, 255, 0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.progress-node[data-state="active"] span {
   color: var(--blue);
+  font-weight: 600;
 }
 
-.stage-badge[data-status="paused"] {
-  background: rgba(210, 153, 34, 0.15);
+.progress-node[data-state="done"]::before {
+  border-color: var(--green);
+  background: var(--green);
+}
+.progress-node[data-state="done"] span {
+  color: var(--text-secondary);
+}
+
+.progress-node[data-state="paused"]::before {
+  border-color: var(--yellow);
+  background: var(--yellow);
+}
+.progress-node[data-state="paused"] span {
   color: var(--yellow);
 }
 
-.stage-badge[data-status="completed"] {
-  background: rgba(63, 185, 80, 0.15);
-  color: var(--green);
+.progress-node[data-state="failed"]::before {
+  border-color: var(--red);
+  background: var(--red);
 }
-
-.stage-badge[data-status="failed"] {
-  background: rgba(248, 81, 73, 0.15);
+.progress-node[data-state="failed"] span {
   color: var(--red);
 }
 
-/* Control buttons */
-.stage-controls {
-  display: flex;
-  gap: 8px;
+.progress-line[data-filled="true"] {
+  background: var(--green);
 }
 
-.stage-controls button {
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 3px rgba(88, 166, 255, 0.3); }
+  50% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.6); }
+}
+
+/* ── Command palette overlay ── */
+#cmd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+  backdrop-filter: blur(2px);
+}
+
+#cmd-overlay.hidden {
+  display: none;
+}
+
+#cmd-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 6px 8px;
+  width: 640px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+#cmd-panel input {
   flex: 1;
-  padding: 6px 0;
-  background: var(--bg-input);
-  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: var(--font-sans);
+  outline: none;
+  min-width: 0;
+}
+
+#cmd-panel button {
+  padding: 7px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  cursor: pointer;
   font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.stage-controls button:hover:not(:disabled) {
-  background: var(--border-light);
-  color: var(--text-primary);
+#start-btn {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+#start-btn:hover { background: var(--accent-hover); }
+
+#pause-btn, #resume-btn {
+  background: transparent;
+  color: var(--text-secondary);
 }
 
-.stage-controls button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.stage-controls button[data-action="stop"]:hover:not(:disabled) {
+#pause-btn:hover:not(:disabled) {
   color: var(--yellow);
   border-color: var(--yellow);
 }
 
-.stage-controls button[data-action="resume"]:hover:not(:disabled) {
+#resume-btn:hover:not(:disabled) {
   color: var(--blue);
   border-color: var(--blue);
 }
 
-.stage-controls button[data-action="retry"]:hover:not(:disabled) {
-  color: var(--red);
-  border-color: var(--red);
+#cmd-panel button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
 }

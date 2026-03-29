@@ -1,15 +1,20 @@
 """File-based research database.
 
 Each research session gets a unique folder:
-    research/{research_id}/
+    results/{research_id}/
     ├── idea.md
     ├── refined_idea.md
+    ├── calibration.md
+    ├── strategy.md
     ├── plan.json
     ├── plan_tree.json
-    └── tasks/
-        ├── 1_1.md
-        ├── 1_2.md
-        └── ...
+    ├── tasks/
+    │   ├── 1_1.md
+    │   └── ...
+    ├── evaluations/
+    │   └── eval_v0.json
+    └── artifacts/
+        └── best_score.json
 """
 
 from pathlib import Path
@@ -161,6 +166,26 @@ class ResearchDB:
         if path.exists():
             return path.read_text(encoding="utf-8")
         return ""
+
+    # --- Research internal state (persisted for resume) ---
+
+    def save_calibration(self, text: str):
+        self._ensure_root()
+        (self._root / "calibration.md").write_text(text, encoding="utf-8")
+
+    def get_calibration(self) -> str:
+        self._ensure_root()
+        path = self._root / "calibration.md"
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
+    def save_strategy(self, text: str):
+        self._ensure_root()
+        (self._root / "strategy.md").write_text(text, encoding="utf-8")
+
+    def get_strategy(self) -> str:
+        self._ensure_root()
+        path = self._root / "strategy.md"
+        return path.read_text(encoding="utf-8") if path.exists() else ""
 
     # --- Iteration state ---
 

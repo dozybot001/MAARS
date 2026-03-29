@@ -12,9 +12,10 @@ initProcessViewer();
 fetchStatus().catch(() => {});
 connectSSE();
 
-// Input handling
+// --- Command palette: Start ---
 const input = document.getElementById('research-input');
 const startBtn = document.getElementById('start-btn');
+const overlay = document.getElementById('cmd-overlay');
 
 async function handleStart() {
   const text = input.value.trim();
@@ -23,11 +24,11 @@ async function handleStart() {
   startBtn.disabled = true;
   input.disabled = true;
 
+  overlay.classList.add('hidden'); // Close palette immediately
   try {
     await startPipeline(text);
   } catch (err) {
     console.error('Failed to start pipeline:', err);
-    alert('Failed to start pipeline. Check console for details.');
   } finally {
     startBtn.disabled = false;
     input.disabled = false;

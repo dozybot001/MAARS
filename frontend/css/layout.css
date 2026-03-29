@@ -34,39 +34,9 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
-  padding: 24px 32px;
-}
-
-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-header h1 {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--accent);
-}
-
-header .subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 4px;
 }
 
 main {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-#input-area {
-  margin-bottom: 28px;
-}
-
-#pipeline-cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 28px;
+  padding: 12px 24px;
+  height: calc(100vh - 40px); /* viewport minus progress bar */
 }

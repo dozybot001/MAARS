@@ -13,7 +13,7 @@ import json
 from backend.db import ResearchDB
 from backend.pipeline.stage import BaseStage, StageState
 from backend.pipeline.decompose import decompose
-from backend.pipeline.evaluate import evaluate_results
+from backend.pipeline.evaluate import evaluate_results, check_score_improved
 from backend.utils import parse_json_fenced
 
 # Per-coroutine task ID tracking for parallel execution.
@@ -40,14 +40,22 @@ _AUTO = "This is a fully automated pipeline. No human is in the loop. Do NOT ask
 _EXECUTE_SYSTEM = _AUTO + """\
 You are a research assistant executing a specific task as part of a larger research project.
 
-Guidelines:
-- Be substantive — produce concrete results, not descriptions of what you would do
-- If the task is analytical: provide frameworks, specific comparisons, and cite evidence
-- If the task is experimental: describe setup, parameters, results, and interpretation
-- Structure output with headings and bullet points for clarity
-- Reference specific data, figures, or prior work where relevant
+CRITICAL RULES:
+- When a task involves code, data analysis, or experiments: you MUST call code_execute to run real Python code. Do NOT describe code or simulate results — actually execute it.
+- When a task involves literature: you MUST call search/fetch tools. Do NOT make up citations.
+- NEVER pretend to have executed something. If you didn't call a tool, you didn't do it.
 
-Output in markdown."""
+OUTPUT REQUIREMENTS:
+- Produce a thorough, well-structured result in markdown
+- If you ran code: include key numerical results, describe generated files (e.g., "生成了 convergence_plot.png"), and interpret the findings
+- If you reviewed literature: cite specific papers with authors and years
+- Use list_artifacts to verify what files were produced
+
+SCORE TRACKING:
+- Whenever you obtain a model evaluation score (CV accuracy, F1, AUC, RMSE, etc.), \
+save the best result to /workspace/output/best_score.json using code_execute:
+  {"metric": "accuracy", "score": 0.85, "model": "XGBoost", "details": "5-fold CV"}
+- Always UPDATE this file if you achieve a better score than the existing one (read it first)."""
 
 _VERIFY_SYSTEM = """\
 You are a research quality reviewer. Evaluate whether the task result SUBSTANTIALLY meets the goal.
@@ -85,22 +93,14 @@ Output ONLY a concise ATOMIC DEFINITION block (3-5 sentences) that will be injec
 Be specific to this research topic — not generic advice."""
 
 
-def _build_execute_prompt(task: dict, dep_outputs: dict[str, str],
-                          prior_attempt: str = "") -> list[dict]:
-    """Build prompt for task execution, including dependency outputs as context."""
+def _build_execute_prompt(task: dict, prior_attempt: str = "") -> list[dict]:
+    """Build prompt for task execution."""
     messages = [{"role": "system", "content": _EXECUTE_SYSTEM}]
 
     parts = []
     deps = task.get("dependencies", [])
 
-    if dep_outputs:
-        # Gemini/Mock: full dep content inline
-        parts.append("## Context from completed prerequisite tasks:\n")
-        for dep_id, output in dep_outputs.items():
-            parts.append(f"### Task [{dep_id}] output:\n{output}\n")
-        parts.append("---\n")
-    elif deps:
-        # Agent mode: dep_outputs empty, list IDs for tool reading
+    if deps:
         parts.append(f"## Prerequisite tasks (use read_task_output to read): {', '.join(deps)}\n---\n")
 
     if prior_attempt:
@@ -142,9 +142,9 @@ def _build_verify_prompt(task: dict, result: str) -> list[dict]:
     ]
 
 
-def _build_retry_prompt(task: dict, result: str, review: str, dep_outputs: dict[str, str]) -> list[dict]:
+def _build_retry_prompt(task: dict, result: str, review: str) -> list[dict]:
     """Build prompt for re-execution after failed verification."""
-    messages = _build_execute_prompt(task, dep_outputs)
+    messages = _build_execute_prompt(task)
     messages.append({"role": "assistant", "content": result})
     messages.append({"role": "user", "content": (
         f"Your previous output was reviewed and needs improvement:\n\n"
@@ -199,7 +199,8 @@ class ResearchStage(BaseStage):
         self._max_iterations = max_iterations
         self._atomic_definition = atomic_definition
         self._all_tasks: list[dict] = []
-        self._kaggle_best_score: float = 0.0
+        self._strategy: str = ""  # Strategy from pre-decompose research
+        self._prev_score: float | None = None  # Track score across iterations
         # Redecompose state: partial outputs and parent tracking
         self._partial_outputs: dict[str, str] = {}      # parent_id -> partial output
         self._redecompose_parent: dict[str, str] = {}    # subtask_id -> parent_id
@@ -226,20 +227,36 @@ class ResearchStage(BaseStage):
         # Checkpoint: load previously completed tasks from DB
         self._task_results = {}
         self._task_summaries = {}
+        self._prev_score = self._load_prev_score()
         self._load_checkpoint()
 
         try:
             idea = self.db.get_refined_idea()
 
             # ── Phase 0: CALIBRATE atomic definition ──
+            self._emit("phase", "calibrate")
+            self._atomic_definition = self.db.get_calibration()
             if not self._atomic_definition:
                 calibrated = await self._calibrate_atomic_definition(idea, my_run_id)
                 if self._is_stale(my_run_id):
                     return self.output
                 if calibrated:
                     self._atomic_definition = calibrated
+                    self.db.save_calibration(calibrated)
 
-            # ── Phase 1: DECOMPOSE (skip if plan already exists — resume case) ──
+            # ── Phase 1a: STRATEGY — research best approaches ──
+            self._emit("phase", "strategy")
+            self._strategy = self.db.get_strategy()
+            if not self._strategy:
+                strategy = await self._research_strategy(idea, my_run_id)
+                if self._is_stale(my_run_id):
+                    return self.output
+                if strategy:
+                    self._strategy = strategy
+                    self.db.save_strategy(strategy)
+
+            # ── Phase 1b: DECOMPOSE (skip if plan already exists — resume case) ──
+            self._emit("phase", "decompose")
             existing_plan = self.db.get_plan_json()
             if existing_plan and self._task_results:
                 # Resume: plan exists and we have completed tasks — skip decompose
@@ -251,6 +268,7 @@ class ResearchStage(BaseStage):
                     llm_client=self.llm_client,
                     max_depth=10,
                     atomic_definition=self._atomic_definition,
+                    strategy=self._strategy,
                     stream_callback=lambda t, d: self._emit(t, d),
                     is_stale=lambda: self._is_stale(my_run_id),
                 )
@@ -264,6 +282,7 @@ class ResearchStage(BaseStage):
                 self._emit("tree", tree)
 
             # ── Phase 2: EXECUTE + EVALUATE loop ──
+            self._emit("phase", "execute")
             start_iteration = self.db.get_iteration()
             for iteration in range(start_iteration, self._max_iterations):
                 if self._is_stale(my_run_id):
@@ -276,38 +295,52 @@ class ResearchStage(BaseStage):
                 if failed:
                     break
 
-                # Evaluate results
-                from backend.config import settings as _settings
+                # Evaluate results: system checks score, LLM analyzes improvements
                 is_last = iteration >= self._max_iterations - 1
-
-                # Last iteration: skip evaluation for normal mode (no replan needed)
-                # Kaggle mode: always evaluate (need to submit for score)
-                if is_last and not _settings.kaggle_competition_id:
+                if is_last:
                     break
 
-                if _settings.kaggle_competition_id:
-                    evaluation = await self._evaluate_kaggle(
-                        _settings.kaggle_competition_id, iteration,
-                    )
-                else:
-                    summaries = [
-                        {"id": tid, "summary": self._task_summaries.get(tid, "(no summary)")}
-                        for tid in sorted(self._task_results.keys())
-                    ]
-                    evaluation = await evaluate_results(
-                        idea=idea,
-                        task_summaries=summaries,
-                        llm_client=self.llm_client,
-                        stream_callback=lambda t, d: self._emit(t, d),
-                        is_stale=lambda: self._is_stale(my_run_id),
-                    )
+                self._emit("phase", "evaluate")
+
+                # Step 1: System check — did the score improve?
+                improved, current_score = check_score_improved(
+                    self.db.get_artifacts_dir(), self._prev_score,
+                )
+                if current_score is not None:
+                    self._emit("chunk", {
+                        "text": "Score Check",
+                        "call_id": "Score Check",
+                        "label": True,
+                    })
+                    prev_str = f"{self._prev_score:.5f}" if self._prev_score is not None else "N/A"
+                    self._emit("chunk", {
+                        "text": f"Current: {current_score:.5f} | Previous: {prev_str} | {'Improved' if improved else 'No improvement'}\n",
+                        "call_id": "Score Check",
+                    })
+                    self._prev_score = current_score
+
+                if not improved and self._prev_score is not None:
+                    # Score plateaued — stop iterating
+                    self.db.save_evaluation({"satisfied": True, "score": current_score}, iteration)
+                    break
+
+                # Step 2: LLM analysis — what to improve next
+                summaries = [
+                    {"id": tid, "summary": self._task_summaries.get(tid, "(no summary)")}
+                    for tid in sorted(self._task_results.keys())
+                ]
+                evaluation = await evaluate_results(
+                    idea=idea,
+                    task_summaries=summaries,
+                    llm_client=self.llm_client,
+                    stream_callback=lambda t, d: self._emit(t, d),
+                    is_stale=lambda: self._is_stale(my_run_id),
+                )
                 if self._is_stale(my_run_id):
                     return self.output
 
+                evaluation["score"] = current_score
                 self.db.save_evaluation(evaluation, iteration)
-
-                if evaluation.get("satisfied", True) or is_last:
-                    break
 
                 # Replan: one LLM call that sees all completed work + feedback
                 # and decides what tasks to add. NOT a full re-decompose.
@@ -400,12 +433,28 @@ class ResearchStage(BaseStage):
                         if self._is_stale(my_run_id):
                             return False
                         if new_tasks:
-                            # Replace original task with subtasks
+                            parent_id = result.task["id"]
+                            subtask_ids = [t["id"] for t in new_tasks]
+
+                            # Replace parent task with subtasks
                             self._all_tasks = [
                                 t for t in self._all_tasks
-                                if t["id"] != result.task["id"]
+                                if t["id"] != parent_id
                             ]
                             self._all_tasks.extend(new_tasks)
+
+                            # Repoint downstream dependencies: parent → last subtask(s)
+                            # Tasks that depended on the parent now depend on ALL subtasks
+                            for t in self._all_tasks:
+                                if parent_id in t.get("dependencies", []):
+                                    t["dependencies"] = [
+                                        d if d != parent_id else None
+                                        for d in t["dependencies"]
+                                    ]
+                                    t["dependencies"] = [
+                                        d for d in t["dependencies"] if d is not None
+                                    ] + subtask_ids
+
                             had_redecompose = True
                         else:
                             self._emit("task_state", {"task_id": task["id"], "status": "failed"})
@@ -442,16 +491,6 @@ class ResearchStage(BaseStage):
         task_id = task["id"]
         client = self.llm_client
 
-        # Gather dependency outputs
-        dep_outputs = {}
-        if not client.has_tools:
-            for dep_id in task.get("dependencies", []):
-                output = self._task_results.get(dep_id, "")
-                if not output and self.db:
-                    output = self.db.get_task_output(dep_id)
-                if output:
-                    dep_outputs[dep_id] = output
-
         # Check for parent partial output (from a previous redecompose)
         parent_id = self._redecompose_parent.get(task_id)
         prior_attempt = self._partial_outputs.get(parent_id, "") if parent_id else ""
@@ -461,7 +500,7 @@ class ResearchStage(BaseStage):
         self._emit("task_state", {"task_id": task_id, "status": "running"})
         self._emit("chunk", {"text": call_id, "call_id": call_id, "label": True})
 
-        messages = _build_execute_prompt(task, dep_outputs, prior_attempt)
+        messages = _build_execute_prompt(task, prior_attempt)
         result = await self._stream_llm(client, messages, call_id, my_run_id)
         if self._is_stale(my_run_id):
             return result
@@ -488,7 +527,7 @@ class ResearchStage(BaseStage):
         # Minor issue → retry once with feedback
         self._emit("task_state", {"task_id": task_id, "status": "retrying"})
 
-        retry_messages = _build_retry_prompt(task, result, review, dep_outputs)
+        retry_messages = _build_retry_prompt(task, result, review)
         result = await self._stream_llm(client, retry_messages, call_id, my_run_id)
         if self._is_stale(my_run_id):
             return result
@@ -670,106 +709,58 @@ Rules:
         }
         self._emit("replan_tree", replan_tree)
 
+    def _load_prev_score(self) -> float | None:
+        """Load the best score from the latest evaluation file."""
+        try:
+            eval_dir = self.db.get_root() / "evaluations"
+            if not eval_dir.exists():
+                return None
+            files = sorted(eval_dir.glob("eval_v*.json"))
+            if not files:
+                return None
+            data = json.loads(files[-1].read_text())
+            score = data.get("score")
+            return float(score) if score is not None else None
+        except (json.JSONDecodeError, ValueError, RuntimeError):
+            return None
+
     # ------------------------------------------------------------------
-    # Kaggle evaluation
+    # Strategy research
     # ------------------------------------------------------------------
 
-    async def _evaluate_kaggle(self, competition_id: str, iteration: int) -> dict:
-        """Submit to Kaggle and evaluate based on real score."""
-        from backend.kaggle import submit_and_score
+    _STRATEGY_SYSTEM = _AUTO + """\
+You are a research strategist with search tools. Before the team decomposes a research \
+project into tasks, you research best practices and winning approaches.
 
-        submission_path = self.db.get_artifacts_dir() / "submission.csv"
-        if not submission_path.exists():
-            self._emit("chunk", {
-                "text": "Evaluate",
-                "call_id": "Evaluate",
-                "label": True,
-            })
-            self._emit("chunk", {
-                "text": "No submission.csv found — cannot score.\n",
-                "call_id": "Evaluate",
-            })
-            return {
-                "satisfied": False,
-                "feedback": "No submission.csv was generated. Tasks must output predictions to /workspace/output/submission.csv.",
-                "suggestions": ["Generate predictions and save to /workspace/output/submission.csv"],
-            }
+WORKFLOW:
+1. USE YOUR SEARCH TOOLS to find:
+   - Top-scoring approaches, notebooks, and solutions for this problem/competition
+   - Key techniques that winners use (feature engineering, model selection, ensembles)
+   - Common pitfalls to avoid
+2. Synthesize your findings into a concise STRATEGY document
 
-        self._emit("chunk", {
-            "text": "Kaggle Submit",
-            "call_id": "Kaggle Submit",
-            "label": True,
-        })
-        self._emit("chunk", {
-            "text": f"Submitting {submission_path.name} to Kaggle...\n",
-            "call_id": "Kaggle Submit",
-        })
+OUTPUT FORMAT — a concise strategy document (NOT a task list):
+- **Key Insights**: What distinguishes high-performing solutions from average ones
+- **Recommended Approach**: Specific techniques to prioritize (with rationale)
+- **Pitfalls to Avoid**: Common mistakes that hurt performance
+- **Target Metric**: What score range to aim for based on your research
 
-        score = submit_and_score(competition_id, str(submission_path))
+Keep it concise (under 500 words). This will be injected into the task planner's context."""
 
-        if score is None:
-            self._emit("chunk", {
-                "text": "Kaggle scoring failed or timed out.\n",
-                "call_id": "Kaggle Submit",
-            })
-            return {"satisfied": True}  # Don't loop on scoring failure
+    async def _research_strategy(self, idea: str, my_run_id: int) -> str:
+        """Research best approaches before decomposing."""
+        call_id = "Strategy"
+        self._emit("chunk", {"text": call_id, "call_id": call_id, "label": True})
 
-        # Track best score
-        best = getattr(self, "_kaggle_best_score", 0.0)
+        messages = [
+            {"role": "system", "content": self._STRATEGY_SYSTEM},
+            {"role": "user", "content": f"## Research Topic\n{idea}"},
+        ]
 
-        # Score 0.0 usually means submission format error — treat as failure, not "no improvement"
-        if score < 0.01:
-            self._emit("chunk", {
-                "text": f"Kaggle score: {score:.5f} — likely a submission format error.\n",
-                "call_id": "Kaggle Submit",
-            })
-            return {
-                "satisfied": False,
-                "score": score,
-                "feedback": (
-                    f"Kaggle returned score {score:.5f}, which indicates a submission "
-                    f"format error. The submission.csv likely has wrong column names, "
-                    f"float values instead of integers, or missing rows. "
-                    f"Fix the submission format and regenerate."
-                ),
-                "suggestions": [
-                    "Fix submission.csv: ensure integer Survived values (0 or 1, not 0.0/1.0), "
-                    "correct column names (PassengerId,Survived), and all test rows present"
-                ],
-            }
-
-        improved = score > best
-        if improved:
-            self._kaggle_best_score = score
-
-        self._emit("chunk", {
-            "text": f"Kaggle public score: {score:.5f} (previous best: {best:.5f})\n",
-            "call_id": "Kaggle Submit",
-        })
-
-        if not improved and iteration > 0:
-            self._emit("chunk", {
-                "text": "Score did not improve. Stopping.\n",
-                "call_id": "Kaggle Submit",
-            })
-            return {"satisfied": True}
-
-        # Always try to improve (until max_iterations)
-        return {
-            "satisfied": False,
-            "score": score,
-            "feedback": (
-                f"Current Kaggle score: {score:.5f}. "
-                f"Previous best: {best:.5f}. "
-                f"Improve the model — try hyperparameter tuning, "
-                f"better feature engineering, or ensemble methods."
-            ),
-            "suggestions": [
-                "Hyperparameter tuning (grid search / optuna) on the best model",
-                "Advanced feature engineering (interaction features, target encoding)",
-                "Ensemble / stacking multiple models",
-            ],
-        }
+        response = await self._stream_llm(
+            self.llm_client, messages, call_id, my_run_id,
+        )
+        return response.strip()
 
     # ------------------------------------------------------------------
     # Calibration
@@ -827,12 +818,17 @@ Rules:
             f"已有结果中质量合格的部分不需要重做，聚焦于缺失或需要不同方法的部分。"
         )
 
+        # Suppress "tree" events from redecompose — they would overwrite the main plan tree
+        def _redecomp_callback(t, d):
+            if t != "tree":
+                self._emit(t, d)
+
         flat_tasks, _ = await decompose(
             idea=context,
             llm_client=self.llm_client,
             max_depth=3,
             atomic_definition=self._atomic_definition,
-            stream_callback=lambda t, d: self._emit(t, d),
+            stream_callback=_redecomp_callback,
             is_stale=lambda: self._is_stale(my_run_id),
         )
 
@@ -924,7 +920,8 @@ Rules:
         self._task_results.clear()
         self._task_summaries.clear()
         self._all_tasks.clear()
-        self._kaggle_best_score = 0.0
+        self._strategy = ""
+        self._prev_score = None
         self._partial_outputs.clear()
         self._redecompose_parent.clear()
         if self.db:

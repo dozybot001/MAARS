@@ -11,38 +11,35 @@ let currentSection = null;
 let totalTokens = 0;
 let tokenBadge = null;
 
-// Task grouping for Research stage
-let taskGroups = {};      // task_id → DOM container element
-let taskDescriptions = {}; // task_id → description (from exec_tree)
-let taskBodyScrollers = {}; // task_id → autoscroller for task group body
+// Session grouping — each agent session (Calibrate, Strategy, etc.) gets a collapsible group
+let sessionGroups = {};      // session_name → DOM container
+let sessionBodyScrollers = {}; // session_name → autoscroller
+let currentSessionName = null;
+
+// Known session-level labels (these create collapsible groups)
+const SESSION_LABELS = new Set([
+  'Calibrate', 'Strategy', 'Refine', 'Write',
+  'Evaluate', 'Replan', 'Score Check',
+]);
+
+// Task grouping for Research execute phase
+let taskGroups = {};
+let taskDescriptions = {};
+let taskBodyScrollers = {};
+
+// Elapsed timer
+let timerBadge = null;
+let timerInterval = null;
+let timerStart = null;
 
 export function initLogViewer() {
   logOutput = document.getElementById('log-output');
   scroller = createAutoScroller(logOutput);
   tokenBadge = document.getElementById('token-estimate');
+  timerBadge = document.getElementById('elapsed-timer');
 
-  document.getElementById('copy-log').addEventListener('click', () => {
-    const text = logOutput.innerText;
-    const btn = document.getElementById('copy-log');
-    try {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      btn.textContent = 'Copied!';
-    } catch (e) {
-      navigator.clipboard.writeText(text).then(() => {
-        btn.textContent = 'Copied!';
-      }).catch(() => {
-        btn.textContent = 'Failed';
-      });
-    }
-    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
-  });
+  wireCopyButton('copy-log', document.getElementById('log-output'));
+  wireCopyButton('copy-process', document.getElementById('process-body'));
 
   // --- Stage transitions ---
   on('stage:state', ({ stage, data }) => {
@@ -52,12 +49,22 @@ export function initLogViewer() {
       callBlocks = {};
       callScrollers = {};
       currentSection = null;
+      sessionGroups = {};
+      sessionBodyScrollers = {};
+      currentSessionName = null;
       taskGroups = {};
       taskDescriptions = {};
       totalTokens = 0;
       updateTokenBadge();
+      stopTimer();
       scroller.reset();
-    } else if (data === 'running' && stage !== activeStage) {
+    } else if (data === 'completed' && stage === 'write') {
+      stopTimer();
+    } else if (data === 'failed') {
+      stopTimer();
+    }
+    if (data === 'running' && stage !== activeStage) {
+      if (!timerStart) startTimer();
       // Collapse previous section (respect user-expanded)
       if (currentSection && !currentSection.classList.contains('user-expanded')) {
         currentSection.classList.add('collapsed');
@@ -67,6 +74,9 @@ export function initLogViewer() {
       activeStage = stage;
       callBlocks = {};
       callScrollers = {};
+      sessionGroups = {};
+      sessionBodyScrollers = {};
+      currentSessionName = null;
       taskGroups = {};
       taskBodyScrollers = {};
       currentSection = appendSeparator(logOutput, STAGE_LABELS[stage] || stage.toUpperCase(), scroller);
@@ -102,40 +112,46 @@ export function initLogViewer() {
     const callId = data.call_id;
     const taskId = data.task_id || null;
 
-    // Determine target container: task group or section
-    const target = taskId ? getOrCreateTaskGroup(taskId) : currentSection;
-
     if (data.label && callId) {
-      // Inside task groups: fold ALL previous blocks (keep everything collapsed)
-      // Outside task groups: fold previous blocks as before
-      if (target) {
-        target.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
-          el.classList.add('folded');
-          const prev = el.previousElementSibling;
-          if (prev && prev.classList.contains('log-label')) prev.classList.add('is-collapsed');
-        });
+      // Is this a session-level label?
+      if (!taskId && isSessionLabel(callId)) {
+        // Collapse previous session group
+        collapseCurrentSession();
+        // Create new session group
+        currentSessionName = callId;
+        getOrCreateSessionGroup(callId);
+        scroller.scroll();
+        return;
       }
+
+      // Determine target container
+      const appendTarget = taskId
+        ? getTaskGroupBody(taskId)
+        : (currentSessionName ? getSessionGroupBody(currentSessionName) : currentSection);
+
+      if (!appendTarget) return;
+
+      // Fold previous blocks within target
+      appendTarget.querySelectorAll('.log-text:not(.folded):not(.user-expanded)').forEach(el => {
+        el.classList.add('folded');
+        const prev = el.previousElementSibling;
+        if (prev && prev.classList.contains('log-label')) prev.classList.add('is-collapsed');
+      });
 
       const label = document.createElement('div');
       label.className = 'log-label';
       label.textContent = data.text;
-
-      // For task groups, use the inner body container
-      const appendTarget = taskId ? getTaskGroupBody(taskId) : target;
-      if (appendTarget) appendTarget.appendChild(label);
+      appendTarget.appendChild(label);
 
       const block = document.createElement('div');
       block.className = 'log-text';
-      if (appendTarget) appendTarget.appendChild(block);
+      appendTarget.appendChild(block);
 
       label.addEventListener('click', () => {
         const nowFolded = block.classList.toggle('folded');
         label.classList.toggle('is-collapsed');
-        if (nowFolded) {
-          block.classList.remove('user-expanded');
-        } else {
-          block.classList.add('user-expanded');
-        }
+        if (nowFolded) block.classList.remove('user-expanded');
+        else block.classList.add('user-expanded');
       });
 
       callBlocks[callId] = block;
@@ -152,8 +168,9 @@ export function initLogViewer() {
       block = callBlocks[callId];
       block.appendChild(document.createTextNode(chunkText));
     } else {
-      // Fallback: append to last block in target
-      const fallback = taskId ? getTaskGroupBody(taskId) : (currentSection || logOutput);
+      const fallback = taskId
+        ? getTaskGroupBody(taskId)
+        : (currentSessionName ? getSessionGroupBody(currentSessionName) : (currentSection || logOutput));
       block = fallback ? fallback.lastElementChild : null;
       if (!block || !block.classList.contains('log-text')) {
         block = document.createElement('div');
@@ -167,9 +184,11 @@ export function initLogViewer() {
     } else if (block) {
       block.scrollTop = block.scrollHeight;
     }
-    // Scroll task body container if within a task group
     if (taskId && taskBodyScrollers[taskId]) {
       taskBodyScrollers[taskId].scroll();
+    }
+    if (currentSessionName && sessionBodyScrollers[currentSessionName]) {
+      sessionBodyScrollers[currentSessionName].scroll();
     }
     scroller.scroll();
   });
@@ -190,18 +209,70 @@ export function initLogViewer() {
   });
 }
 
+// --- Session group helpers ---
+
+function isSessionLabel(callId) {
+  return SESSION_LABELS.has(callId);
+}
+
+function getOrCreateSessionGroup(name) {
+  if (sessionGroups[name]) return sessionGroups[name];
+  if (!currentSection) return null;
+
+  const group = document.createElement('div');
+  group.className = 'task-group';  // Reuse task-group styling
+  group.dataset.session = name;
+
+  const header = document.createElement('div');
+  header.className = 'task-group-header';
+  header.textContent = name;
+
+  const body = document.createElement('div');
+  body.className = 'task-group-body';
+
+  sessionBodyScrollers[name] = createAutoScroller(body);
+
+  header.addEventListener('click', () => {
+    const nowCollapsed = body.classList.toggle('collapsed');
+    header.classList.toggle('is-collapsed');
+    if (nowCollapsed) body.classList.remove('user-expanded');
+    else body.classList.add('user-expanded');
+  });
+
+  group.appendChild(header);
+  group.appendChild(body);
+  currentSection.appendChild(group);
+
+  sessionGroups[name] = group;
+  return group;
+}
+
+function getSessionGroupBody(name) {
+  const group = sessionGroups[name];
+  if (!group) return currentSection;
+  return group.querySelector('.task-group-body') || currentSection;
+}
+
+function collapseCurrentSession() {
+  if (!currentSessionName || !sessionGroups[currentSessionName]) return;
+  const group = sessionGroups[currentSessionName];
+  const body = group.querySelector('.task-group-body');
+  const header = group.querySelector('.task-group-header');
+  if (body && !body.classList.contains('user-expanded')) {
+    body.classList.add('collapsed');
+    if (header) header.classList.add('is-collapsed');
+  }
+}
+
 // --- Task group helpers ---
 
 function getOrCreateTaskGroup(taskId) {
   if (taskGroups[taskId]) return taskGroups[taskId];
   if (!currentSection) return null;
 
-  // Fold any open top-level blocks in the section (e.g., Replan, Calibrate)
-  currentSection.querySelectorAll(':scope > .log-text:not(.folded):not(.user-expanded)').forEach(el => {
-    el.classList.add('folded');
-    const prev = el.previousElementSibling;
-    if (prev && prev.classList.contains('log-label')) prev.classList.add('is-collapsed');
-  });
+  // Collapse current session when tasks start
+  collapseCurrentSession();
+  currentSessionName = null;
 
   const group = document.createElement('div');
   group.className = 'task-group';
@@ -215,18 +286,13 @@ function getOrCreateTaskGroup(taskId) {
   const body = document.createElement('div');
   body.className = 'task-group-body';
 
-  // Auto-scroller for the task body (same logic as global panels)
   taskBodyScrollers[taskId] = createAutoScroller(body);
 
-  // Click header to collapse/expand body
   header.addEventListener('click', () => {
     const nowCollapsed = body.classList.toggle('collapsed');
     header.classList.toggle('is-collapsed');
-    if (nowCollapsed) {
-      body.classList.remove('user-expanded');
-    } else {
-      body.classList.add('user-expanded');
-    }
+    if (nowCollapsed) body.classList.remove('user-expanded');
+    else body.classList.add('user-expanded');
   });
 
   group.appendChild(header);
@@ -242,6 +308,57 @@ function getTaskGroupBody(taskId) {
   const group = taskGroups[taskId];
   if (!group) return currentSection;
   return group.querySelector('.task-group-body') || currentSection;
+}
+
+// --- Timer ---
+
+function startTimer() {
+  timerStart = Date.now();
+  updateTimerBadge();
+  timerInterval = setInterval(updateTimerBadge, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  timerStart = null;
+  if (timerBadge) timerBadge.textContent = '';
+}
+
+function updateTimerBadge() {
+  if (!timerBadge || !timerStart) return;
+  const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  timerBadge.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// --- Utilities ---
+
+function wireCopyButton(btnId, sourceEl) {
+  const btn = document.getElementById(btnId);
+  if (!btn || !sourceEl) return;
+  btn.addEventListener('click', () => {
+    const text = sourceEl.innerText;
+    try {
+      // Fallback for non-HTTPS contexts
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      btn.textContent = 'Copied!';
+    } catch {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+      }).catch(() => {
+        btn.textContent = 'Failed';
+      });
+    }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
 }
 
 function updateTokenBadge() {

@@ -14,15 +14,11 @@ What problem does this feature solve?
 
 Describe the feature you'd like.
 
-## Which stage / mode does this affect?
+## Which stage does this affect?
 
 - [ ] Refine
-- [ ] Plan
-- [ ] Execute
+- [ ] Research
 - [ ] Write
-- [ ] Mock mode
-- [ ] Gemini mode
-- [ ] Agent mode
 - [ ] Frontend UI
 - [ ] Other
 

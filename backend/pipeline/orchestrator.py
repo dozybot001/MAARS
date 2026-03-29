@@ -7,7 +7,7 @@ STAGE_ORDER = ["refine", "research", "write"]
 
 
 class PipelineOrchestrator:
-    """Manages the four-stage research pipeline."""
+    """Manages the research pipeline: Refine → Research → Write."""
 
     def __init__(self, stages: dict[str, BaseStage] | None = None):
         self.research_input = ""
@@ -15,7 +15,6 @@ class PipelineOrchestrator:
 
         # SSE subscribers — each connection gets its own queue
         self._subscribers: list[asyncio.Queue] = []
-
 
         # Merge: externally provided stages override, rest default to BaseStage
         self.stages: dict[str, BaseStage] = {
@@ -86,7 +85,7 @@ class PipelineOrchestrator:
     # ------------------------------------------------------------------
 
     async def start(self, research_input: str):
-        """Start the full pipeline from the beginning."""
+        """Start the full pipeline: Refine → Research → Write."""
         await self._cancel_all_tasks()
 
         self.research_input = research_input
@@ -101,12 +100,9 @@ class PipelineOrchestrator:
         task = asyncio.create_task(self._run_from("refine"))
         self._tasks["pipeline"] = task
 
-    async def start_kaggle(self, competition_id: str, data_dir: str = "data"):
-        """Start pipeline in Kaggle mode: fetch competition → skip Refine → Research.
-
-        Downloads dataset, constructs a structured idea from competition metadata,
-        saves it as both idea and refined_idea, then starts from the Research stage.
-        """
+    async def start_kaggle(self, competition_id: str, data_dir: str = "data",
+                           user_hint: str = ""):
+        """Start pipeline in Kaggle mode: fetch competition → skip Refine → Research → Write."""
         from backend.kaggle import fetch_competition, build_kaggle_idea
         from backend.config import settings
 
@@ -114,11 +110,12 @@ class PipelineOrchestrator:
 
         info = fetch_competition(competition_id, data_dir=data_dir)
 
-        # Point Docker sandbox to the downloaded data + enable Kaggle scoring
         settings.dataset_dir = info["data_dir"]
         settings.kaggle_competition_id = competition_id
 
         idea = build_kaggle_idea(info)
+        if user_hint:
+            idea += f"\n**User Notes**: {user_hint}\n"
         self.research_input = idea
         self.db.create_session(info["title"])
         self.db.save_idea(idea)
@@ -176,7 +173,7 @@ class PipelineOrchestrator:
     async def resume_stage(self, stage_name: str):
         """Resume a paused stage, then auto-continue remaining stages.
 
-        Execute stage loads checkpoint from DB and skips completed tasks.
+        Research stage loads checkpoint from DB and skips completed tasks.
         Other stages restart from scratch (resume ≡ retry for single-session stages).
         """
         stage = self.stages[stage_name]
@@ -184,21 +181,6 @@ class PipelineOrchestrator:
             return
         stage.output = ""
         stage.rounds = []
-        task = asyncio.create_task(self._run_from(stage_name))
-        self._tasks["pipeline"] = task
-
-    async def retry_stage(self, stage_name: str):
-        """Reset and re-run a stage from scratch, then auto-continue.
-
-        Also invalidates all downstream stages since their inputs
-        are now stale.
-        """
-        await self._cancel_task("pipeline")
-
-        idx = STAGE_ORDER.index(stage_name)
-        for name in STAGE_ORDER[idx:]:
-            self.stages[name].retry()
-
         task = asyncio.create_task(self._run_from(stage_name))
         self._tasks["pipeline"] = task
 
@@ -211,4 +193,3 @@ class PipelineOrchestrator:
             "input": self.research_input,
             "stages": [self.stages[name].get_status() for name in STAGE_ORDER],
         }
-

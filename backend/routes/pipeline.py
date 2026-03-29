@@ -26,8 +26,11 @@ async def start_pipeline(req: StartRequest, request: Request):
     from backend.kaggle import extract_competition_id
     kaggle_id = extract_competition_id(req.input)
     if kaggle_id:
+        # Extract user hints (everything except the URL)
+        import re
+        user_hint = re.sub(r'https?://\S+', '', req.input).strip()
         try:
-            await orch.start_kaggle(kaggle_id)
+            await orch.start_kaggle(kaggle_id, user_hint=user_hint)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Kaggle start failed: {e}")
         return {"status": "started", "input": req.input, "kaggle": kaggle_id}
@@ -75,17 +78,3 @@ async def resume_stage(stage_name: str, request: Request):
         state=orch.stages[stage_name].state.value,
         message="Stage resumed",
     )
-
-
-@router.post("/stage/{stage_name}/retry", response_model=ActionResponse)
-async def retry_stage(stage_name: str, request: Request):
-    _validate_stage(stage_name)
-    orch = _get_orchestrator(request)
-    await orch.retry_stage(stage_name)
-    return ActionResponse(
-        stage=stage_name,
-        state=orch.stages[stage_name].state.value,
-        message="Stage retrying from scratch",
-    )
-
-

@@ -16,15 +16,10 @@ class StreamEvent:
 
 
 class LLMClient(ABC):
-    """Abstract base for all LLM providers.
+    """Abstract base for LLM providers.
 
-    Mock and real implementations share the same interface so the
-    pipeline layer never knows which provider is active.
+    Pipeline layer depends on this interface, never on concrete adapters.
     """
-
-    # If True, the client has tools and reads dependencies via tools.
-    # Pipeline will NOT pre-load dependency outputs into prompts.
-    has_tools = False
 
     @abstractmethod
     async def stream(self, messages: list[dict]) -> AsyncIterator[StreamEvent]:
@@ -36,16 +31,12 @@ class LLMClient(ABC):
 
         Override in subclasses to provide tool-specific descriptions.
         """
-        if self.has_tools:
-            return "AI Agent with tool access and multi-step reasoning."
-        return "Text-only LLM. Single conversation turn. No tools or code execution."
+        return "AI Agent with tool access and multi-step reasoning."
 
     def request_stop(self):
-        """Signal the client to stop after the current in-flight event.
-        Default no-op. AgentClient/AgnoClient override to break the loop."""
+        """Signal the client to stop after the current in-flight event."""
         pass
 
     def reset(self):
-        """Reset internal state. Called when the pipeline restarts.
-        No-op for real LLM clients. MockClient clears response counters."""
+        """Reset internal state. Called when the pipeline restarts."""
         pass

@@ -62,9 +62,7 @@ async def _calibrate_atomic_definition(self, idea, my_run_id):
 
 | Client | `describe_capabilities()` 返回 |
 |--------|-------------------------------|
-| GeminiClient | 继承默认: "Text-only LLM. No tools." |
-| AgentClient | "AI Agent (ADK). Model: gemini-2.0-flash\nTools:\n- google_search\n- code_execute\n- ..." |
-| AgnoClient | "AI Agent (Agno). Model: Gemini\nTools:\n- websearch\n- arxiv_tools\n- ..." |
+| AgnoClient | "AI Agent (Agno). Model: Gemini\nTools:\n- DuckDuckGoTools\n- ArxivTools\n- code_execute\n- ..." |
 
 **calibration 输出示例（Agent 模式）**：
 ```
@@ -112,9 +110,8 @@ batches = topological_batches(all_tasks)
 
 每个任务的 prompt 构建：
 
-- **Gemini 模式**：依赖任务的完整输出预加载到 prompt
-- **Agent 模式**：仅列出依赖 ID，Agent 通过 `read_task_output` 工具自主读取
-- **Redecompose 子任务**：额外注入父任务的 partial output 作为参考
+- 仅列出依赖 ID，Agent 通过 `read_task_output` 工具自主读取
+- Redecompose 子任务：额外注入父任务的 partial output 作为参考
 
 ### 三路验证
 

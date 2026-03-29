@@ -38,6 +38,8 @@ CONTEXT: This is an automated research pipeline.
 
 {atomic_definition}
 
+{strategy}
+
 WHEN TO STOP DECOMPOSING:
 - A task is atomic when further splitting would create tasks that are trivial, redundant, or tightly coupled (i.e. they cannot produce meaningful standalone output).
 - Err on the side of FEWER, COARSER tasks. A task that takes multiple steps but has a single coherent goal should stay atomic.
@@ -77,6 +79,7 @@ async def decompose(
     llm_client: LLMClient,
     max_depth: int = 10,
     atomic_definition: str = "",
+    strategy: str = "",
     stream_callback: Callable | None = None,
     is_stale: Callable[[], bool] | None = None,
 ) -> tuple[list[dict], dict]:
@@ -87,6 +90,7 @@ async def decompose(
         llm_client: LLM client for streaming calls.
         max_depth: Maximum recursion depth.
         atomic_definition: Custom atomic definition (e.g. for Agent mode).
+        strategy: Strategy document from pre-decompose research.
         stream_callback: Optional callback(event_type, data) for SSE events.
         is_stale: Optional callable returning True if this run has been superseded.
 
@@ -95,7 +99,11 @@ async def decompose(
         - flat_tasks: plan.json format [{"id", "description", "dependencies"}, ...]
         - tree: nested tree structure for frontend visualization
     """
-    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(atomic_definition=atomic_definition)
+    strategy_block = f"STRATEGY (from prior research):\n{strategy}" if strategy else ""
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+        atomic_definition=atomic_definition,
+        strategy=strategy_block,
+    )
 
     emit = stream_callback or (lambda t, d: None)
     stale = is_stale or (lambda: False)

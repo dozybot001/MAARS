@@ -6,38 +6,30 @@
 
 ## 管线
 
-三个阶段。所有模式运行相同管线 — 模式只替换底层引擎。
+三个阶段，基于 Agno Agent 框架，支持多 provider（Google、Anthropic、OpenAI）。
 
 ```mermaid
 flowchart LR
-    I[想法] --> R["精炼\n3 轮"] --> RS["研究\n校准 → 分解\n→ 执行 → 评估"] --> W["写作\n5 阶段"] --> O[论文]
+    I[想法] --> R["精炼\n1 agent session"] --> RS["研究\n校准 → 分解\n→ 执行 → 评估"] --> W["写作\n1 agent session"] --> O[论文]
 ```
 
 | 阶段 | 做什么 |
 |------|-------|
-| **精炼** | 探索 → 评估 → 结晶。将模糊想法转为结构化研究提案 |
+| **精炼** | Agent 自主搜索文献、评估方向、结晶为结构化研究提案 |
 | **研究** | 校准能力边界 → 递归分解 → 并行执行 + 验证（通过 / 重试 / 重新分解）→ 评估。不满足则迭代 |
-| **写作** | 大纲 → 逐章节写作 → 结构审查 → 风格润色 → 格式规范。每个章节只接收相关任务输出 |
+| **写作** | Agent 通过工具读取所有任务产出，自主设计论文结构并一次性撰写完整论文 |
 
-## 模式
-
-`.env` 一行切换：
+## 配置
 
 ```env
-MAARS_LLM_MODE=mock      # 或 gemini、adk、agno
+# .env
 MAARS_GOOGLE_API_KEY=your-key
+
+# 模型 provider：google（默认）、anthropic、openai
+# MAARS_AGNO_MODEL_PROVIDER=google
+# MAARS_AGNO_MODEL_ID=claude-sonnet-4-5
+# MAARS_ANTHROPIC_API_KEY=your-key
 ```
-
-模式替换的是引擎，不是管线逻辑：
-
-| 阶段 | Mock | Gemini | ADK | Agno |
-|------|------|--------|-----|------|
-| **精炼** | 回放 | GeminiClient（3 轮） | AgentClient + google_search（1 session） | AgnoClient + DuckDuckGo + arXiv（1 session） |
-| **研究** | 回放 | GeminiClient（并行调用） | AgentClient + 搜索 + code_execute + DB（并行 agent session） | AgnoClient + DuckDuckGo + arXiv + 代码 + DB（并行 agent session） |
-| **写作** | 回放 | GeminiClient（5 阶段） | AgentClient + 搜索 + DB（1 session） | AgnoClient + DuckDuckGo + arXiv + DB（1 session） |
-
-> 所有模式使用相同的 pipeline stages，只有 `LLMClient` 实现不同。
-> ADK 使用 Google ADK 框架（仅 Gemini）。Agno 使用 Agno 框架（40+ 模型 provider）。
 
 ## 架构
 
@@ -55,18 +47,12 @@ flowchart TB
         CAP["LLMClient.describe_capabilities()"]
     end
 
-    subgraph Adapters["适配层 · 可替换"]
-        MOCK["MockClient"]
-        GEMINI["GeminiClient"]
-        ADK["AgentClient\n(Google ADK)"]
+    subgraph Adapters["适配层"]
         AGNO["AgnoClient\n(Agno · 40+ 模型)"]
     end
 
     STAGES --> LLM
     STAGES --> CAP
-    LLM -.-> MOCK
-    LLM -.-> GEMINI
-    LLM -.-> ADK
     LLM -.-> AGNO
 
     subgraph FE["前端 · Vanilla JS"]
@@ -104,7 +90,7 @@ results/{timestamp}-{slug}/
 ├── plan.json         # 扁平原子任务列表
 ├── plan_tree.json    # 分解树
 ├── tasks/            # 各任务输出
-├── artifacts/        # 代码脚本 + 实验产出（Agent 模式）
+├── artifacts/        # 代码脚本 + 实验产出
 ├── evaluations/      # 迭代评估结果
 ├── paper.md          # 最终论文
 ├── Dockerfile.experiment  # 自动生成的 Docker 复现文件
@@ -116,7 +102,7 @@ results/{timestamp}-{slug}/
 
 | 文档 | 内容 |
 |------|------|
-| [架构](docs/CN/architecture.md) | 三层设计、数据流、模式对比 |
+| [架构](docs/CN/architecture.md) | 三层设计、数据流 |
 | [Research 工作流](docs/CN/research-workflow.md) | 校准 → 分解 → 执行 → 验证 → 重分解 → 评估 |
 | [Prompt 工程](docs/CN/prompt-engineering.md) | 全部 prompt 清单与修改指南 |
 | [代码坏味道](docs/CN/code-smells.md) | 已知问题与修复优先级 |
