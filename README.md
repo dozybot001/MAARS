@@ -4,101 +4,190 @@
 
 **Multi-Agent Automated Research System** — From one idea to a full research paper, fully automated.
 
-MAARS follows a workflow-centered hybrid architecture: `Research` is the workflow spine and a form of research-task harness engineering, while `Refine` and `Write` are the stages that will evolve toward multi-agent collaboration.
+MAARS is a hybrid multi-agent research system built around a workflow spine. Give it a research idea or a Kaggle competition URL, and it will refine the problem, decompose it into executable tasks, run experiments in a Docker sandbox, iterate based on results, and produce a complete paper — all autonomously.
 
-Current status:
+## Demo
 
-- `Refine`: single-agent stage today, multi-agent target
-- `Research`: implemented as the agentic workflow core
-- `Write`: single-agent stage today, multi-agent target
+Input an idea, watch it think:
+
+```
+"Benchmark numerical ODE solvers across stiffness regimes —
+ compare explicit vs implicit methods on efficiency-accuracy tradeoffs"
+```
+
+MAARS will autonomously: search literature → define methodology → write & execute benchmark code → generate plots → evaluate results → iterate → write a full paper with embedded figures.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    UI["Frontend UI"] --> API["FastAPI API"]
+    UI["Frontend UI<br/>(vanilla JS + SSE)"] --> API["FastAPI"]
     API --> ORCH["Pipeline Orchestrator"]
 
-    ORCH --> REF["Refine Stage"]
-    ORCH --> RES["Research Stage"]
-    ORCH --> WRI["Write Stage"]
+    ORCH --> REF["① Refine"]
+    ORCH --> RES["② Research"]
+    ORCH --> WRI["③ Write"]
 
-    REF --> DB["Session DB<br/>results/{id}/"]
-    RES --> DB
-    WRI --> DB
+    REF & RES & WRI --> DB["Session DB<br/>results/{id}/"]
+    REF & RES & WRI --> AGENT["Agno Agent Adapter"]
 
-    REF --> AGENT["Agent Adapter Layer"]
-    RES --> AGENT
-    WRI --> AGENT
-
-    AGENT --> TOOLS["Search / arXiv / Wikipedia<br/>DB tools / Docker sandbox"]
-    ORCH -. SSE .-> UI
+    AGENT --> LLM["Google · Anthropic · OpenAI"]
+    AGENT --> TOOLS["DuckDuckGo · arXiv · Wikipedia<br/>Docker Sandbox · DB Tools"]
+    ORCH -. "SSE events" .-> UI
 ```
 
-Three stages, powered by the Agno agent framework with multi-provider support (Google, Anthropic, OpenAI).
+The core design principle: **deterministic control stays in the runtime; open-ended execution goes to agents.**
 
-| Stage | Design Role | Current Implementation |
-|-------|-------------|------------------------|
-| **Refine** | Problem formation; ultimately suited for multi-agent exploration and convergence | Single-agent session |
-| **Research** | Workflow spine: calibrate, decompose, execute, verify, evaluate, replan | Implemented as an agentic workflow runtime |
-| **Write** | Paper synthesis; ultimately suited for multi-agent planning, drafting, and review | Single-agent session |
+If you think in terms of [harness engineering](https://openai.com/index/harness-engineering/) (OpenAI, 2026), MAARS applies the same ideas — externalized state, tool boundaries, verification loops, feedback cycles — but at the **research-task level** rather than the repo-level scope OpenAI describes. The session DB is the system of record, Docker sandbox is the execution environment, and verify/evaluate/replan form the feedback harness.
 
-## Design Notes
+| Stage | What it does | How it works |
+|-------|-------------|--------------|
+| **Refine** | Transforms a vague idea into a structured, executable research proposal | Agent-driven exploration: survey landscape → evaluate directions → crystallize problem |
+| **Research** | The workflow core — decomposes, executes, verifies, evaluates, and iterates | Runtime-controlled pipeline: calibrate → strategy → decompose → execute → verify → evaluate → replan |
+| **Write** | Synthesizes all task outputs into a complete research paper | Agent reads completed tasks, artifacts, and figures → produces `paper.md` |
 
-- The top level is a three-stage orchestrated flow: `refine → research → write`.
-- The core design judgment is: keep deterministic control in the runtime, and give open-ended execution to agents.
-- Research is not just an agent loop; it is a harness: runtime control, externalized state, tool boundaries, and feedback loops working together.
-- State is externalized into `results/{session}/` so runs are inspectable, resumable, and reproducible.
-- Real code execution goes through a Docker sandbox; outputs are persisted under `artifacts/`.
-- Frontend observability is built on SSE, so users can see stage state, research phases, task status, and streamed logs in real time.
+## Research Pipeline Detail
 
-## Configuration
+The Research stage is where the real work happens. It runs as an **agentic workflow runtime** with feedback loops:
 
-```env
-# .env
-MAARS_GOOGLE_API_KEY=your-key
-
-# Model provider: google (default), anthropic, or openai
-# MAARS_AGNO_MODEL_PROVIDER=google
-# MAARS_AGNO_MODEL_ID=claude-sonnet-4-5
-# MAARS_ANTHROPIC_API_KEY=your-key
+```
+refined_idea.md
+  ↓
+Calibrate → Agent self-assesses what "atomic task" means for this domain
+Strategy  → Agent researches best approaches, techniques, baselines
+Decompose → Recursively break into atomic tasks with dependency DAG
+  ↓
+┌─ Execute  → Run tasks in topological batches (parallel where possible)
+│  Verify   → Score each result: pass / fail+retry / redecompose
+│  Evaluate → Compare scores across iterations, decide if improvement plateaued
+│  Replan   → Add new tasks based on evaluation feedback
+└─ Loop until: iteration limit OR score plateau (<0.5% improvement)
+  ↓
+Task outputs + artifacts ready for Write stage
 ```
 
-## Quick start
+Key capabilities:
+- **Docker sandbox execution** — real code runs in isolated containers with pre-loaded ML stack
+- **DAG scheduling** — tasks respect dependency order, parallelize where safe
+- **Automatic redecomposition** — if a task is too complex, it splits into subtasks
+- **Iteration with scoring** — tracks `best_score.json` across rounds, stops when improvement plateaus
+- **Checkpoint/resume** — pause mid-run, resume later with all state preserved
+
+## Kaggle Mode
+
+Paste a Kaggle competition URL instead of a research idea:
+
+```
+https://www.kaggle.com/competitions/titanic
+```
+
+MAARS will automatically: fetch competition metadata → download dataset → build a context-rich research proposal → skip Refine → jump straight to Research with data mounted at `/workspace/data/`.
+
+## Quick Start
+
+### One-click (recommended)
 
 ```bash
-git clone https://github.com/dozybot001/MAARS.git && cd MAARS
-python3 -m venv .venv && source .venv/bin/activate
+# Windows — double-click start.bat, or:
+start.bat
+
+# Linux / macOS / Git Bash:
+bash start.sh
+```
+
+The script handles everything: dependency install, `.env` check, Docker image build, server start, and opens your browser.
+
+### Manual
+
+```bash
+git clone https://github.com/anthropics/MAARS.git && cd MAARS
 pip install -r requirements.txt
-cp .env.example .env  # add your API key
+cp .env.example .env          # add your API key
+docker build -f Dockerfile.sandbox -t maars-sandbox:latest .   # optional, for code execution
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 # Open http://localhost:8000
 ```
 
-## Output
+## Configuration
 
-Each run creates a timestamped folder:
+All settings use the `MAARS_` prefix. Copy `.env.example` to `.env` and configure:
+
+```env
+# Choose provider: google (default), anthropic, or openai
+MAARS_MODEL_PROVIDER=google
+
+# Only the active provider's key is required
+MAARS_GOOGLE_API_KEY=your-key
+MAARS_GOOGLE_MODEL=gemini-2.5-flash
+
+# MAARS_ANTHROPIC_API_KEY=your-key
+# MAARS_ANTHROPIC_MODEL=claude-sonnet-4-5-20250514
+
+# MAARS_OPENAI_API_KEY=your-key
+# MAARS_OPENAI_MODEL=gpt-4o
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `MAARS_MODEL_PROVIDER` | `google` | LLM provider: `google`, `anthropic`, or `openai` |
+| `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Max evaluation loops (1 = no iteration) |
+| `MAARS_DOCKER_SANDBOX_TIMEOUT` | `600` | Per-container timeout in seconds |
+| `MAARS_DOCKER_SANDBOX_MEMORY` | `4g` | Memory limit per container |
+| `MAARS_KAGGLE_API_TOKEN` | — | Kaggle API token (or use `~/.kaggle/kaggle.json`) |
+
+## Output Structure
+
+Each run creates a timestamped session folder:
 
 ```
 results/{timestamp}-{slug}/
-├── idea.md           # Input
-├── refined_idea.md   # Refine output
-├── plan.json         # Flat atomic task list
-├── plan_tree.json    # Decomposition tree
-├── tasks/            # Individual task outputs
-├── artifacts/        # Code scripts + experiment outputs
-├── evaluations/      # Iteration evaluations (if multi-iteration)
-├── paper.md          # Final paper
-├── Dockerfile.experiment  # Auto-generated Docker reproduction
-├── run.sh            # Experiment runner script
-└── docker-compose.yml
+├── idea.md                  # Original input
+├── refined_idea.md          # Refined research proposal
+├── calibration.md           # Atomic task definition
+├── strategy.md              # Research strategy
+├── plan_list.json           # Flat task list (execution view)
+├── plan_tree.json           # Hierarchical decomposition tree
+├── tasks/                   # Individual task outputs (markdown)
+├── artifacts/               # Code scripts, plots, CSVs, models
+│   ├── {task_id}/           # Per-task working directory
+│   └── best_score.json      # Global best score tracker
+├── evaluations/             # Iteration evaluation results
+│   ├── eval_v0.json
+│   └── eval_v1.json
+├── paper.md                 # Final research paper
+└── reproduce/               # Auto-generated reproduction files
+    ├── Dockerfile
+    ├── run.sh
+    └── docker-compose.yml
 ```
+
+## Frontend
+
+The web UI provides real-time observability via SSE:
+
+- **Progress bar** — 7-stage pipeline visualization (Refine → Calibrate → Strategy → Decompose → Execute → Evaluate → Write)
+- **Command palette** (Ctrl+K) — start, pause, resume pipeline
+- **Reasoning log** — live-streamed LLM reasoning, tool calls, and results
+- **Process viewer** — task tree, execution batches, artifacts, documents
+- **Docker status** — sandbox connectivity indicator
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Backend | FastAPI, Python async |
+| Agent framework | Agno (multi-provider) |
+| LLM providers | Google Gemini, Anthropic Claude, OpenAI GPT |
+| Code execution | Docker containers (Python 3.12 + ML stack) |
+| Frontend | Vanilla JS, SSE, no build step |
+| Storage | File-based session DB |
+| Search tools | DuckDuckGo, arXiv, Wikipedia |
 
 ## Documentation
 
 | Doc | Content |
 |-----|---------|
-| [Architecture Design (CN)](docs/CN/architecture.md) | Current source of truth for the system design |
+| [Architecture Design (CN)](docs/CN/architecture.md) | System design rationale and evolution strategy |
 
 ## Community
 
