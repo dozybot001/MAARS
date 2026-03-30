@@ -29,11 +29,19 @@ Each research session gets a unique folder:
 from pathlib import Path
 from datetime import datetime
 import json
+import os
 import re
+import tempfile
+import threading
 
 
 class ResearchDB:
-    """Manages a research session's file storage."""
+    """Manages a research session's file storage.
+
+    Thread-safety: a lock protects read-modify-write sequences on shared
+    files (plans, scores, metadata). All file writes use atomic rename
+    to prevent corruption if the process is killed mid-write.
+    """
 
     def __init__(self, base_dir: str = "results"):
         self._base = Path(base_dir)
@@ -41,6 +49,28 @@ class ResearchDB:
         self.research_id: str = ""
         self.execution_log: list[dict] = []
         self.current_task_id: str | None = None  # set during task execution
+        self._write_lock = threading.Lock()  # guards shared-file read-modify-write
+
+    # --- Atomic write ---
+
+    @staticmethod
+    def _atomic_write(path: Path, content: str):
+        """Write content atomically: temp file + os.replace().
+
+        Prevents partial/corrupt files if the process crashes mid-write.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def create_session(self, idea: str = "") -> str:
         """Create a new research folder. Returns the research ID."""
@@ -60,30 +90,33 @@ class ResearchDB:
 
     def save_idea(self, text: str):
         self._ensure_root()
-        (self._root / "idea.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "idea.md", text)
 
     def save_refined_idea(self, text: str):
         self._ensure_root()
-        (self._root / "refined_idea.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "refined_idea.md", text)
 
     def save_plan(self, flat_tasks: list[dict], tree: dict):
         """Save both plan representations atomically."""
         self._ensure_root()
-        (self._root / "plan_list.json").write_text(
-            json.dumps(flat_tasks, indent=2, ensure_ascii=False), encoding="utf-8",
-        )
-        (self._root / "plan_tree.json").write_text(
-            json.dumps(tree, indent=2, ensure_ascii=False), encoding="utf-8",
-        )
+        with self._write_lock:
+            self._atomic_write(
+                self._root / "plan_list.json",
+                json.dumps(flat_tasks, indent=2, ensure_ascii=False),
+            )
+            self._atomic_write(
+                self._root / "plan_tree.json",
+                json.dumps(tree, indent=2, ensure_ascii=False),
+            )
 
     def save_paper(self, text: str):
         self._ensure_root()
-        (self._root / "paper.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "paper.md", text)
 
     def save_task_output(self, task_id: str, text: str):
         self._ensure_root()
         safe_id = task_id.replace("/", "_")
-        (self._root / "tasks" / f"{safe_id}.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "tasks" / f"{safe_id}.md", text)
 
     # --- Read ---
 
@@ -184,14 +217,16 @@ class ResearchDB:
         return {}
 
     def _save_meta(self, meta: dict):
-        self._meta_path().write_text(
-            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
+        self._atomic_write(
+            self._meta_path(),
+            json.dumps(meta, indent=2, ensure_ascii=False),
         )
 
     def save_score_direction(self, minimize: bool):
-        meta = self._load_meta()
-        meta["score_direction"] = "minimize" if minimize else "maximize"
-        self._save_meta(meta)
+        with self._write_lock:
+            meta = self._load_meta()
+            meta["score_direction"] = "minimize" if minimize else "maximize"
+            self._save_meta(meta)
 
     def get_score_minimize(self) -> bool:
         meta = self._load_meta()
@@ -199,15 +234,16 @@ class ResearchDB:
 
     def update_meta(self, **kwargs):
         """Merge key-value pairs into meta.json."""
-        meta = self._load_meta()
-        meta.update(kwargs)
-        self._save_meta(meta)
+        with self._write_lock:
+            meta = self._load_meta()
+            meta.update(kwargs)
+            self._save_meta(meta)
 
     # --- Calibration & Strategy ---
 
     def save_calibration(self, text: str):
         self._ensure_root()
-        (self._root / "calibration.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "calibration.md", text)
 
     def get_calibration(self) -> str:
         self._ensure_root()
@@ -216,7 +252,7 @@ class ResearchDB:
 
     def save_strategy(self, text: str):
         self._ensure_root()
-        (self._root / "strategy.md").write_text(text, encoding="utf-8")
+        self._atomic_write(self._root / "strategy.md", text)
 
     def get_strategy(self) -> str:
         self._ensure_root()
@@ -255,28 +291,32 @@ class ResearchDB:
         self._ensure_root()
         eval_dir = self._root / "evaluations"
         eval_dir.mkdir(exist_ok=True)
-        (eval_dir / f"eval_v{iteration}.json").write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8",
+        self._atomic_write(
+            eval_dir / f"eval_v{iteration}.json",
+            json.dumps(data, indent=2, ensure_ascii=False),
         )
 
     def save_plan_amendment(self, tasks: list[dict], iteration: int,
                             replan_subtree: dict | None = None):
         """Save additional tasks to plan_list.json and sync tree."""
         self._ensure_root()
-        plan_path = self._root / "plan_list.json"
-        existing = json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else []
-        existing.extend(tasks)
-        plan_path.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8",
-        )
-        if replan_subtree:
-            tree_path = self._root / "plan_tree.json"
-            if tree_path.exists():
-                tree = json.loads(tree_path.read_text(encoding="utf-8"))
-                tree.get("children", []).append(replan_subtree)
-                tree_path.write_text(
-                    json.dumps(tree, indent=2, ensure_ascii=False), encoding="utf-8",
-                )
+        with self._write_lock:
+            plan_path = self._root / "plan_list.json"
+            existing = json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else []
+            existing.extend(tasks)
+            self._atomic_write(
+                plan_path,
+                json.dumps(existing, indent=2, ensure_ascii=False),
+            )
+            if replan_subtree:
+                tree_path = self._root / "plan_tree.json"
+                if tree_path.exists():
+                    tree = json.loads(tree_path.read_text(encoding="utf-8"))
+                    tree.get("children", []).append(replan_subtree)
+                    self._atomic_write(
+                        tree_path,
+                        json.dumps(tree, indent=2, ensure_ascii=False),
+                    )
 
     # --- Artifacts: scripts & reproduce ---
 
@@ -291,7 +331,7 @@ class ResearchDB:
         seq = len(existing) + 1
         name = f"{seq:03d}{ext}"
         path = task_dir / name
-        path.write_text(code, encoding="utf-8")
+        self._atomic_write(path, code)
         return path, name
 
     def promote_best_score(self):
@@ -300,6 +340,8 @@ class ResearchDB:
         Maintains two files:
         - latest_score.json: always updated to the most recent score
         - best_score.json: only updated when the new score is better
+
+        Thread-safe: locked to prevent concurrent promote calls from racing.
         """
         if not self.current_task_id:
             return
@@ -313,34 +355,36 @@ class ResearchDB:
         except (json.JSONDecodeError, ValueError, TypeError):
             return
 
-        artifacts_root = self.get_artifacts_dir()
         task_content = task_score_path.read_text(encoding="utf-8")
-        minimize = self.get_score_minimize()
 
-        # Always update latest_score.json
-        (artifacts_root / "latest_score.json").write_text(task_content, encoding="utf-8")
+        with self._write_lock:
+            artifacts_root = self.get_artifacts_dir()
+            minimize = self.get_score_minimize()
 
-        # Only update best_score.json if this score is better
-        best_path = artifacts_root / "best_score.json"
-        if best_path.exists():
-            try:
-                best_data = json.loads(best_path.read_text(encoding="utf-8"))
-                best_score = float(best_data.get("score", 0))
-                if minimize:
-                    is_better = task_score < best_score
-                else:
-                    is_better = task_score > best_score
-                if not is_better:
-                    return
-            except (json.JSONDecodeError, ValueError, TypeError):
-                pass
-        best_path.write_text(task_content, encoding="utf-8")
+            # Always update latest_score.json
+            self._atomic_write(artifacts_root / "latest_score.json", task_content)
+
+            # Only update best_score.json if this score is better
+            best_path = artifacts_root / "best_score.json"
+            if best_path.exists():
+                try:
+                    best_data = json.loads(best_path.read_text(encoding="utf-8"))
+                    best_score = float(best_data.get("score", 0))
+                    if minimize:
+                        is_better = task_score < best_score
+                    else:
+                        is_better = task_score > best_score
+                    if not is_better:
+                        return
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    pass
+            self._atomic_write(best_path, task_content)
 
     def save_reproduce_files(self, dockerfile: str, run_sh: str, compose: str):
         """Save Docker reproduction files to reproduce/ subdirectory."""
         self._ensure_root()
         reproduce_dir = self._root / "reproduce"
         reproduce_dir.mkdir(exist_ok=True)
-        (reproduce_dir / "Dockerfile").write_text(dockerfile, encoding="utf-8")
-        (reproduce_dir / "run.sh").write_text(run_sh, encoding="utf-8")
-        (reproduce_dir / "docker-compose.yml").write_text(compose, encoding="utf-8")
+        self._atomic_write(reproduce_dir / "Dockerfile", dockerfile)
+        self._atomic_write(reproduce_dir / "run.sh", run_sh)
+        self._atomic_write(reproduce_dir / "docker-compose.yml", compose)
