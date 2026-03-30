@@ -128,7 +128,7 @@ def build_kaggle_idea(info: dict) -> str:
         f"{info['description']}\n",
         f"- **Evaluation Metric**: {info['metric']}",
         f"- **Dataset Files** (at /workspace/data/): {files_str}",
-        f"- **Submission**: save to /workspace/output/submission.csv\n",
+        "- **Submission**: save to /workspace/output/submission.csv\n",
     ]
 
     # Data description (field definitions, often 100-500 lines)
@@ -146,7 +146,7 @@ def build_kaggle_idea(info: dict) -> str:
                 header = next(reader, None)
                 first_row = next(reader, None)
             if header:
-                parts.append(f"## Submission Format\n")
+                parts.append("## Submission Format\n")
                 parts.append(f"- **Columns**: {', '.join(header)}")
                 if first_row:
                     parts.append(f"- **Example row**: {', '.join(first_row)}")
@@ -161,7 +161,7 @@ def build_kaggle_idea(info: dict) -> str:
             with open(train_path, encoding="utf-8", errors="replace") as f:
                 header = f.readline().strip().split(",")
                 n_rows = sum(1 for _ in f)
-            parts.append(f"## Train Data Overview\n")
+            parts.append("## Train Data Overview\n")
             parts.append(f"- **Rows**: {n_rows}, **Columns**: {len(header)}")
             parts.append(f"- **Columns**: {', '.join(header)}\n")
         except Exception:

@@ -1,14 +1,14 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from backend.agno import create_agno_stages
 from backend.config import settings
 from backend.pipeline.orchestrator import PipelineOrchestrator
-from backend.routes import pipeline as pipeline_routes
 from backend.routes import events as event_routes
-
-from contextlib import asynccontextmanager
+from backend.routes import pipeline as pipeline_routes
 
 @asynccontextmanager
 async def lifespan(app):
@@ -22,8 +22,6 @@ app = FastAPI(title="MAARS", version="0.1.0", lifespan=lifespan)
 
 # --- Pipeline stages ---
 orchestrator = PipelineOrchestrator()
-
-from backend.agno import create_agno_stages
 stages = create_agno_stages(
     model_provider=settings.model_provider,
     model_id=settings.active_model,

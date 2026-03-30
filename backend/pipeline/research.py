@@ -11,7 +11,6 @@ import contextvars
 import json
 
 from backend.config import settings
-from backend.db import ResearchDB
 from backend.pipeline.stage import AgentStage, StageState
 from backend.pipeline.decompose import decompose
 from backend.pipeline.prompts import (
