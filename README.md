@@ -15,7 +15,7 @@ MAARS is a hybrid multi-agent research system. Give it a research idea or a Kagg
 bash start.sh
 ```
 
-Automatically installs dependencies, checks `.env` (and creates it if missing), builds the Docker image (and prompts you to press Enter to install Docker Desktop if needed), starts the server, and opens the browser.
+Automatically installs dependencies, checks `.env` (and creates it if missing), builds the Docker image (and prompts you to press Enter to install Docker Desktop if needed), starts the server, and opens the browser. All you need: `Ctrl/CMD + K` -> type... -> Enter。
 
 ## Architecture
 
