@@ -47,6 +47,10 @@ app.include_router(pipeline_routes.router)
 app.include_router(event_routes.router)
 
 # --- Serve frontend static files ---
+# Prefer built Vue app (frontend/dist/), fall back to frontend/ for legacy
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 frontend_dir = Path(__file__).parent.parent / "frontend"
-if frontend_dir.exists():
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+elif frontend_dir.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

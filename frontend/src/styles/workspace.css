@@ -62,7 +62,7 @@
 .activity-badge[data-state="waiting"] { color: var(--yellow); }
 .activity-badge[data-state="stale"] { color: var(--red); }
 
-#copy-log, #copy-process {
+.copy-btn {
   position: absolute;
   right: 10px;
   top: 50%;
@@ -75,7 +75,7 @@
   padding: 2px 6px;
 }
 
-#copy-log:hover, #copy-process:hover {
+.copy-btn:hover {
   color: var(--text-primary);
 }
 
@@ -87,7 +87,7 @@
 
 /* ---- Reasoning Log (left) ---- */
 
-#log-output {
+.log-output {
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -95,7 +95,7 @@
   color: var(--text-primary);
 }
 
-#log-output:empty::before {
+.log-output:empty::before {
   content: "";
 }
 
@@ -106,19 +106,19 @@
 }
 
 .log-separator::before {
-  content: "▾ ";
+  content: "\25BE ";
   font-size: 10px;
 }
 
 .log-separator.is-collapsed::before {
-  content: "▸ ";
+  content: "\25B8 ";
 }
 
 .log-section.collapsed {
   display: none;
 }
 
-/* ---- Unified fold system (level 2/3/task — both panels) ---- */
+/* ---- Unified fold system (level 2/3/task -- both panels) ---- */
 .fold-label {
   font-size: 12px;
   font-weight: 600;
@@ -130,12 +130,12 @@
 }
 
 .fold-label::before {
-  content: "▾ ";
+  content: "\25BE ";
   font-size: 10px;
 }
 
 .fold-label.is-collapsed::before {
-  content: "▸ ";
+  content: "\25B8 ";
 }
 
 .fold-label.is-collapsed {
@@ -193,12 +193,12 @@
 
 /* ---- Process & Output (right) ---- */
 
-#process-body {
+.process-body {
   font-size: 13px;
   line-height: 1.6;
 }
 
-#process-body:empty::before {
+.process-body:empty::before {
   content: "";
 }
 
@@ -280,7 +280,7 @@
 }
 
 /* Modal overlay */
-#modal-overlay {
+.modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -291,11 +291,7 @@
   backdrop-filter: blur(2px);
 }
 
-#modal-overlay.hidden {
-  display: none;
-}
-
-#modal-panel {
+.modal-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
@@ -307,7 +303,7 @@
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
-#modal-header {
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -316,12 +312,12 @@
   flex-shrink: 0;
 }
 
-#modal-header h3 {
+.modal-header h3 {
   font-size: 14px;
   font-weight: 600;
 }
 
-#modal-close {
+.modal-close {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -331,11 +327,11 @@
   line-height: 1;
 }
 
-#modal-close:hover {
+.modal-close:hover {
   color: var(--text-primary);
 }
 
-#modal-content {
+.modal-content {
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;

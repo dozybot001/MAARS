@@ -28,7 +28,7 @@ echo -e "${CYAN}========================================${NC}"
 echo
 
 # --- 1. Check Python ---
-echo -e "${YELLOW}[1/4] Checking Python...${NC}"
+echo -e "${YELLOW}[1/6] Checking Python...${NC}"
 if ! command -v python &>/dev/null && ! command -v python3 &>/dev/null; then
     echo -e "${RED}Python not found. Please install Python 3.10+.${NC}"
     exit 1
@@ -37,43 +37,48 @@ PYTHON=$(command -v python3 || command -v python)
 PY_VER=$($PYTHON --version 2>&1)
 echo -e "  ${GREEN}Found: $PY_VER${NC}"
 
-# --- 2. Install dependencies ---
-echo -e "${YELLOW}[2/4] Installing Python dependencies...${NC}"
+# --- 2. Setup venv & install dependencies ---
+echo -e "${YELLOW}[2/6] Setting up virtual environment...${NC}"
+if [ ! -d .venv ]; then
+    $PYTHON -m venv .venv
+    echo -e "  ${GREEN}Virtual environment created.${NC}"
+fi
+source .venv/bin/activate
+PYTHON="$PWD/.venv/bin/python"
+echo -e "  Installing dependencies..."
 $PYTHON -m pip install -r requirements.txt -q
 echo -e "  ${GREEN}Dependencies installed.${NC}"
 
 # --- 3. Check .env ---
-echo -e "${YELLOW}[3/4] Checking .env configuration...${NC}"
+echo -e "${YELLOW}[3/6] Checking .env configuration...${NC}"
+ENV_WARNING=""
 if [ ! -f .env ]; then
-    echo -e "  ${YELLOW}.env not found. Creating template...${NC}"
-    cat > .env <<'EOF'
-# MAARS Configuration
-# At least one API key is required.
-
-MAARS_GOOGLE_API_KEY=
-# MAARS_AGNO_MODEL_PROVIDER=google
-# MAARS_AGNO_MODEL_ID=
-# MAARS_OPENAI_API_KEY=
-# MAARS_ANTHROPIC_API_KEY=
-# MAARS_KAGGLE_API_TOKEN=
-EOF
-    echo -e "  ${RED}Please edit .env and add your API key, then re-run this script.${NC}"
-    exit 1
+    cp .env.example .env
+    echo -e "  ${GREEN}.env created from .env.example${NC}"
+    ENV_WARNING="No API key configured yet. Edit .env and add your key (e.g. MAARS_GOOGLE_API_KEY=...)."
+else
+    HAS_KEY=false
+    grep -qE '^MAARS_GOOGLE_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
+    grep -qE '^MAARS_OPENAI_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
+    grep -qE '^MAARS_ANTHROPIC_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
+    if [ "$HAS_KEY" = false ]; then
+        ENV_WARNING="No API key found in .env. The server will start but pipelines won't work until you add one."
+    else
+        echo -e "  ${GREEN}.env configured.${NC}"
+    fi
 fi
 
-# Check if at least one API key is set
-HAS_KEY=false
-grep -qE '^MAARS_GOOGLE_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
-grep -qE '^MAARS_OPENAI_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
-grep -qE '^MAARS_ANTHROPIC_API_KEY=.+' .env 2>/dev/null && HAS_KEY=true
-if [ "$HAS_KEY" = false ]; then
-    echo -e "  ${RED}No API key found in .env. Please add at least one API key.${NC}"
-    exit 1
+# --- 4. Build frontend ---
+echo -e "${YELLOW}[4/6] Building frontend...${NC}"
+if command -v node &>/dev/null; then
+    (cd frontend && npm install --silent && npm run build)
+    echo -e "  ${GREEN}Frontend built.${NC}"
+else
+    echo -e "  ${YELLOW}Node.js not found. Using pre-built frontend (if available).${NC}"
 fi
-echo -e "  ${GREEN}.env configured.${NC}"
 
-# --- 4. Docker sandbox ---
-echo -e "${YELLOW}[4/4] Checking Docker sandbox image...${NC}"
+# --- 5. Docker sandbox ---
+echo -e "${YELLOW}[5/6] Checking Docker sandbox image...${NC}"
 if command -v docker &>/dev/null; then
     if ! docker image inspect maars-sandbox:latest &>/dev/null; then
         echo -e "  Building sandbox image (first time only)..."
@@ -86,12 +91,16 @@ else
     echo -e "  ${YELLOW}Docker not found. Code execution in sandbox will be unavailable.${NC}"
 fi
 
-# --- Start server ---
+# --- 6. Start server ---
 echo
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Starting MAARS on http://localhost:8000${NC}"
 echo -e "${GREEN}  Press Ctrl+C to stop.${NC}"
 echo -e "${GREEN}========================================${NC}"
+if [ -n "$ENV_WARNING" ]; then
+    echo
+    echo -e "  ${YELLOW}Note: ${ENV_WARNING}${NC}"
+fi
 echo
 
 # Open browser in app mode (separate window, auto-closable) or fall back to default

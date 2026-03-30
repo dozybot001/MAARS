@@ -1,5 +1,5 @@
 /* ── Slim progress bar ── */
-#pipeline-progress {
+.pipeline-progress {
   position: sticky;
   top: 0;
   z-index: 100;
@@ -117,8 +117,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%, 100% { box-shadow: 0 0 3px rgba(88, 166, 255, 0.3); }
+  50% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.6); }
 }
 
 .progress-node[data-state="failed"]::before {
@@ -133,13 +133,8 @@
   background: var(--green);
 }
 
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 3px rgba(88, 166, 255, 0.3); }
-  50% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.6); }
-}
-
 /* ── Command palette overlay ── */
-#cmd-overlay {
+.cmd-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -151,11 +146,7 @@
   backdrop-filter: blur(2px);
 }
 
-#cmd-overlay.hidden {
-  display: none;
-}
-
-#cmd-panel {
+.cmd-panel {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -167,7 +158,7 @@
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
-#cmd-panel input {
+.cmd-panel input {
   flex: 1;
   padding: 8px 12px;
   background: transparent;
@@ -178,7 +169,7 @@
   min-width: 0;
 }
 
-#cmd-panel button {
+.cmd-panel button {
   padding: 7px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -188,19 +179,16 @@
   white-space: nowrap;
   transition: all 0.15s;
   flex-shrink: 0;
-}
-
-#cmd-panel button {
   background: transparent;
   color: var(--text-secondary);
 }
 
-#cmd-panel button:hover:not(:disabled) {
+.cmd-panel button:hover:not(:disabled) {
   color: var(--accent);
   border-color: var(--accent);
 }
 
-#cmd-panel button:disabled {
+.cmd-panel button:disabled {
   opacity: 0.2;
   cursor: not-allowed;
 }
