@@ -134,6 +134,7 @@ function collapsePrevFold(parent) {
 }
 
 function resetPhaseState() {
+  for (const s of Object.values(callScrollers)) s.destroy()
   callBlocks = {}
   callScrollers = {}
   phaseGroups = {}
@@ -141,11 +142,15 @@ function resetPhaseState() {
   taskGroups = {}
 }
 
+function clearChildren(el) {
+  while (el && el.firstChild) el.removeChild(el.firstChild)
+}
+
 function resetAll() {
   activeStage = null
   currentSection = null
   resetPhaseState()
-  if (logOutput.value) logOutput.value.innerHTML = ''
+  clearChildren(logOutput.value)
   if (scroller) scroller.reset()
 }
 
@@ -304,5 +309,7 @@ onUnmounted(() => {
   eventBus.off('error', onError)
 
   if (activityInterval) clearInterval(activityInterval)
+  if (scroller) scroller.destroy()
+  for (const s of Object.values(callScrollers)) s.destroy()
 })
 </script>

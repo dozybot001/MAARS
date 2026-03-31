@@ -72,19 +72,18 @@ export function useAutoScroll(elRef) {
 /**
  * Standalone auto-scroller (not tied to Vue lifecycle).
  * Used for dynamically created DOM elements inside LogViewer.
+ * Call destroy() to remove event listeners when the element is discarded.
  */
 export function createAutoScroller(el) {
   let locked = true
 
-  el.addEventListener('wheel', () => {
+  function onUserScroll() {
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30
     locked = atBottom
-  }, { passive: true })
+  }
 
-  el.addEventListener('touchmove', () => {
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30
-    locked = atBottom
-  }, { passive: true })
+  el.addEventListener('wheel', onUserScroll, { passive: true })
+  el.addEventListener('touchmove', onUserScroll, { passive: true })
 
   return {
     scroll() {
@@ -96,6 +95,10 @@ export function createAutoScroller(el) {
     },
     isLocked() {
       return locked
+    },
+    destroy() {
+      el.removeEventListener('wheel', onUserScroll)
+      el.removeEventListener('touchmove', onUserScroll)
     },
   }
 }

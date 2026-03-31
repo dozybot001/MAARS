@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.db import ResearchDB
+from backend.db import ResearchDB, _current_task_id
 
 
 @pytest.fixture
@@ -72,6 +72,8 @@ class TestReadWrite:
     def test_missing_file_returns_empty(self, db):
         assert db.get_idea() == ""
         assert db.get_refined_idea() == ""
+        assert db.get_calibration() == ""
+        assert db.get_strategy() == ""
         assert db.get_plan_list() == ""
         assert db.get_task_output("nonexistent") == ""
 
@@ -110,40 +112,52 @@ class TestArtifacts:
         assert d.name == "task_1"
 
     def test_save_script(self, db):
-        db.current_task_id = "task_1"
-        path, name = db.save_script("print('hello')", "python")
-        assert name == "001.py"
-        assert path.read_text() == "print('hello')"
-        # Second script gets sequential numbering
-        path2, name2 = db.save_script("print('world')", "python")
-        assert name2 == "002.py"
+        token = _current_task_id.set("task_1")
+        try:
+            path, name = db.save_script("print('hello')", "python")
+            assert name == "001.py"
+            assert path.read_text() == "print('hello')"
+            # Second script gets sequential numbering
+            path2, name2 = db.save_script("print('world')", "python")
+            assert name2 == "002.py"
+        finally:
+            _current_task_id.reset(token)
 
     def test_promote_best_score(self, db):
-        db.current_task_id = "task_1"
-        task_dir = db.get_artifacts_dir("task_1")
-        (task_dir / "best_score.json").write_text(json.dumps({"score": 0.9}))
-        db.save_score_direction(minimize=False)
-        db.promote_best_score()
+        token = _current_task_id.set("task_1")
+        try:
+            task_dir = db.get_artifacts_dir("task_1")
+            (task_dir / "best_score.json").write_text(json.dumps({"score": 0.9}))
+            db.save_score_direction(minimize=False)
+            db.promote_best_score()
 
-        artifacts_root = db.get_artifacts_dir()
-        best = json.loads((artifacts_root / "best_score.json").read_text())
-        assert best["score"] == 0.9
+            artifacts_root = db.get_artifacts_dir()
+            best = json.loads((artifacts_root / "best_score.json").read_text())
+            assert best["score"] == 0.9
+        finally:
+            _current_task_id.reset(token)
 
     def test_promote_best_score_only_when_better(self, db):
         db.save_score_direction(minimize=False)
         artifacts_root = db.get_artifacts_dir()
 
         # First score: 0.9
-        db.current_task_id = "t1"
-        t1_dir = db.get_artifacts_dir("t1")
-        (t1_dir / "best_score.json").write_text(json.dumps({"score": 0.9}))
-        db.promote_best_score()
+        token = _current_task_id.set("t1")
+        try:
+            t1_dir = db.get_artifacts_dir("t1")
+            (t1_dir / "best_score.json").write_text(json.dumps({"score": 0.9}))
+            db.promote_best_score()
+        finally:
+            _current_task_id.reset(token)
 
         # Second score: 0.7 (worse for maximize)
-        db.current_task_id = "t2"
-        t2_dir = db.get_artifacts_dir("t2")
-        (t2_dir / "best_score.json").write_text(json.dumps({"score": 0.7}))
-        db.promote_best_score()
+        token = _current_task_id.set("t2")
+        try:
+            t2_dir = db.get_artifacts_dir("t2")
+            (t2_dir / "best_score.json").write_text(json.dumps({"score": 0.7}))
+            db.promote_best_score()
+        finally:
+            _current_task_id.reset(token)
 
         # best_score should still be 0.9
         best = json.loads((artifacts_root / "best_score.json").read_text())
@@ -151,6 +165,47 @@ class TestArtifacts:
         # latest_score should be 0.7
         latest = json.loads((artifacts_root / "latest_score.json").read_text())
         assert latest["score"] == 0.7
+
+
+    def test_promote_best_score_minimize(self, db):
+        """When minimize=True, a higher score (worse) should NOT be promoted."""
+        db.save_score_direction(minimize=True)
+        artifacts_root = db.get_artifacts_dir()
+
+        # First score: 0.5
+        token = _current_task_id.set("t1")
+        try:
+            t1_dir = db.get_artifacts_dir("t1")
+            (t1_dir / "best_score.json").write_text(json.dumps({"score": 0.5}))
+            db.promote_best_score()
+        finally:
+            _current_task_id.reset(token)
+
+        # Second score: 0.8 (worse for minimize)
+        token = _current_task_id.set("t2")
+        try:
+            t2_dir = db.get_artifacts_dir("t2")
+            (t2_dir / "best_score.json").write_text(json.dumps({"score": 0.8}))
+            db.promote_best_score()
+        finally:
+            _current_task_id.reset(token)
+
+        # best_score should still be 0.5 (lower is better)
+        best = json.loads((artifacts_root / "best_score.json").read_text())
+        assert best["score"] == 0.5
+
+        # Third score: 0.3 (better for minimize)
+        token = _current_task_id.set("t3")
+        try:
+            t3_dir = db.get_artifacts_dir("t3")
+            (t3_dir / "best_score.json").write_text(json.dumps({"score": 0.3}))
+            db.promote_best_score()
+        finally:
+            _current_task_id.reset(token)
+
+        # best_score should now be 0.3
+        best = json.loads((artifacts_root / "best_score.json").read_text())
+        assert best["score"] == 0.3
 
 
 class TestClearAndList:
@@ -236,7 +291,11 @@ class TestSessionManagement:
 
     def test_get_session_not_found(self, tmp_path):
         db = ResearchDB(base_dir=str(tmp_path))
-        assert db.get_session("nonexistent") is None
+        # Valid format but doesn't exist → None
+        assert db.get_session("20200101-000000") is None
+        # Invalid format → ValueError
+        with pytest.raises(ValueError):
+            db.get_session("nonexistent")
 
     def test_delete_session(self, tmp_path):
         db = ResearchDB(base_dir=str(tmp_path))
@@ -254,7 +313,11 @@ class TestSessionManagement:
 
     def test_delete_nonexistent_session(self, tmp_path):
         db = ResearchDB(base_dir=str(tmp_path))
-        assert db.delete_session("nonexistent") is False
+        # Valid format but doesn't exist → False
+        assert db.delete_session("20200101-000000") is False
+        # Invalid format → ValueError
+        with pytest.raises(ValueError):
+            db.delete_session("nonexistent")
 
     def test_get_session_with_evaluations(self, tmp_path):
         db = ResearchDB(base_dir=str(tmp_path))

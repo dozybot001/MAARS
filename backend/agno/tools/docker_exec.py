@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from backend.config import settings
-from backend.db import ResearchDB
+from backend.db import ResearchDB, _current_task_id
 
 
 # ---------------------------------------------------------------------------
@@ -89,26 +89,33 @@ _docker_lock = threading.Lock()
 _active_containers: list = []  # track running containers for graceful stop
 _containers_lock = threading.Lock()
 
-# Async concurrency limiter — created lazily (no event loop at import time)
-_async_semaphore: asyncio.Semaphore | None = None
+# Async concurrency limiter — created lazily (no event loop at import time).
+# Keyed by event loop to avoid cross-loop reuse.
+_async_semaphore: dict[int, asyncio.Semaphore] = {}
+_semaphore_lock = threading.Lock()
 
 
 def _get_semaphore() -> asyncio.Semaphore:
-    """Return the shared asyncio.Semaphore, creating it on first use."""
-    global _async_semaphore
-    if _async_semaphore is None:
-        _async_semaphore = asyncio.Semaphore(settings.docker_sandbox_concurrency)
-    return _async_semaphore
+    """Return the shared asyncio.Semaphore for the current event loop."""
+    loop_id = id(asyncio.get_running_loop())
+    if loop_id not in _async_semaphore:
+        with _semaphore_lock:
+            if loop_id not in _async_semaphore:
+                _async_semaphore[loop_id] = asyncio.Semaphore(
+                    settings.docker_sandbox_concurrency,
+                )
+    return _async_semaphore[loop_id]
 
 
 def kill_all_containers():
     """Kill all active containers. Called on pipeline pause/stop."""
     with _containers_lock:
-        for container in list(_active_containers):
-            try:
-                container.kill()
-            except Exception:
-                pass
+        snapshot = list(_active_containers)
+    for container in snapshot:
+        try:
+            container.kill()
+        except Exception:
+            pass
 
 
 def _get_docker_client():
@@ -165,13 +172,19 @@ def _run_container_sync(shell_cmd: str, volumes: dict) -> dict:
             result = container.wait(timeout=settings.docker_sandbox_timeout)
             exit_code = result["StatusCode"]
             timed_out = False
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError) as e:
             try:
                 container.kill()
             except Exception:
                 pass
             exit_code = -1
             timed_out = True
+        except Exception as e:
+            try:
+                container.kill()
+            except Exception:
+                pass
+            return {"error": f"Docker error during container wait: {e}"}
 
         stdout = container.logs(stdout=True, stderr=False).decode("utf-8", errors="replace")
         stderr = container.logs(stdout=False, stderr=True).decode("utf-8", errors="replace")
@@ -227,7 +240,7 @@ def create_docker_tools(db: ResearchDB) -> list:
 
         # Track for reproduce file generation
         db.execution_log.append({
-            "task_id": db.current_task_id or "",
+            "task_id": _current_task_id.get() or "",
             "script": script_name,
             "language": language,
             "requirements": requirements.strip(),
@@ -281,7 +294,7 @@ def create_docker_tools(db: ResearchDB) -> list:
     def list_artifacts() -> str:
         """List all files in the current task's artifacts directory."""
         try:
-            artifacts_dir = db.get_artifacts_dir(db.current_task_id)
+            artifacts_dir = db.get_artifacts_dir(_current_task_id.get())
         except RuntimeError:
             return "No active research session."
 

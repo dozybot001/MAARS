@@ -7,8 +7,8 @@ and result evaluation into a single iterative stage.
 from __future__ import annotations
 
 import asyncio
-import contextvars
 import json
+import logging
 
 from backend.config import settings
 from backend.pipeline.stage import AgentStage, StageState
@@ -17,14 +17,10 @@ from backend.pipeline.prompts import (
     CALIBRATE_SYSTEM, EVALUATE_SYSTEM, REPLAN_SYSTEM, STRATEGY_SYSTEM,
     build_execute_prompt, build_verify_prompt, build_retry_prompt,
 )
+from backend.db import _current_task_id
 from backend.utils import parse_json_fenced
 
-# Per-coroutine task ID tracking for parallel execution.
-# When set, ResearchStage._emit() injects task_id into all SSE events
-# so the frontend can group chunks by task.
-_current_task_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "_current_task_id", default=None,
-)
+logger = logging.getLogger(__name__)
 
 
 class _RedecomposeNeeded(Exception):
@@ -310,6 +306,10 @@ class ResearchStage(AgentStage):
                     "meta": {"score": current_score, "suggestions": evaluation.get("suggestions", [])},
                 })
 
+                # Clear redecompose bookkeeping from this iteration to free memory
+                self._partial_outputs.clear()
+                self._redecompose_parent.clear()
+
                 # Replan: one LLM call that sees all completed work + feedback
                 # and decides what tasks to add. NOT a full re-decompose.
                 new_tasks = await self._replan(idea, evaluation, my_run_id)
@@ -374,13 +374,17 @@ class ResearchStage(AgentStage):
     # Task execution
     # ------------------------------------------------------------------
 
+    _MAX_REDECOMPOSE_ROUNDS = 5  # prevent infinite redecompose loops
+
     async def _execute_all_tasks(self, my_run_id: int) -> bool:
         """Execute all pending tasks in topological batches.
         Returns True if any task had a hard failure.
 
         When a task triggers redecompose, it is replaced by subtasks
         and the batch loop restarts with an updated task list.
+        Restarts are capped at _MAX_REDECOMPOSE_ROUNDS to prevent infinite loops.
         """
+        redecompose_rounds = 0
         while True:
             batches = topological_batches(self._all_tasks)
 
@@ -448,6 +452,15 @@ class ResearchStage(AgentStage):
                                     ] + subtask_ids
 
                             had_redecompose = True
+                            redecompose_rounds += 1
+                            if redecompose_rounds >= self._MAX_REDECOMPOSE_ROUNDS:
+                                self._emit("error", {
+                                    "message": f"Redecompose limit reached ({self._MAX_REDECOMPOSE_ROUNDS} rounds). "
+                                               f"Stopping to prevent infinite loop.",
+                                })
+                                self.state = StageState.FAILED
+                                self._emit("state", self.state.value)
+                                return True
                         else:
                             self._emit("task_state", {"task_id": task["id"], "status": "failed"})
                             self.state = StageState.FAILED
@@ -476,12 +489,10 @@ class ResearchStage(AgentStage):
         """Execute a single task: run → verify → retry or redecompose."""
         task_id = task["id"]
         token = _current_task_id.set(task_id)
-        self.db.current_task_id = task_id
         try:
             return await self._execute_task_inner(task, my_run_id)
         finally:
             _current_task_id.reset(token)
-            self.db.current_task_id = None
 
     async def _execute_task_inner(self, task: dict, my_run_id: int) -> str:
         """Inner implementation of _execute_task (with task_id context set)."""
@@ -558,9 +569,12 @@ class ResearchStage(AgentStage):
 
     def _parse_verification(self, response: str) -> tuple[bool, str, str, bool]:
         """Parse verification JSON response. Returns (passed, review, summary, redecompose)."""
-        data = parse_json_fenced(response, fallback={"pass": True})
+        data = parse_json_fenced(response, fallback=None)
+        if data is None:
+            logger.warning("Verification response is not valid JSON, treating as failed: %.200s", response)
+            return (False, "Verification response was not valid JSON", "", False)
         return (
-            data.get("pass", True),
+            data.get("pass", False),
             data.get("review", ""),
             data.get("summary", ""),
             data.get("redecompose", False),
@@ -676,7 +690,7 @@ class ResearchStage(AgentStage):
         if not score_file.exists():
             return False, None
         try:
-            data = json.loads(score_file.read_text())
+            data = json.loads(score_file.read_text(encoding="utf-8"))
             current = float(data.get("score", 0))
         except (json.JSONDecodeError, ValueError, TypeError):
             return False, None

@@ -61,6 +61,8 @@ function dispatch(store, eventType, dataStr) {
 export function useSSE() {
   let controller = null
   let reconnectTimer = null
+  let reconnectDelay = 2000     // start at 2s
+  const MAX_RECONNECT_DELAY = 30000  // cap at 30s
 
   async function connect() {
     disconnect()
@@ -70,24 +72,35 @@ export function useSSE() {
     const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
 
     controller = new AbortController()
+    const connectTimeout = setTimeout(() => controller.abort(), 30000)
 
     try {
       const res = await fetch('/api/events', {
         headers,
         signal: controller.signal,
       })
+      clearTimeout(connectTimeout)
       if (!res.ok || !res.body) {
         scheduleReconnect()
         return
       }
+
+      reconnectDelay = 2000  // reset backoff on successful connection
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
       let currentEvent = ''
       let currentData = ''
+      let readTimeout = null
+
+      function resetReadTimeout() {
+        if (readTimeout) clearTimeout(readTimeout)
+        readTimeout = setTimeout(() => controller && controller.abort(), 45000)
+      }
 
       while (true) {
+        resetReadTimeout()
         const { done, value } = await reader.read()
         if (done) break
 
@@ -99,7 +112,9 @@ export function useSSE() {
           if (line.startsWith('event:')) {
             currentEvent = line.slice(6).trim()
           } else if (line.startsWith('data:')) {
-            currentData = line.slice(5).trim()
+            // SSE spec: multiple data: lines are joined with '\n'
+            const d = line.slice(5).trim()
+            currentData = currentData ? currentData + '\n' + d : d
           } else if (line === '' && currentEvent && currentData) {
             dispatch(store, currentEvent, currentData)
             currentEvent = ''
@@ -108,6 +123,7 @@ export function useSSE() {
         }
       }
 
+      if (readTimeout) clearTimeout(readTimeout)
       // Stream ended normally — server closed connection, try reconnect
       scheduleReconnect()
     } catch (err) {
@@ -120,10 +136,12 @@ export function useSSE() {
 
   function scheduleReconnect() {
     if (reconnectTimer) return
+    const delay = reconnectDelay
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
       connect()
-    }, 2000)
+    }, delay)
   }
 
   function disconnect() {

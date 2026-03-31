@@ -1,13 +1,21 @@
 import asyncio
+import logging
 
 from backend.db import ResearchDB
 from backend.pipeline.stage import Stage, StageState
+
+logger = logging.getLogger(__name__)
 
 STAGE_ORDER = ["refine", "research", "write"]
 
 
 class PipelineOrchestrator:
-    """Manages the research pipeline: Refine → Research → Write."""
+    """Manages the research pipeline: Refine → Research → Write.
+
+    NOTE: Currently supports a single concurrent session. Starting a new
+    pipeline cancels any running session. Multi-session support would
+    require a session_id → orchestrator mapping.
+    """
 
     def __init__(self, stages: dict[str, Stage] | None = None):
         self.research_input = ""
@@ -27,8 +35,9 @@ class PipelineOrchestrator:
         # Wire all stages (and their clients) to broadcast through us
         self._wire_broadcast()
 
-        # Track background tasks
+        # Track background tasks — guarded by _tasks_lock
         self._tasks: dict[str, asyncio.Task] = {}
+        self._tasks_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # SSE subscriber management
@@ -48,12 +57,16 @@ class PipelineOrchestrator:
             pass
 
     def _broadcast(self, event: dict):
-        """Push an event to every active subscriber. Drop if queue full."""
-        for q in self._subscribers:
+        """Push an event to every active subscriber. Drop if queue full.
+
+        Iterates a snapshot of the subscriber list so that concurrent
+        subscribe/unsubscribe calls cannot mutate the list mid-iteration.
+        """
+        for q in list(self._subscribers):
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:
-                pass
+                logger.warning("SSE subscriber queue full, dropping event: %s", event.get("type", "?"))
         # Persist to log.jsonl
         self.db.append_log(event)
 
@@ -68,7 +81,8 @@ class PipelineOrchestrator:
 
     async def _cancel_task(self, key: str):
         """Cancel a tracked task and wait for it to finish."""
-        task = self._tasks.pop(key, None)
+        async with self._tasks_lock:
+            task = self._tasks.pop(key, None)
         if task is not None and not task.done():
             task.cancel()
             try:
@@ -78,7 +92,8 @@ class PipelineOrchestrator:
 
     async def _cancel_all_tasks(self):
         """Cancel all tracked tasks."""
-        keys = list(self._tasks.keys())
+        async with self._tasks_lock:
+            keys = list(self._tasks.keys())
         for key in keys:
             await self._cancel_task(key)
 
@@ -119,7 +134,8 @@ class PipelineOrchestrator:
             self._reset_stages()
             task = asyncio.create_task(self._run_from("refine"))
 
-        self._tasks["pipeline"] = task
+        async with self._tasks_lock:
+            self._tasks["pipeline"] = task
 
     def _reset_stages(self):
         """Reset all stages for a fresh run."""
@@ -240,7 +256,8 @@ class PipelineOrchestrator:
         if hasattr(target, "rounds"):
             target.rounds = []
         task = asyncio.create_task(self._run_from(start_from))
-        self._tasks["pipeline"] = task
+        async with self._tasks_lock:
+            self._tasks["pipeline"] = task
 
     # ------------------------------------------------------------------
     # Status

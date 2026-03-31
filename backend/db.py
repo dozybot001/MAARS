@@ -28,12 +28,52 @@ Each research session gets a unique folder:
 
 from pathlib import Path
 from datetime import datetime
+import contextvars
 import json
 import os
 import re
 import shutil
 import tempfile
 import threading
+
+
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_SESSION_ID_RE = re.compile(r"^\d{8}-\d{6}[A-Za-z0-9_-]*$")
+
+# Per-coroutine task ID tracking for parallel execution.
+# Set by ResearchStage._execute_task(); read by save_script() and
+# promote_best_score() so that concurrent tasks write to the correct
+# artifacts directory without sharing mutable instance state.
+_current_task_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "db_current_task_id", default=None,
+)
+
+
+def _sanitize_id(raw: str) -> str:
+    """Make an arbitrary ID filesystem-safe.
+
+    Strips path separators, .., and any characters outside [A-Za-z0-9._-].
+    Raises ValueError if the result is empty.
+    """
+    cleaned = raw.replace("\\", "_").replace("/", "_")
+    cleaned = cleaned.replace("..", "_")
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", cleaned)
+    cleaned = cleaned.strip("._- ")
+    if not cleaned:
+        raise ValueError(f"ID sanitizes to empty string: {raw!r}")
+    return cleaned
+
+
+def _validate_session_id(session_id: str) -> str:
+    """Validate that a session ID looks like YYYYMMDD-HHMMSS[-slug].
+
+    Raises ValueError on invalid format or path-traversal attempts.
+    """
+    if not _SESSION_ID_RE.match(session_id):
+        raise ValueError(f"Invalid session ID format: {session_id!r}")
+    if ".." in session_id or "/" in session_id or "\\" in session_id:
+        raise ValueError(f"Invalid session ID: {session_id!r}")
+    return session_id
 
 
 class ResearchDB:
@@ -49,8 +89,9 @@ class ResearchDB:
         self._root: Path | None = None
         self.research_id: str = ""
         self.execution_log: list[dict] = []
-        self.current_task_id: str | None = None  # set during task execution
         self._write_lock = threading.Lock()  # guards shared-file read-modify-write
+        self._log_lock = threading.Lock()    # guards _log_buffer access
+        self._log_buffer: list[str] = []
 
     # --- Atomic write ---
 
@@ -75,6 +116,7 @@ class ResearchDB:
 
     def create_session(self, idea: str = "") -> str:
         """Create a new research folder. Returns the research ID."""
+        self._flush_log()
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         slug = self._slugify(idea)
         self.research_id = f"{timestamp}-{slug}" if slug else timestamp
@@ -90,15 +132,39 @@ class ResearchDB:
     # --- Event log (append-only JSONL) ---
 
     def append_log(self, event: dict):
-        """Append a broadcast event to log.jsonl."""
+        """Append a broadcast event to log.jsonl.
+
+        Writes are buffered in memory and flushed periodically or on
+        read to avoid blocking the event loop on every SSE event.
+        Thread-safe: all buffer access is guarded by _log_lock.
+        """
         if not self._root:
             return
         line = json.dumps(event, ensure_ascii=False) + "\n"
+        with self._log_lock:
+            self._log_buffer.append(line)
+            if len(self._log_buffer) >= self._LOG_FLUSH_SIZE:
+                self._flush_log_unlocked()
+
+    _LOG_FLUSH_SIZE = 20
+
+    def _flush_log(self):
+        """Flush buffered log lines to disk (acquires _log_lock)."""
+        with self._log_lock:
+            self._flush_log_unlocked()
+
+    def _flush_log_unlocked(self):
+        """Write buffered log lines to disk. Caller must hold _log_lock."""
+        if not self._root or not self._log_buffer:
+            return
+        data = "".join(self._log_buffer)
+        self._log_buffer.clear()
         with open(self._root / "log.jsonl", "a", encoding="utf-8") as f:
-            f.write(line)
+            f.write(data)
 
     def read_log(self) -> list[dict]:
         """Read all log events from log.jsonl."""
+        self._flush_log()
         if not self._root:
             return []
         path = self._root / "log.jsonl"
@@ -142,7 +208,7 @@ class ResearchDB:
 
     def save_task_output(self, task_id: str, text: str):
         self._ensure_root()
-        safe_id = task_id.replace("/", "_")
+        safe_id = _sanitize_id(task_id)
         self._atomic_write(self._root / "tasks" / f"{safe_id}.md", text)
 
     # --- Read ---
@@ -154,7 +220,7 @@ class ResearchDB:
 
     def get_task_output(self, task_id: str) -> str:
         self._ensure_root()
-        safe_id = task_id.replace("/", "_")
+        safe_id = _sanitize_id(task_id)
         path = self._root / "tasks" / f"{safe_id}.md"
         return path.read_text(encoding="utf-8") if path.exists() else ""
 
@@ -220,7 +286,7 @@ class ResearchDB:
         artifacts = self._root / "artifacts"
         artifacts.mkdir(exist_ok=True)
         if task_id:
-            safe_id = task_id.replace("/", "_")
+            safe_id = _sanitize_id(task_id)
             task_dir = artifacts / safe_id
             task_dir.mkdir(exist_ok=True)
             return task_dir
@@ -352,7 +418,7 @@ class ResearchDB:
         Returns (script_path, script_name).
         """
         self._ensure_root()
-        task_dir = self.get_artifacts_dir(self.current_task_id)
+        task_dir = self.get_artifacts_dir(_current_task_id.get())
         ext = ".py" if language == "python" else ".r"
         existing = sorted(task_dir.glob(f"*{ext}"))
         seq = len(existing) + 1
@@ -370,19 +436,19 @@ class ResearchDB:
 
         Thread-safe: locked to prevent concurrent promote calls from racing.
         """
-        if not self.current_task_id:
+        task_id = _current_task_id.get()
+        if not task_id:
             return
-        task_dir = self.get_artifacts_dir(self.current_task_id)
+        task_dir = self.get_artifacts_dir(task_id)
         task_score_path = task_dir / "best_score.json"
         if not task_score_path.exists():
             return
         try:
-            task_data = json.loads(task_score_path.read_text(encoding="utf-8"))
+            task_content = task_score_path.read_text(encoding="utf-8")
+            task_data = json.loads(task_content)
             task_score = float(task_data.get("score", 0))
         except (json.JSONDecodeError, ValueError, TypeError):
             return
-
-        task_content = task_score_path.read_text(encoding="utf-8")
 
         with self._write_lock:
             artifacts_root = self.get_artifacts_dir()
@@ -433,6 +499,7 @@ class ResearchDB:
 
     def get_session(self, session_id: str) -> dict | None:
         """Get detailed info for a specific session."""
+        session_id = _validate_session_id(session_id)
         session_dir = self._base / session_id
         if not session_dir.is_dir():
             return None
@@ -477,6 +544,7 @@ class ResearchDB:
         """
         from backend.pipeline.research import topological_batches
 
+        session_id = _validate_session_id(session_id)
         d = self._base / session_id
         if not d.is_dir():
             return None
@@ -666,6 +734,7 @@ class ResearchDB:
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session and all its files. Returns True if deleted."""
+        session_id = _validate_session_id(session_id)
         session_dir = self._base / session_id
         if not session_dir.is_dir():
             return False

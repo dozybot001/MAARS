@@ -67,8 +67,12 @@ class TestGetSession:
 
     def test_get_not_found(self, app_with_sessions):
         client, _, _ = app_with_sessions
-        resp = client.get("/api/sessions/nonexistent")
+        # Valid format but doesn't exist → 404
+        resp = client.get("/api/sessions/20200101-000000")
         assert resp.status_code == 404
+        # Invalid format → 400
+        resp = client.get("/api/sessions/nonexistent")
+        assert resp.status_code == 400
 
 
 class TestGetSessionState:
@@ -163,6 +167,7 @@ class TestGetSessionState:
         client = TestClient(app)
 
         resp = client.get(f"/api/sessions/{sid}/state")
+        assert resp.status_code == 200
         state = resp.json()
         assert state["stage_states"]["refine"] == "completed"
         assert state["stage_states"]["research"] == "idle"
@@ -173,8 +178,12 @@ class TestGetSessionState:
 
     def test_state_not_found(self, app_with_sessions):
         client, _, _ = app_with_sessions
-        resp = client.get("/api/sessions/nonexistent/state")
+        # Valid format but doesn't exist → 404
+        resp = client.get("/api/sessions/20200101-000000/state")
         assert resp.status_code == 404
+        # Invalid format → 400
+        resp = client.get("/api/sessions/nonexistent/state")
+        assert resp.status_code == 400
 
 
 class TestDeleteSession:
@@ -190,8 +199,12 @@ class TestDeleteSession:
 
     def test_delete_not_found(self, app_with_sessions):
         client, _, _ = app_with_sessions
+        # Invalid format → 400
         resp = client.delete("/api/sessions/nonexistent")
         assert resp.status_code == 400
+        # Valid format but doesn't exist → 404
+        resp = client.delete("/api/sessions/20200101-000000")
+        assert resp.status_code == 404
 
 
 class TestAPIKeyAuth:
@@ -211,39 +224,35 @@ class TestAPIKeyAuth:
         resp = client.get("/api/sessions")
         assert resp.status_code == 200
 
-    def test_key_blocks_without_bearer(self, tmp_path):
+    def test_key_blocks_without_bearer(self, tmp_path, monkeypatch):
         """With MAARS_API_KEY set, missing auth returns 401."""
         from fastapi import FastAPI
         from backend.main import APIKeyMiddleware
         from backend.routes.sessions import router
+        import backend.config as cfg
+
+        monkeypatch.setattr(cfg.settings, "api_key", "test-secret")
 
         app = FastAPI()
-        # Manually add middleware with a test key
-        import backend.config as cfg
-        original_key = cfg.settings.api_key
-        cfg.settings.api_key = "test-secret"
-        try:
-            app.add_middleware(APIKeyMiddleware)
-            app.include_router(router)
+        app.add_middleware(APIKeyMiddleware)
+        app.include_router(router)
 
-            class MockOrch:
-                db = ResearchDB(base_dir=str(tmp_path))
+        class MockOrch:
+            db = ResearchDB(base_dir=str(tmp_path))
 
-            app.state.orchestrator = MockOrch()
-            client = TestClient(app)
+        app.state.orchestrator = MockOrch()
+        client = TestClient(app)
 
-            resp = client.get("/api/sessions")
-            assert resp.status_code == 401
+        resp = client.get("/api/sessions")
+        assert resp.status_code == 401
 
-            # With correct Bearer token
-            resp = client.get(
-                "/api/sessions",
-                headers={"Authorization": "Bearer test-secret"},
-            )
-            assert resp.status_code == 200
+        # With correct Bearer token
+        resp = client.get(
+            "/api/sessions",
+            headers={"Authorization": "Bearer test-secret"},
+        )
+        assert resp.status_code == 200
 
-            # Query token no longer accepted — must use header
-            resp = client.get("/api/sessions?token=test-secret")
-            assert resp.status_code == 401
-        finally:
-            cfg.settings.api_key = original_key
+        # Query token no longer accepted — must use header
+        resp = client.get("/api/sessions?token=test-secret")
+        assert resp.status_code == 401
