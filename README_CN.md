@@ -39,15 +39,15 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    UI["前端 UI · SSE"] --> API["FastAPI → 编排器"]
+    UI["Vue 3 前端 · SSE"] --> API["FastAPI → 编排器"]
 
     API --> REF["① 精炼\nTeam: Explorer + Critic"]
     API --> RES["② 研究\nAgentic Workflow"]
-    API --> WRI["③ 写作\nTeam: Writer + Reviewer"]
+    API --> WRI["③ 写作\n混合式: Writer Agent + Reviewer Agent"]
 
     REF -- "refined_idea.md" --> DB
     RES -- "tasks/ · artifacts/" --> DB
-    WRI -- "paper.md" --> DB
+    WRI -- "outline · sections · paper.md" --> DB
     DB[(Session DB\nresults/id/)]
 
     REF & RES & WRI --> AGNO["Agno · Google · Anthropic · OpenAI\nSearch · arXiv · Docker 沙箱"]
@@ -56,8 +56,6 @@ flowchart TB
 核心设计原则：**确定性控制交给 runtime，开放性执行交给 agent。**
 
 MAARS 是一个**混合式多智能体系统**：精炼和写作阶段使用 Agno Team coordinate 模式（多 agent 协作），研究阶段使用 runtime 驱动的 agentic workflow。三个阶段仅通过文件型会话 DB 通信——完全解耦。
-
-如果用 [harness engineering](https://openai.com/index/harness-engineering/)（OpenAI, 2026）的视角来看，MAARS 做的是同一类工作 — 状态外化、工具边界、验证回路、反馈循环 — 但作用在 **research-task 级别**，而非 OpenAI 所描述的 repo 级别。
 
 | 阶段 | 模式 | 做什么 |
 |------|------|-------|
@@ -89,8 +87,26 @@ refined_idea.md
 - **Docker 沙箱执行** — 真实代码在隔离容器中运行，预装 ML 工具栈
 - **DAG 调度** — 任务按依赖顺序执行，安全时并行化
 - **自动重分解** — 任务过于复杂时自动拆分为子任务
-- **带评分的迭代** — 跨轮次跟踪 `best_score.json`，改进停滞时自动停止
+- **带评分的迭代** — 跨轮次跟踪分数，改进停滞时自动停止
 - **断点续跑** — 可以中途暂停，稍后恢复，所有状态完整保留
+
+## 写作流水线详解
+
+Write 阶段与 Refine 对称，使用 Agno Team coordinate 模式（Leader + Writer + Reviewer）：
+
+```
+研究产出 (tasks/, artifacts/, refined_idea.md)
+  ↓
+Leader → 委派 Writer（通过工具读取所有任务产出，写完整初稿）
+Leader → 委派 Reviewer（批判性审查初稿）
+Leader → 委派 Writer（根据反馈修订终稿）
+  ↓
+paper.md
+```
+
+- **Writer** 有工具访问（`read_task_output`、`list_artifacts`、`read_refined_idea`、搜索工具）——按需读取研究产出
+- **Reviewer** 从结构、完整性、深度、准确性、可读性等维度审稿——无工具
+- **Leader** 编排委派顺序：Writer → Reviewer → Writer
 
 ## Kaggle 模式
 
@@ -119,16 +135,25 @@ MAARS_GOOGLE_MODEL=gemini-2.5-flash
 
 # MAARS_OPENAI_API_KEY=your-key
 # MAARS_OPENAI_MODEL=gpt-4o
+
+# 按阶段覆盖模型（可选）
+# MAARS_WRITE_PROVIDER=anthropic
+# MAARS_WRITE_MODEL=claude-sonnet-4-5-20250514
 ```
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `MAARS_MODEL_PROVIDER` | `google` | LLM 提供商：`google`、`anthropic` 或 `openai` |
+| `MAARS_{STAGE}_PROVIDER` | — | 按阶段覆盖提供商（refine/research/write） |
+| `MAARS_{STAGE}_MODEL` | — | 按阶段覆盖模型 |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | 最大评估迭代轮数（1 = 不迭代） |
 | `MAARS_DOCKER_SANDBOX_TIMEOUT` | `600` | 单容器超时时间（秒） |
 | `MAARS_DOCKER_SANDBOX_MEMORY` | `4g` | 单容器内存限制 |
 | `MAARS_DOCKER_SANDBOX_CONCURRENCY` | `2` | 最大并行容器数（即并行任务数） |
 | `MAARS_KAGGLE_API_TOKEN` | — | Kaggle API token（或使用 `~/.kaggle/kaggle.json`） |
+| `MAARS_API_KEY` | — | API 认证密钥（非 localhost 部署时建议设置） |
+
+> **安全提示**：未设置 `MAARS_API_KEY` 时 API 无认证保护。在非本机环境暴露服务前请务必设置。
 
 ## 产出结构
 
@@ -145,11 +170,11 @@ results/{timestamp}-{slug}/
 ├── tasks/                   # 各任务输出（markdown）
 ├── artifacts/               # 代码脚本、图表、CSV、模型
 │   ├── {task_id}/           # 每任务工作目录
+│   ├── latest_score.json    # 最近一次分数
 │   └── best_score.json      # 全局最佳分数追踪
 ├── evaluations/             # 迭代评估结果
-│   ├── eval_v0.json
-│   └── eval_v1.json
 ├── paper.md                 # 最终论文
+├── log.jsonl                # 追加式 SSE 事件日志（可回放）
 └── reproduce/               # 自动生成的复现文件
     ├── Dockerfile
     ├── run.sh
@@ -158,12 +183,13 @@ results/{timestamp}-{slug}/
 
 ## 前端
 
-Web UI 通过 SSE 提供实时观测：
+Web UI 基于 Vue 3 + Pinia + Vite 构建，通过 SSE 提供实时观测：
 
 - **进度条** — 7 阶段流水线可视化（精炼 → 校准 → 策略 → 分解 → 执行 → 评估 → 写作）
 - **命令面板** (Ctrl+K) — 启动、暂停、恢复流水线
 - **推理日志** — 实时流式展示 LLM 推理过程、工具调用和返回结果
-- **过程查看器** — 任务树、执行批次、产物、文档
+- **过程查看器** — 任务分解树、执行批次、产物、文档
+- **会话侧边栏** — 浏览、恢复、删除历史会话
 - **Docker 状态** — 沙箱连接指示器
 
 ## 技术栈
@@ -171,18 +197,21 @@ Web UI 通过 SSE 提供实时观测：
 | 组件 | 技术 |
 |------|------|
 | 后端 | FastAPI, Python async |
-| Agent 框架 | Agno（Team coordinate 模式 + 单 Client workflow） |
+| Agent 框架 | Agno（Team coordinate 模式 + 单 Client agentic workflow） |
 | LLM 提供商 | Google Gemini, Anthropic Claude, OpenAI GPT |
 | 代码执行 | Docker 容器（Python 3.12 + ML 工具栈） |
-| 前端 | 原生 JS, SSE, 无构建步骤 |
+| 前端 | Vue 3, Pinia, Vite |
+| 通信 | SSE（Server-Sent Events），Authorization header 认证 |
 | 存储 | 文件型会话 DB |
 | 搜索工具 | DuckDuckGo, arXiv, Wikipedia |
+| CI | GitHub Actions（Python lint + test, 前端构建） |
 
 ## 文档
 
 | 文档 | 内容 |
 |------|------|
-| [架构设计](docs/CN/architecture.md) | 系统设计理念与演进策略 |
+| [架构设计](docs/CN/architecture.md) | 系统设计理念与架构决策 |
+| [路线图](docs/ROADMAP.md) | 优先级排序的改进事项与状态 |
 
 ## 社区
 

@@ -39,15 +39,15 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    UI["Frontend UI · SSE"] --> API["FastAPI → Orchestrator"]
+    UI["Vue 3 Frontend · SSE"] --> API["FastAPI → Orchestrator"]
 
     API --> REF["① Refine\nTeam: Explorer + Critic"]
     API --> RES["② Research\nAgentic Workflow"]
-    API --> WRI["③ Write\nTeam: Writer + Reviewer"]
+    API --> WRI["③ Write\nHybrid: Writer Agent + Reviewer Agent"]
 
     REF -- "refined_idea.md" --> DB
     RES -- "tasks/ · artifacts/" --> DB
-    WRI -- "paper.md" --> DB
+    WRI -- "outline · sections · paper.md" --> DB
     DB[(Session DB\nresults/id/)]
 
     REF & RES & WRI --> AGNO["Agno · Google · Anthropic · OpenAI\nSearch · arXiv · Docker Sandbox"]
@@ -55,9 +55,9 @@ flowchart TB
 
 The core design principle: **deterministic control stays in the runtime; open-ended execution goes to agents.**
 
-MAARS is a **hybrid multi-agent system**: Refine and Write use Agno Team coordinate mode (multi-agent collaboration), while Research uses a runtime-controlled agentic workflow. The three stages communicate only through the file-based session DB — they are fully decoupled.
+MAARS is a **hybrid multi-agent system**. All three stages combine runtime control with agent intelligence, but in different proportions:
 
-If you think in terms of [harness engineering](https://openai.com/index/harness-engineering/) (OpenAI, 2026), MAARS applies the same ideas — externalized state, tool boundaries, verification loops, feedback cycles — but at the **research-task level** rather than the repo-level scope OpenAI describes.
+MAARS is a **hybrid multi-agent system**: Refine and Write use Agno Team coordinate mode (multi-agent collaboration), while Research uses a runtime-controlled agentic workflow. The three stages communicate only through the file-based session DB — they are fully decoupled.
 
 | Stage | Mode | What it does |
 |-------|------|-------------|
@@ -89,8 +89,26 @@ Key capabilities:
 - **Docker sandbox execution** — real code runs in isolated containers with pre-loaded ML stack
 - **DAG scheduling** — tasks respect dependency order, parallelize where safe
 - **Automatic redecomposition** — if a task is too complex, it splits into subtasks
-- **Iteration with scoring** — tracks `best_score.json` across rounds, stops when improvement plateaus
+- **Iteration with scoring** — tracks scores across rounds, stops when improvement plateaus
 - **Checkpoint/resume** — pause mid-run, resume later with all state preserved
+
+## Write Pipeline Detail
+
+The Write stage mirrors Refine's architecture — Agno Team coordinate mode with Leader + Writer + Reviewer:
+
+```
+Research outputs (tasks/, artifacts/, refined_idea.md)
+  ↓
+Leader → delegates to Writer (reads all task outputs via tools, writes complete draft)
+Leader → delegates to Reviewer (critically reviews the draft)
+Leader → delegates to Writer (revises based on feedback)
+  ↓
+paper.md
+```
+
+- **Writer** has tool access (`read_task_output`, `list_artifacts`, `read_refined_idea`, search tools) — reads research outputs on demand
+- **Reviewer** evaluates structure, completeness, depth, accuracy, readability — no tools
+- **Leader** orchestrates delegation order: Writer → Reviewer → Writer
 
 ## Kaggle Mode
 
@@ -119,16 +137,25 @@ MAARS_GOOGLE_MODEL=gemini-2.5-flash
 
 # MAARS_OPENAI_API_KEY=your-key
 # MAARS_OPENAI_MODEL=gpt-4o
+
+# Per-stage model overrides (optional)
+# MAARS_WRITE_PROVIDER=anthropic
+# MAARS_WRITE_MODEL=claude-sonnet-4-5-20250514
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `MAARS_MODEL_PROVIDER` | `google` | LLM provider: `google`, `anthropic`, or `openai` |
+| `MAARS_{STAGE}_PROVIDER` | — | Per-stage provider override (refine/research/write) |
+| `MAARS_{STAGE}_MODEL` | — | Per-stage model override |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Max evaluation loops (1 = no iteration) |
 | `MAARS_DOCKER_SANDBOX_TIMEOUT` | `600` | Per-container timeout in seconds |
 | `MAARS_DOCKER_SANDBOX_MEMORY` | `4g` | Memory limit per container |
 | `MAARS_DOCKER_SANDBOX_CONCURRENCY` | `2` | Max parallel containers (and parallel tasks) |
 | `MAARS_KAGGLE_API_TOKEN` | — | Kaggle API token (or use `~/.kaggle/kaggle.json`) |
+| `MAARS_API_KEY` | — | API authentication key (recommended for non-localhost) |
+
+> **Security note**: If `MAARS_API_KEY` is not set, the API is open without authentication. Set it before exposing the service on a network.
 
 ## Output Structure
 
@@ -145,11 +172,11 @@ results/{timestamp}-{slug}/
 ├── tasks/                   # Individual task outputs (markdown)
 ├── artifacts/               # Code scripts, plots, CSVs, models
 │   ├── {task_id}/           # Per-task working directory
+│   ├── latest_score.json    # Most recent score
 │   └── best_score.json      # Global best score tracker
 ├── evaluations/             # Iteration evaluation results
-│   ├── eval_v0.json
-│   └── eval_v1.json
 ├── paper.md                 # Final research paper
+├── log.jsonl                # Append-only SSE event log (replayable)
 └── reproduce/               # Auto-generated reproduction files
     ├── Dockerfile
     ├── run.sh
@@ -158,12 +185,13 @@ results/{timestamp}-{slug}/
 
 ## Frontend
 
-The web UI provides real-time observability via SSE:
+The web UI is built with Vue 3 + Pinia + Vite, providing real-time observability via SSE:
 
 - **Progress bar** — 7-stage pipeline visualization (Refine → Calibrate → Strategy → Decompose → Execute → Evaluate → Write)
 - **Command palette** (Ctrl+K) — start, pause, resume pipeline
 - **Reasoning log** — live-streamed LLM reasoning, tool calls, and results
-- **Process viewer** — task tree, execution batches, artifacts, documents
+- **Process viewer** — task decomposition tree, execution batches, artifacts, documents
+- **Session drawer** — browse, restore, and delete past sessions
 - **Docker status** — sandbox connectivity indicator
 
 ## Tech Stack
@@ -171,18 +199,21 @@ The web UI provides real-time observability via SSE:
 | Component | Technology |
 |-----------|-----------|
 | Backend | FastAPI, Python async |
-| Agent framework | Agno (Team coordinate mode + single-client workflow) |
+| Agent framework | Agno (Team coordinate mode + single-client agentic workflow) |
 | LLM providers | Google Gemini, Anthropic Claude, OpenAI GPT |
 | Code execution | Docker containers (Python 3.12 + ML stack) |
-| Frontend | Vanilla JS, SSE, no build step |
+| Frontend | Vue 3, Pinia, Vite |
+| Communication | SSE (Server-Sent Events) with Authorization header |
 | Storage | File-based session DB |
 | Search tools | DuckDuckGo, arXiv, Wikipedia |
+| CI | GitHub Actions (Python lint + test, frontend build) |
 
 ## Documentation
 
 | Doc | Content |
 |-----|---------|
-| [Architecture Design (CN)](docs/CN/architecture.md) | System design rationale and evolution strategy |
+| [Architecture Design (CN)](docs/CN/architecture.md) | System design rationale and architectural decisions |
+| [Roadmap](docs/ROADMAP.md) | Prioritized improvement items and status |
 
 ## Community
 

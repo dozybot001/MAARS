@@ -18,33 +18,44 @@
   margin: 0 auto;
 }
 
-/* Docker status indicator */
-.docker-indicator {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
+/* Sidebar toggle button */
+.sidebar-toggle {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin: -8px;
 }
 
-.docker-indicator::before {
-  content: "";
-  display: inline-block;
+.sidebar-toggle:hover .arrow-right {
+  border-color: var(--accent);
+}
+
+.arrow-right {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  margin-right: 5px;
-  vertical-align: middle;
+  border-top: 1.5px solid var(--text-secondary);
+  border-right: 1.5px solid var(--text-secondary);
+  transform: rotate(45deg);
 }
 
-.docker-unknown { color: var(--text-muted); }
-.docker-unknown::before { background: var(--text-muted); }
+/* Docker status dot */
+.docker-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
 
-.docker-connected { color: var(--green); }
-.docker-connected::before { background: var(--green); }
-
-.docker-disconnected { color: var(--red); }
-.docker-disconnected::before { background: var(--red); }
+.dot-unknown { background: var(--text-muted); }
+.dot-connected { background: var(--green); }
+.dot-disconnected { background: var(--red); }
 
 .progress-node {
   display: flex;
@@ -133,62 +144,3 @@
   background: var(--green);
 }
 
-/* ── Command palette overlay ── */
-.cmd-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 20vh;
-  backdrop-filter: blur(2px);
-}
-
-.cmd-panel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 6px 8px;
-  width: 640px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-
-.cmd-panel input {
-  flex: 1;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 15px;
-  outline: none;
-  min-width: 0;
-}
-
-.cmd-panel button {
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-  flex-shrink: 0;
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.cmd-panel button:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.cmd-panel button:disabled {
-  opacity: 0.2;
-  cursor: not-allowed;
-}

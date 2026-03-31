@@ -178,6 +178,96 @@ class TestClearAndList:
         assert db.get_iteration() == 0
 
 
+class TestSessionManagement:
+    def test_list_sessions_empty(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        assert db.list_sessions() == []
+
+    def test_list_sessions(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("first idea")
+        id1 = db.research_id
+        db2 = ResearchDB(base_dir=str(tmp_path))
+        db2.create_session("second idea")
+        id2 = db2.research_id
+
+        sessions = db.list_sessions()
+        assert len(sessions) == 2
+        ids = [s["id"] for s in sessions]
+        assert id2 in ids
+        assert id1 in ids
+        # Newest first
+        assert ids[0] == id2
+
+    def test_list_sessions_has_status(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("status test")
+        db.save_idea("status test")
+        sessions = db.list_sessions()
+        assert sessions[0]["status"] == "created"
+
+        db.save_refined_idea("refined")
+        sessions = db.list_sessions()
+        assert sessions[0]["status"] == "refining"
+
+        db.save_plan([{"id": "1"}], {"id": "0"})
+        sessions = db.list_sessions()
+        assert sessions[0]["status"] == "researching"
+
+        db.save_paper("paper content")
+        sessions = db.list_sessions()
+        assert sessions[0]["status"] == "completed"
+
+    def test_get_session_detail(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("detail test")
+        db.save_idea("my idea")
+        db.save_refined_idea("my refined idea")
+        db.save_task_output("t1", "output 1")
+        db.save_paper("final paper")
+
+        detail = db.get_session(db.research_id)
+        assert detail is not None
+        assert detail["idea"] == "my idea"
+        assert detail["refined_idea"] == "my refined idea"
+        assert detail["paper"] == "final paper"
+        assert len(detail["tasks"]) == 1
+        assert detail["tasks"][0]["id"] == "t1"
+
+    def test_get_session_not_found(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        assert db.get_session("nonexistent") is None
+
+    def test_delete_session(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("to delete")
+        sid = db.research_id
+        # Create a new DB instance (simulate different session)
+        db2 = ResearchDB(base_dir=str(tmp_path))
+        assert db2.delete_session(sid) is True
+        assert not (tmp_path / sid).exists()
+
+    def test_delete_active_session_fails(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("active")
+        assert db.delete_session(db.research_id) is False
+
+    def test_delete_nonexistent_session(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        assert db.delete_session("nonexistent") is False
+
+    def test_get_session_with_evaluations(self, tmp_path):
+        db = ResearchDB(base_dir=str(tmp_path))
+        db.create_session("eval test")
+        db.save_evaluation({"score": 0.5, "notes": "v0"}, 0)
+        db.save_evaluation({"score": 0.7, "notes": "v1"}, 1)
+
+        detail = db.get_session(db.research_id)
+        assert "evaluations" in detail
+        assert len(detail["evaluations"]) == 2
+        assert detail["evaluations"][0]["score"] == 0.5
+
+
 class TestSlugify:
     def test_basic(self):
         assert ResearchDB._slugify("Hello World") == "hello-world"

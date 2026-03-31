@@ -343,6 +343,7 @@ watch(() => ({ ...store.documents }), (docs, oldDocs) => {
 
 // Scores
 watch(() => store.scores.length, (newLen, oldLen) => {
+
   if (newLen > (oldLen || 0)) {
     const data = store.scores[newLen - 1]
     const t = target()
@@ -357,16 +358,19 @@ watch(() => store.scores.length, (newLen, oldLen) => {
 
 // Decomp tree
 watch(() => store.decompTree, (data) => {
+
   if (data) renderDecompTree(data)
 }, { deep: true })
 
 // Exec batches
 watch(() => store.execBatches, (batches) => {
+
   if (batches && batches.length) renderExecBatches(batches)
 }, { deep: true })
 
 // Task states
 watch(() => ({ ...store.taskStates }), (states, oldStates) => {
+
   for (const taskId in states) {
     const cur = states[taskId]
     const prev = oldStates ? oldStates[taskId] : null

@@ -48,21 +48,33 @@ def topological_batches(tasks: list[dict]) -> list[list[dict]]:
     """Group tasks into batches by dependency order.
     Each batch contains tasks whose dependencies are all in prior batches.
     Tasks within a batch can run in parallel.
+
+    Raises ValueError on invalid DAGs (cycles or missing dependencies).
     """
     task_map = {t["id"]: t for t in tasks}
-    remaining = set(task_map.keys())
+    all_ids = set(task_map.keys())
+
+    # Check for missing dependencies
+    for t in tasks:
+        missing = set(t.get("dependencies", [])) - all_ids
+        if missing:
+            raise ValueError(
+                f"Task {t['id']!r} depends on unknown tasks: {sorted(missing)}"
+            )
+
+    remaining = set(all_ids)
     completed: set[str] = set()
     batches: list[list[dict]] = []
 
     while remaining:
-        # Find tasks whose deps are all completed
         batch_ids = [
             tid for tid in remaining
             if all(d in completed for d in task_map[tid].get("dependencies", []))
         ]
         if not batch_ids:
-            # Shouldn't happen in a valid DAG — break to avoid infinite loop
-            batch_ids = list(remaining)
+            raise ValueError(
+                f"Dependency cycle detected among tasks: {sorted(remaining)}"
+            )
 
         batches.append([task_map[tid] for tid in batch_ids])
         completed.update(batch_ids)
@@ -661,9 +673,6 @@ class ResearchStage(AgentStage):
         """Check latest_score.json and compare with previous iteration."""
         # Use latest_score for iteration comparison (not best_score)
         score_file = self.db.get_artifacts_dir() / "latest_score.json"
-        if not score_file.exists():
-            # Fallback to best_score.json for backward compatibility
-            score_file = self.db.get_artifacts_dir() / "best_score.json"
         if not score_file.exists():
             return False, None
         try:

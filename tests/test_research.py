@@ -97,14 +97,6 @@ class TestCheckScoreImproved:
         improved, score = stage._check_score_improved(0.5, minimize=False)
         assert improved is False
 
-    def test_fallback_to_best_score(self, stage, db):
-        """Falls back to best_score.json if latest_score.json missing."""
-        artifacts = db.get_artifacts_dir()
-        (artifacts / "best_score.json").write_text(json.dumps({"score": 0.7}))
-        improved, score = stage._check_score_improved(None, minimize=True)
-        assert improved is True
-        assert score == 0.7
-
     def test_corrupt_score_file(self, stage, db):
         artifacts = db.get_artifacts_dir()
         (artifacts / "latest_score.json").write_text("not json")

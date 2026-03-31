@@ -1,5 +1,7 @@
 """Tests for topological_batches() — DAG scheduling."""
 
+import pytest
+
 from backend.pipeline.research import topological_batches
 
 
@@ -61,13 +63,19 @@ class TestTopologicalBatches:
         batches = topological_batches(tasks)
         assert len(batches) == 1
 
-    def test_circular_dependency_breaks_out(self):
-        """Circular deps should not cause infinite loop (forced batch)."""
+    def test_circular_dependency_raises(self):
+        """Circular deps should raise ValueError, not silently degrade."""
         tasks = [
             {"id": "1", "description": "a", "dependencies": ["2"]},
             {"id": "2", "description": "b", "dependencies": ["1"]},
         ]
-        batches = topological_batches(tasks)
-        # Should still produce output (forced batch), not hang
-        all_ids = {t["id"] for b in batches for t in b}
-        assert all_ids == {"1", "2"}
+        with pytest.raises(ValueError, match="cycle"):
+            topological_batches(tasks)
+
+    def test_missing_dependency_raises(self):
+        """Reference to non-existent task should raise ValueError."""
+        tasks = [
+            {"id": "1", "description": "a", "dependencies": ["999"]},
+        ]
+        with pytest.raises(ValueError, match="unknown"):
+            topological_batches(tasks)

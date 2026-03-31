@@ -2,101 +2,138 @@ import { onUnmounted } from 'vue'
 import { usePipelineStore } from '../stores/pipeline.js'
 import * as eventBus from '../eventBus.js'
 
-function safeParse(e) {
+function safeParse(raw) {
   try {
-    return JSON.parse(e.data)
+    return JSON.parse(raw)
   } catch {
-    console.warn('[SSE] Failed to parse event data:', e.data)
+    console.warn('[SSE] Failed to parse event data:', raw)
     return null
   }
 }
 
-export function useSSE() {
-  let source = null
+/**
+ * Dispatch a parsed SSE event to the store / eventBus.
+ */
+function dispatch(store, eventType, dataStr) {
+  const data = safeParse(dataStr)
+  if (!data) return
 
-  function connect() {
-    if (source) source.close()
+  switch (eventType) {
+    case 'state':
+      store.handleStageState(data.stage, data.data)
+      break
+    case 'phase':
+      store.handlePhase(data.data)
+      eventBus.emit('phase', data)
+      break
+    case 'chunk':
+      store.markActivity()
+      eventBus.emit('chunk', data)
+      break
+    case 'task_state':
+      store.updateTaskState(data.data)
+      eventBus.emit('task_state', data)
+      break
+    case 'exec_tree':
+      store.setExecBatches(data.data)
+      break
+    case 'tree':
+      store.setDecompTree(data.data)
+      break
+    case 'tokens':
+      store.markActivity()
+      store.addTokens(data.data)
+      eventBus.emit('tokens', data)
+      break
+    case 'document':
+      store.addDocument(data.data)
+      break
+    case 'score':
+      store.addScore(data.data)
+      break
+    case 'error':
+      store.addError(data.stage, data.data?.message || data.data)
+      eventBus.emit('error', data)
+      break
+  }
+}
+
+export function useSSE() {
+  let controller = null
+  let reconnectTimer = null
+
+  async function connect() {
+    disconnect()
 
     const store = usePipelineStore()
-    source = new EventSource('/api/events')
+    const apiKey = localStorage.getItem('maars_api_key')
+    const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
 
-    source.addEventListener('state', (e) => {
-      const data = safeParse(e)
-      if (data) store.handleStageState(data.stage, data.data)
-    })
+    controller = new AbortController()
 
-    source.addEventListener('phase', (e) => {
-      const data = safeParse(e)
-      if (data) {
-        store.handlePhase(data.data)
-        eventBus.emit('phase', data)
+    try {
+      const res = await fetch('/api/events', {
+        headers,
+        signal: controller.signal,
+      })
+      if (!res.ok || !res.body) {
+        scheduleReconnect()
+        return
       }
-    })
 
-    source.addEventListener('chunk', (e) => {
-      const data = safeParse(e)
-      if (data) {
-        store.markActivity()
-        eventBus.emit('chunk', data)
-      }
-    })
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      let currentEvent = ''
+      let currentData = ''
 
-    source.addEventListener('task_state', (e) => {
-      const data = safeParse(e)
-      if (data) {
-        store.updateTaskState(data.data)
-        eventBus.emit('task_state', data)
-      }
-    })
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-    source.addEventListener('exec_tree', (e) => {
-      const data = safeParse(e)
-      if (data) store.setExecBatches(data.data)
-    })
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() // keep incomplete last line in buffer
 
-    source.addEventListener('tree', (e) => {
-      const data = safeParse(e)
-      if (data) store.setDecompTree(data.data)
-    })
-
-    source.addEventListener('tokens', (e) => {
-      const data = safeParse(e)
-      if (data) {
-        store.markActivity()
-        store.addTokens(data.data)
-        eventBus.emit('tokens', data)
-      }
-    })
-
-    source.addEventListener('document', (e) => {
-      const data = safeParse(e)
-      if (data) store.addDocument(data.data)
-    })
-
-    source.addEventListener('score', (e) => {
-      const data = safeParse(e)
-      if (data) store.addScore(data.data)
-    })
-
-    source.addEventListener('error', (e) => {
-      if (e.data) {
-        const data = safeParse(e)
-        if (data) {
-          store.addError(data.stage, data.data?.message || data.data)
-          eventBus.emit('error', data)
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            currentData = line.slice(5).trim()
+          } else if (line === '' && currentEvent && currentData) {
+            dispatch(store, currentEvent, currentData)
+            currentEvent = ''
+            currentData = ''
+          }
         }
       }
-    })
 
-    source.onerror = () => {
-      console.warn('[SSE] Connection lost, reconnecting...')
+      // Stream ended normally — server closed connection, try reconnect
+      scheduleReconnect()
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.warn('[SSE] Connection error, reconnecting...', err.message)
+        scheduleReconnect()
+      }
     }
   }
 
+  function scheduleReconnect() {
+    if (reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, 2000)
+  }
+
   function disconnect() {
-    if (source) {
-      source.close()
-      source = null
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (controller) {
+      controller.abort()
+      controller = null
     }
   }
 

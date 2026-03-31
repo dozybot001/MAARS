@@ -54,6 +54,8 @@ class PipelineOrchestrator:
                 q.put_nowait(event)
             except asyncio.QueueFull:
                 pass
+        # Persist to log.jsonl
+        self.db.append_log(event)
 
     def _wire_broadcast(self):
         """Inject broadcast callback into all stages."""
@@ -203,16 +205,41 @@ class PipelineOrchestrator:
     async def resume_stage(self, stage_name: str):
         """Resume a paused stage, then auto-continue remaining stages.
 
-        Research stage loads checkpoint from DB and skips completed tasks.
-        Other stages restart from scratch (resume ≡ retry for single-session stages).
+        Uses DB artifacts to determine the earliest incomplete stage:
+        - If refined_idea exists, skip Refine.
+        - Research stage has its own checkpoint (skips completed tasks).
+        - If paper exists, everything is done.
         """
         stage = self.stages[stage_name]
         if stage.state != StageState.PAUSED:
             return
-        stage.output = ""
-        if hasattr(stage, "rounds"):
-            stage.rounds = []
-        task = asyncio.create_task(self._run_from(stage_name))
+
+        # Determine earliest incomplete stage from DB artifacts
+        start_from = stage_name
+        if self.db.research_id:
+            has_refined = bool(self.db.get_refined_idea())
+            has_plan = bool(self.db.get_plan_list())
+
+            if stage_name == "refine" and has_refined:
+                # Refine already done — load its output and skip ahead
+                self.stages["refine"].output = self.db.get_refined_idea()
+                self.stages["refine"].state = StageState.COMPLETED
+                self._broadcast({"stage": "refine", "type": "state", "data": "completed"})
+                self._broadcast({"stage": "refine", "type": "document", "data": {
+                    "name": "refined_idea", "label": "Refined Idea",
+                    "content": self.db.get_refined_idea(),
+                }})
+                start_from = "research"
+                # If Research also has checkpoint data, it will skip internally
+            if stage_name in ("refine", "research") and has_refined and has_plan:
+                # Check if all research tasks are done too
+                pass  # Research.run() handles its own checkpoint
+
+        target = self.stages[start_from]
+        target.output = ""
+        if hasattr(target, "rounds"):
+            target.rounds = []
+        task = asyncio.create_task(self._run_from(start_from))
         self._tasks["pipeline"] = task
 
     # ------------------------------------------------------------------

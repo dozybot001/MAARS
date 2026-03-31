@@ -1,5 +1,5 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
+    # --- Per-stage model overrides (fallback to global if empty) ---
+    refine_provider: str = ""
+    refine_model: str = ""
+    research_provider: str = ""
+    research_model: str = ""
+    write_provider: str = ""
+    write_model: str = ""
+
     # --- Research ---
     research_max_iterations: int = 3  # 1 = no evaluate loop, 3 = up to 2 feedback rounds
 
@@ -23,6 +31,9 @@ class Settings(BaseSettings):
     kaggle_api_token: str = ""
     kaggle_competition_id: str = ""  # set at runtime for Kaggle mode
     dataset_dir: str = ""  # mounted read-only at /workspace/data in sandbox
+
+    # --- API Authentication ---
+    api_key: str = ""  # set MAARS_API_KEY to require Bearer token auth
 
     # --- Docker Sandbox ---
     docker_sandbox_image: str = "maars-sandbox:latest"
@@ -32,9 +43,27 @@ class Settings(BaseSettings):
     docker_sandbox_network: bool = True
     docker_sandbox_concurrency: int = 2  # max concurrent containers
 
-    class Config:
-        env_prefix = "MAARS_"
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_prefix="MAARS_", env_file=".env")
+
+    def stage_config(self, stage: str) -> tuple[str, str, str]:
+        """Return (provider, model_id, api_key) for a pipeline stage.
+
+        Falls back to global settings if per-stage overrides are not set.
+        """
+        provider = getattr(self, f"{stage}_provider", "") or self.model_provider
+        model = getattr(self, f"{stage}_model", "")
+        if not model:
+            model = {
+                "google": self.google_model,
+                "anthropic": self.anthropic_model,
+                "openai": self.openai_model,
+            }.get(provider, "")
+        api_key = {
+            "google": self.google_api_key,
+            "anthropic": self.anthropic_api_key,
+            "openai": self.openai_api_key,
+        }.get(provider, "")
+        return provider, model, api_key
 
     @property
     def active_api_key(self) -> str:

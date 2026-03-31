@@ -50,6 +50,18 @@ async def docker_status():
         return {"connected": False, "error": str(e)}
 
 
+@router.post("/pipeline/stop")
+async def stop_pipeline(request: Request):
+    """Stop whatever stage is currently running. Used by beforeunload."""
+    orch = _get_orchestrator(request)
+    for name in STAGE_ORDER:
+        stage = orch.stages[name]
+        if stage.state.value == "running":
+            await orch.stop_stage(name)
+            return {"stopped": name}
+    return {"stopped": None}
+
+
 @router.post("/stage/{stage_name}/stop", response_model=ActionResponse)
 async def stop_stage(stage_name: str, request: Request):
     _validate_stage(stage_name)

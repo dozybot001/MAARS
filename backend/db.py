@@ -31,6 +31,7 @@ from datetime import datetime
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 
@@ -85,6 +86,32 @@ class ResearchDB:
     def _ensure_root(self):
         if not self._root:
             raise RuntimeError("No active research session. Call create_session() first.")
+
+    # --- Event log (append-only JSONL) ---
+
+    def append_log(self, event: dict):
+        """Append a broadcast event to log.jsonl."""
+        if not self._root:
+            return
+        line = json.dumps(event, ensure_ascii=False) + "\n"
+        with open(self._root / "log.jsonl", "a", encoding="utf-8") as f:
+            f.write(line)
+
+    def read_log(self) -> list[dict]:
+        """Read all log events from log.jsonl."""
+        if not self._root:
+            return []
+        path = self._root / "log.jsonl"
+        if not path.exists():
+            return []
+        events = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        return events
 
     # --- Write ---
 
@@ -388,3 +415,307 @@ class ResearchDB:
         self._atomic_write(reproduce_dir / "Dockerfile", dockerfile)
         self._atomic_write(reproduce_dir / "run.sh", run_sh)
         self._atomic_write(reproduce_dir / "docker-compose.yml", compose)
+
+    # --- Session management (class-level, not session-specific) ---
+
+    def list_sessions(self) -> list[dict]:
+        """List all sessions with summary info, sorted newest first."""
+        if not self._base.exists():
+            return []
+        sessions = []
+        for d in sorted(self._base.iterdir(), reverse=True):
+            if not d.is_dir():
+                continue
+            info = self._session_summary(d)
+            if info:
+                sessions.append(info)
+        return sessions
+
+    def get_session(self, session_id: str) -> dict | None:
+        """Get detailed info for a specific session."""
+        session_dir = self._base / session_id
+        if not session_dir.is_dir():
+            return None
+        info = self._session_summary(session_dir)
+        if not info:
+            return None
+        # Add detailed content
+        for name, key in [
+            ("idea.md", "idea"),
+            ("refined_idea.md", "refined_idea"),
+            ("paper.md", "paper"),
+        ]:
+            path = session_dir / name
+            if path.exists():
+                info[key] = path.read_text(encoding="utf-8")
+        # Tasks
+        tasks_dir = session_dir / "tasks"
+        if tasks_dir.exists():
+            info["tasks"] = [
+                {"id": f.stem, "size_bytes": f.stat().st_size}
+                for f in sorted(tasks_dir.glob("*.md"))
+            ]
+        # Scores from evaluations
+        eval_dir = session_dir / "evaluations"
+        if eval_dir.exists():
+            scores = []
+            for f in sorted(eval_dir.glob("eval_v*.json")):
+                try:
+                    scores.append(json.loads(f.read_text(encoding="utf-8")))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            if scores:
+                info["evaluations"] = scores
+        return info
+
+    def get_session_state(self, session_id: str) -> dict | None:
+        """Derive full frontend-restorable state from session files.
+
+        Returns a dict matching the Pinia store shape, or None if session
+        doesn't exist. Everything is computed from existing files — no extra
+        persistence needed.
+        """
+        from backend.pipeline.research import topological_batches
+
+        d = self._base / session_id
+        if not d.is_dir():
+            return None
+
+        def _read(name: str) -> str:
+            p = d / name
+            return p.read_text(encoding="utf-8") if p.exists() else ""
+
+        def _read_json(name: str):
+            p = d / name
+            if not p.exists():
+                return None
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, ValueError):
+                return None
+
+        # --- Files existence ---
+        has_refined = (d / "refined_idea.md").exists()
+        has_calibration = (d / "calibration.md").exists()
+        has_strategy = (d / "strategy.md").exists()
+        has_plan = (d / "plan_list.json").exists()
+        has_paper = (d / "paper.md").exists()
+
+        # --- Stage states (derived) ---
+        stage_states = {"refine": "idle", "research": "idle", "write": "idle"}
+        if has_refined:
+            stage_states["refine"] = "completed"
+        if has_paper:
+            # Paper exists → entire pipeline completed
+            stage_states["research"] = "completed"
+            stage_states["write"] = "completed"
+        elif has_plan:
+            # Has plan but no paper → check if research fully finished
+            has_evals = (d / "evaluations").exists() and any(
+                (d / "evaluations").glob("eval_v*.json")
+            )
+            if has_evals:
+                # Evaluated but write not started → research done, write paused
+                stage_states["research"] = "completed"
+            else:
+                stage_states["research"] = "paused"
+
+        # --- Node states for progress bar ---
+        node_states = {
+            "refine": "done" if has_refined else "idle",
+            "calibrate": "done" if has_calibration else "idle",
+            "strategy": "done" if has_strategy else "idle",
+            "decompose": "done" if has_plan else "idle",
+            "execute": "idle",
+            "evaluate": "idle",
+            "write": "done" if has_paper else "idle",
+        }
+
+        # --- Documents ---
+        documents = {}
+        if has_refined:
+            documents["refined_idea"] = {
+                "label": "Refined Idea",
+                "content": _read("refined_idea.md"),
+            }
+        if has_calibration:
+            documents["calibration"] = {
+                "label": "Calibration",
+                "content": _read("calibration.md"),
+            }
+        if has_strategy:
+            documents["strategy"] = {
+                "label": "Strategy",
+                "content": _read("strategy.md"),
+            }
+        if has_paper:
+            documents["paper"] = {
+                "label": "Paper",
+                "content": _read("paper.md"),
+            }
+
+        # Eval documents (eval_v0, eval_v1, ...)
+        eval_dir = d / "evaluations"
+        if eval_dir.exists():
+            for f in sorted(eval_dir.glob("eval_v*.json")):
+                try:
+                    content = f.read_text(encoding="utf-8")
+                    iteration = f.stem  # "eval_v0"
+                    documents[iteration] = {
+                        "label": f"Evaluation {iteration.split('_v')[-1]}",
+                        "content": content,
+                    }
+                except (ValueError, OSError):
+                    pass
+
+        # --- Plan / tasks ---
+        plan_list = _read_json("plan_list.json") or []
+        plan_tree = _read_json("plan_tree.json")
+
+        # Task descriptions from plan
+        task_descriptions = {}
+        for t in plan_list:
+            task_descriptions[t["id"]] = t.get("description", "")
+
+        # Task states from file existence
+        tasks_dir = d / "tasks"
+        completed_ids = set()
+        if tasks_dir.exists():
+            completed_ids = {f.stem for f in tasks_dir.glob("*.md")}
+        task_states = {}
+        for t in plan_list:
+            tid = t["id"]
+            if tid in completed_ids:
+                task_states[tid] = {"status": "completed", "summary": ""}
+            else:
+                task_states[tid] = {"status": "pending", "summary": ""}
+
+        # Exec batches (recompute topological sort)
+        exec_batches = []
+        if plan_list:
+            try:
+                batches = topological_batches(plan_list)
+                exec_batches = [
+                    {
+                        "batch": i + 1,
+                        "tasks": [{"id": t["id"], "description": t["description"]} for t in b],
+                    }
+                    for i, b in enumerate(batches)
+                ]
+            except Exception:
+                pass
+
+        # Execute/evaluate node states
+        if plan_list:
+            all_task_ids = {t["id"] for t in plan_list}
+            all_done = completed_ids >= all_task_ids
+            if all_done:
+                node_states["execute"] = "done"
+            elif completed_ids:
+                node_states["execute"] = "paused"  # partially done
+            # else: stays "idle"
+
+        eval_dir = d / "evaluations"
+        evals = []
+        if eval_dir.exists():
+            for f in sorted(eval_dir.glob("eval_v*.json")):
+                try:
+                    evals.append(json.loads(f.read_text(encoding="utf-8")))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            if evals:
+                node_states["evaluate"] = "done"
+
+        # --- Scores (match frontend format) ---
+        scores = []
+        prev = None
+        for ev in evals:
+            current = ev.get("score")
+            if current is not None:
+                scores.append({
+                    "current": current,
+                    "previous": prev,
+                    "improved": (prev is None) or (current != prev),
+                })
+                prev = current
+
+        # --- Log events ---
+        log_path = d / "log.jsonl"
+        log = []
+        if log_path.exists():
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    try:
+                        log.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+        return {
+            "session_id": session_id,
+            "input": _read("idea.md"),
+            "stage_states": stage_states,
+            "node_states": node_states,
+            "documents": documents,
+            "decomp_tree": plan_tree,
+            "exec_batches": exec_batches,
+            "task_descriptions": task_descriptions,
+            "task_states": task_states,
+            "scores": scores,
+            "log": log,
+        }
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all its files. Returns True if deleted."""
+        session_dir = self._base / session_id
+        if not session_dir.is_dir():
+            return False
+        # Prevent deleting the currently active session
+        if self._root and session_dir.resolve() == self._root.resolve():
+            return False
+        shutil.rmtree(session_dir)
+        return True
+
+    @staticmethod
+    def _session_summary(session_dir: Path) -> dict | None:
+        """Build a summary dict for a session directory."""
+        sid = session_dir.name
+        # Parse timestamp from session ID (format: YYYYMMDD-HHMMSS-slug)
+        created = None
+        m = re.match(r"(\d{8}-\d{6})", sid)
+        if m:
+            try:
+                created = datetime.strptime(m.group(1), "%Y%m%d-%H%M%S").isoformat()
+            except ValueError:
+                pass
+        # Determine status from files present
+        has_paper = (session_dir / "paper.md").exists()
+        has_plan = (session_dir / "plan_list.json").exists()
+        has_refined = (session_dir / "refined_idea.md").exists()
+        if has_paper:
+            status = "completed"
+        elif has_plan:
+            status = "researching"
+        elif has_refined:
+            status = "refining"
+        else:
+            status = "created"
+        # Read idea for summary
+        idea = ""
+        idea_path = session_dir / "idea.md"
+        if idea_path.exists():
+            idea = idea_path.read_text(encoding="utf-8").strip()[:200]
+        # Meta
+        meta = {}
+        meta_path = session_dir / "meta.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, ValueError):
+                pass
+        return {
+            "id": sid,
+            "created": created,
+            "status": status,
+            "idea_summary": idea,
+            "meta": meta,
+        }

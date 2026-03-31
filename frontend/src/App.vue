@@ -1,5 +1,5 @@
 <template>
-  <ProgressBar />
+  <ProgressBar @toggle-sidebar="toggleSidebar" />
   <main>
     <section id="workspace">
       <LogViewer />
@@ -8,7 +8,7 @@
     </section>
   </main>
   <AppModal ref="modal" />
-  <CommandPalette ref="cmdPalette" />
+  <SessionDrawer ref="sessionDrawer" />
 </template>
 
 <script setup>
@@ -21,12 +21,16 @@ import ProgressBar from './components/ProgressBar.vue'
 import LogViewer from './components/LogViewer.vue'
 import ProcessViewer from './components/ProcessViewer.vue'
 import AppModal from './components/AppModal.vue'
-import CommandPalette from './components/CommandPalette.vue'
+import SessionDrawer from './components/SessionDrawer.vue'
 
 const store = usePipelineStore()
 const modal = ref(null)
-const cmdPalette = ref(null)
+const sessionDrawer = ref(null)
 const { connect: connectSSE } = useSSE()
+
+function toggleSidebar() {
+  sessionDrawer.value?.toggle()
+}
 
 let dockerInterval = null
 
@@ -43,7 +47,16 @@ async function checkDocker() {
   }
 }
 
+function onBeforeUnload() {
+  if (store.pipelineState === 'running') {
+    const key = localStorage.getItem('maars_api_key')
+    const headers = key ? { Authorization: `Bearer ${key}` } : {}
+    fetch('/api/pipeline/stop', { method: 'POST', keepalive: true, headers })
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('beforeunload', onBeforeUnload)
   // Sync with backend state, then connect SSE
   try {
     const status = await fetchStatus()
@@ -58,6 +71,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
   if (dockerInterval) clearInterval(dockerInterval)
 })
 </script>

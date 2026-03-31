@@ -1,10 +1,9 @@
 <template>
   <div class="pipeline-progress">
-    <div
-      class="docker-indicator"
-      :class="`docker-${store.dockerStatus}`"
-      :title="store.dockerTitle"
-    >Docker</div>
+    <button class="sidebar-toggle" :title="store.dockerTitle" @click="$emit('toggle-sidebar')">
+      <span class="arrow-right"></span>
+      <span class="docker-dot" :class="`dot-${store.dockerStatus}`"></span>
+    </button>
     <div class="progress-track">
       <template v-for="(node, i) in store.NODE_ORDER" :key="node">
         <div class="progress-node" :data-state="store.nodeStates[node]">
@@ -23,6 +22,7 @@
 <script setup>
 import { usePipelineStore } from '../stores/pipeline.js'
 
+defineEmits(['toggle-sidebar'])
 const store = usePipelineStore()
 
 const nodeLabels = {

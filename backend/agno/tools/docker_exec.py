@@ -32,6 +32,21 @@ _PKG_PATTERN = re.compile(
 )
 
 
+_ALLOWED_LANGUAGES = {"python", "Rscript"}
+
+
+def validate_language(language: str) -> str:
+    """Validate language parameter against a strict whitelist.
+
+    Raises ValueError if the language is not allowed.
+    """
+    if language not in _ALLOWED_LANGUAGES:
+        raise ValueError(
+            f"Unsupported language: {language!r}. Allowed: {sorted(_ALLOWED_LANGUAGES)}"
+        )
+    return language
+
+
 def sanitize_requirements(requirements: str) -> str:
     """Validate and sanitize pip requirements string.
 
@@ -198,6 +213,12 @@ def create_docker_tools(db: ResearchDB) -> list:
         Returns:
             JSON with: stdout, stderr, exit_code, timed_out, files.
         """
+        # Validate language against whitelist
+        try:
+            language = validate_language(language)
+        except ValueError as e:
+            return json.dumps({"error": str(e)})
+
         # Save script via DB (fast I/O, safe on event loop)
         script_path, script_name = db.save_script(code, language)
         task_artifacts = script_path.parent
