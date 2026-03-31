@@ -1,0 +1,4 @@
+interface:
+  display_name: "MAARS 发版"
+  short_description: "检查、验证、打 tag 并发布双语 GitHub Release"
+  default_prompt: "Use $release when I say 发版 to validate MAARS, prepare a version tag, and draft or publish bilingual GitHub release notes."

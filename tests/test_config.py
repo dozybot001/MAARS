@@ -1,9 +1,5 @@
 """Tests for per-stage model config and API key settings."""
 
-import os
-
-import pytest
-
 
 class TestStageConfig:
     def test_fallback_to_global(self):

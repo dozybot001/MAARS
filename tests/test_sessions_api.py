@@ -76,7 +76,6 @@ class TestGetSessionState:
         """Full session with all stages produces correct state."""
         from fastapi import FastAPI
         from backend.routes.sessions import router
-        import json
 
         db = ResearchDB(base_dir=str(tmp_path))
         db.create_session("state test")
@@ -217,7 +216,6 @@ class TestAPIKeyAuth:
         from fastapi import FastAPI
         from backend.main import APIKeyMiddleware
         from backend.routes.sessions import router
-        from backend.config import Settings
 
         app = FastAPI()
         # Manually add middleware with a test key

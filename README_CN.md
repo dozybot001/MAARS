@@ -118,42 +118,7 @@ https://www.kaggle.com/competitions/titanic
 
 MAARS 会自动：拉取比赛元数据 → 下载数据集 → 构建上下文丰富的研究方案 → 跳过精炼阶段 → 直接进入研究阶段，数据挂载在 `/workspace/data/`。
 
-## 配置
-
-所有配置项使用 `MAARS_` 前缀。将 `.env.example` 复制为 `.env` 后配置：
-
-```env
-# 选择 provider：google（默认）、anthropic 或 openai
-MAARS_MODEL_PROVIDER=google
-
-# 只需填写当前 provider 的 key
-MAARS_GOOGLE_API_KEY=your-key
-MAARS_GOOGLE_MODEL=gemini-2.5-flash
-
-# MAARS_ANTHROPIC_API_KEY=your-key
-# MAARS_ANTHROPIC_MODEL=claude-sonnet-4-5-20250514
-
-# MAARS_OPENAI_API_KEY=your-key
-# MAARS_OPENAI_MODEL=gpt-4o
-
-# 按阶段覆盖模型（可选）
-# MAARS_WRITE_PROVIDER=anthropic
-# MAARS_WRITE_MODEL=claude-sonnet-4-5-20250514
-```
-
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `MAARS_MODEL_PROVIDER` | `google` | LLM 提供商：`google`、`anthropic` 或 `openai` |
-| `MAARS_{STAGE}_PROVIDER` | — | 按阶段覆盖提供商（refine/research/write） |
-| `MAARS_{STAGE}_MODEL` | — | 按阶段覆盖模型 |
-| `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | 最大评估迭代轮数（1 = 不迭代） |
-| `MAARS_DOCKER_SANDBOX_TIMEOUT` | `600` | 单容器超时时间（秒） |
-| `MAARS_DOCKER_SANDBOX_MEMORY` | `4g` | 单容器内存限制 |
-| `MAARS_DOCKER_SANDBOX_CONCURRENCY` | `2` | 最大并行容器数（即并行任务数） |
-| `MAARS_KAGGLE_API_TOKEN` | — | Kaggle API token（或使用 `~/.kaggle/kaggle.json`） |
-| `MAARS_API_KEY` | — | API 认证密钥（非 localhost 部署时建议设置） |
-
-> **安全提示**：未设置 `MAARS_API_KEY` 时 API 无认证保护。在非本机环境暴露服务前请务必设置。
+完整配置说明请直接查看 [.env.example](.env.example)。你可以手动复制为 `.env` 后按注释修改，也可以直接运行 `bash start.sh`，缺失时启动脚本会自动生成 `.env`；这里作为全部 `MAARS_` 配置项的唯一说明来源。
 
 ## 产出结构
 

@@ -118,42 +118,7 @@ https://www.kaggle.com/competitions/titanic
 
 MAARS will automatically: fetch competition metadata → download dataset → build a context-rich research proposal → skip Refine → jump straight to Research with data mounted at `/workspace/data/`.
 
-## Configuration
-
-All settings use the `MAARS_` prefix. Copy `.env.example` to `.env` and configure:
-
-```env
-# Choose provider: google (default), anthropic, or openai
-MAARS_MODEL_PROVIDER=google
-
-# Only the active provider's key is required
-MAARS_GOOGLE_API_KEY=your-key
-MAARS_GOOGLE_MODEL=gemini-2.5-flash
-
-# MAARS_ANTHROPIC_API_KEY=your-key
-# MAARS_ANTHROPIC_MODEL=claude-sonnet-4-5-20250514
-
-# MAARS_OPENAI_API_KEY=your-key
-# MAARS_OPENAI_MODEL=gpt-4o
-
-# Per-stage model overrides (optional)
-# MAARS_WRITE_PROVIDER=anthropic
-# MAARS_WRITE_MODEL=claude-sonnet-4-5-20250514
-```
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `MAARS_MODEL_PROVIDER` | `google` | LLM provider: `google`, `anthropic`, or `openai` |
-| `MAARS_{STAGE}_PROVIDER` | — | Per-stage provider override (refine/research/write) |
-| `MAARS_{STAGE}_MODEL` | — | Per-stage model override |
-| `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Max evaluation loops (1 = no iteration) |
-| `MAARS_DOCKER_SANDBOX_TIMEOUT` | `600` | Per-container timeout in seconds |
-| `MAARS_DOCKER_SANDBOX_MEMORY` | `4g` | Memory limit per container |
-| `MAARS_DOCKER_SANDBOX_CONCURRENCY` | `2` | Max parallel containers (and parallel tasks) |
-| `MAARS_KAGGLE_API_TOKEN` | — | Kaggle API token (or use `~/.kaggle/kaggle.json`) |
-| `MAARS_API_KEY` | — | API authentication key (recommended for non-localhost) |
-
-> **Security note**: If `MAARS_API_KEY` is not set, the API is open without authentication. Set it before exposing the service on a network.
+For the complete configuration reference, see [.env.example](.env.example). You can copy it to `.env` manually, or just run `bash start.sh` and let the startup script create `.env` automatically when missing. It is the single source of truth for supported `MAARS_` settings.
 
 ## Output Structure
 
