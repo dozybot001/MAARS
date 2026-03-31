@@ -43,11 +43,11 @@ flowchart TB
 
     API --> REF["① 精炼\nTeam: Explorer + Critic"]
     API --> RES["② 研究\nAgentic Workflow"]
-    API --> WRI["③ 写作\n混合式: Writer Agent + Reviewer Agent"]
+    API --> WRI["③ 写作\nTeam: Writer + Reviewer"]
 
     REF -- "refined_idea.md" --> DB
     RES -- "tasks/ · artifacts/" --> DB
-    WRI -- "outline · sections · paper.md" --> DB
+    WRI -- "paper.md" --> DB
     DB[(Session DB\nresults/id/)]
 
     REF & RES & WRI --> AGNO["Agno · Google · Anthropic · OpenAI\nSearch · arXiv · Docker 沙箱"]

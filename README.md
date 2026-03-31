@@ -43,19 +43,17 @@ flowchart TB
 
     API --> REF["① Refine\nTeam: Explorer + Critic"]
     API --> RES["② Research\nAgentic Workflow"]
-    API --> WRI["③ Write\nHybrid: Writer Agent + Reviewer Agent"]
+    API --> WRI["③ Write\nTeam: Writer + Reviewer"]
 
     REF -- "refined_idea.md" --> DB
     RES -- "tasks/ · artifacts/" --> DB
-    WRI -- "outline · sections · paper.md" --> DB
+    WRI -- "paper.md" --> DB
     DB[(Session DB\nresults/id/)]
 
     REF & RES & WRI --> AGNO["Agno · Google · Anthropic · OpenAI\nSearch · arXiv · Docker Sandbox"]
 ```
 
 The core design principle: **deterministic control stays in the runtime; open-ended execution goes to agents.**
-
-MAARS is a **hybrid multi-agent system**. All three stages combine runtime control with agent intelligence, but in different proportions:
 
 MAARS is a **hybrid multi-agent system**: Refine and Write use Agno Team coordinate mode (multi-agent collaboration), while Research uses a runtime-controlled agentic workflow. The three stages communicate only through the file-based session DB — they are fully decoupled.
 

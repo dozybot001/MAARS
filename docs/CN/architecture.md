@@ -53,7 +53,7 @@ flowchart LR
 
     REF["① Refine\nTeam: Explorer + Critic"]
     RES["② Research\nAgentic Workflow"]
-    WRI["③ Write\n编排: Writer + Reviewer"]
+    WRI["③ Write\nTeam: Writer + Reviewer"]
 
     REF -- "refined_idea.md" --> RES -- "tasks/ · artifacts/" --> WRI -- "paper.md" --> OUT["完整\n论文"]
 
@@ -69,11 +69,11 @@ flowchart TB
 
     API --> REF["① Refine\nTeam: Explorer + Critic"]
     API --> RES["② Research\nAgentic Workflow"]
-    API --> WRI["③ Write\n编排: Writer + Reviewer"]
+    API --> WRI["③ Write\nTeam: Writer + Reviewer"]
 
     REF -- "refined_idea.md" --> DB
     RES -- "tasks/ · artifacts/" --> DB
-    WRI -- "outline · sections · paper.md" --> DB
+    WRI -- "paper.md" --> DB
     DB[(Session DB\nresults/id/)]
 
     REF & RES & WRI --> AGNO["Agno · Google · Anthropic · OpenAI\nSearch · arXiv · Docker 沙箱"]
