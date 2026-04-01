@@ -252,7 +252,7 @@ ACTIVE_LABEL="Frontend"
 if [ -f frontend/dist/index.html ] && [ -s frontend/dist/index.html ]; then
     print_check "ok" "Frontend" "frontend/dist ready"
 elif [ -f frontend/index.html ]; then
-    print_check "warn" "Frontend" "Using dev index.html (no dist build)"
+    print_check "ok" "Frontend" "frontend/index.html ready"
 else
     print_check "fail" "Frontend" "No frontend files found"
 fi
