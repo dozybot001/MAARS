@@ -1,4 +1,4 @@
-"""Prompt constants and message builders for the Research pipeline."""
+"""All prompts for the Research pipeline — single source of truth."""
 
 _AUTO = (
     "This is a fully automated pipeline. No human is in the loop. "
@@ -148,29 +148,29 @@ Rules:
 - MAXIMIZE PARALLELISM: only add dependency when truly needed
 全文使用中文。"""
 
+REDECOMPOSE_CONTEXT = (
+    "## 原始任务 [{task_id}]\n{description}\n\n"
+    "## 已有执行结果（不充分，需要拆分）\n{result}\n\n"
+    "## 审查反馈\n{review}\n\n"
+    "请将此任务拆分为可独立执行的子任务。"
+    "已有结果中质量合格的部分不需要重做，聚焦于缺失或需要不同方法的部分。"
+)
 
 # ---------------------------------------------------------------------------
-# Message builders
+# Prompt builders
 # ---------------------------------------------------------------------------
 
-def build_execute_prompt(task: dict, prior_attempt: str = "") -> list[dict]:
-    """Build prompt for task execution."""
-    messages = [{"role": "system", "content": EXECUTE_SYSTEM}]
-
+def build_execute_prompt(task: dict, prior_attempt: str = "") -> tuple[str, str]:
     parts = []
     deps = task.get("dependencies", [])
-
     if deps:
         parts.append(f"## Prerequisite tasks (use read_task_output to read): {', '.join(deps)}\n---\n")
-
     if prior_attempt:
         parts.append(
             "## Prior attempt on parent task (reference only — focus on YOUR specific subtask):\n"
             f"{prior_attempt}\n---\n"
         )
-
     parts.append(f"## Your task [{task['id']}]:\n{task['description']}")
-
     from backend.config import settings
     data_hint = ""
     if settings.dataset_dir:
@@ -185,27 +185,79 @@ def build_execute_prompt(task: dict, prior_attempt: str = "") -> list[dict]:
         "Do NOT describe or simulate code — actually execute it." + data_hint +
         " Use list_artifacts to verify generated files."
     )
-
-    messages.append({"role": "user", "content": "\n".join(parts)})
-    return messages
+    return EXECUTE_SYSTEM, "\n".join(parts)
 
 
-def build_verify_prompt(task: dict, result: str) -> list[dict]:
-    return [
-        {"role": "system", "content": VERIFY_SYSTEM},
-        {"role": "user", "content": (
-            f"Task [{task['id']}]: {task['description']}\n\n"
-            f"--- Execution result ---\n{result}"
-        )},
-    ]
+def build_verify_prompt(task: dict, result: str) -> tuple[str, str]:
+    return VERIFY_SYSTEM, (
+        f"Task [{task['id']}]: {task['description']}\n\n"
+        f"--- Execution result ---\n{result}"
+    )
 
 
-def build_retry_prompt(task: dict, result: str, review: str) -> list[dict]:
-    """Build prompt for re-execution after failed verification."""
-    messages = build_execute_prompt(task)
-    messages.append({"role": "assistant", "content": result})
-    messages.append({"role": "user", "content": (
-        f"Your previous output was reviewed and needs improvement:\n\n"
+def build_retry_prompt(task: dict, result: str, review: str) -> tuple[str, str]:
+    _, original_user = build_execute_prompt(task)
+    return EXECUTE_SYSTEM, (
+        f"{original_user}\n\n"
+        f"---\n\n[Previous Output]\n{result}\n\n"
+        f"---\n\nYour previous output was reviewed and needs improvement:\n\n"
         f"{review}\n\nPlease redo the task addressing the above feedback."
-    )})
-    return messages
+    )
+
+
+# ---------------------------------------------------------------------------
+# Decompose
+# ---------------------------------------------------------------------------
+
+DECOMPOSE_SYSTEM_TEMPLATE = """\
+You are a research project planner. Given a task, decide whether it is atomic (executable as-is) or needs decomposition into subtasks.
+
+CONTEXT: This is an automated research pipeline.
+- Each atomic task is executed independently by an AI agent.
+- A separate WRITE stage synthesizes all outputs into the final paper.
+- Therefore: do NOT create "write paper" or "compile report" tasks.
+- No human is in the loop. Make all decisions autonomously.
+
+{atomic_definition}
+
+{strategy}
+
+WHEN TO STOP DECOMPOSING:
+- A task is atomic when it produces ONE clear, verifiable deliverable: a single file, score, plot, cleaned dataset, or focused analysis.
+- Err on the side of SMALLER, MORE RELIABLE tasks. It is better to have many tasks that each reliably succeed than fewer tasks that are ambitious but fragile.
+- Decompose when a task has multiple independent deliverables, distinct reasoning steps, or when failure of one part would waste the work of other parts.
+- Do NOT merge tasks just because they seem "related". If they produce different artifacts, they should be separate tasks.
+- A task that requires more than 2-3 code_execute calls to complete is likely too large.
+
+Rules for subtasks:
+- Dependencies are ONLY between sibling subtasks (same parent).
+- A subtask can only depend on earlier siblings (no circular dependencies).
+- Subtask IDs are simple integers: "1", "2", "3", ...
+- Task descriptions must be specific and actionable: state what output is expected.
+- MAXIMIZE PARALLELISM: only add a dependency when a task truly CANNOT start without the other's output.
+
+Respond with ONLY a JSON object (no markdown fencing, no extra text):
+
+If atomic:
+{{"is_atomic": true}}
+
+If decomposing:
+{{"is_atomic": false, "subtasks": [{{"id": "1", "description": "...", "dependencies": []}}, {{"id": "2", "description": "...", "dependencies": []}}, {{"id": "3", "description": "...", "dependencies": ["1"]}}]}}"""
+
+
+def build_decompose_system(atomic_definition: str = "", strategy: str = "") -> str:
+    strategy_block = f"STRATEGY (from prior research):\n{strategy}" if strategy else ""
+    return DECOMPOSE_SYSTEM_TEMPLATE.format(
+        atomic_definition=atomic_definition,
+        strategy=strategy_block,
+    )
+
+
+def build_decompose_user(task_id: str, description: str, context: str) -> str:
+    parts = [f"Research idea context:\n{context}\n"]
+    if task_id == "0":
+        parts.append("Judge whether this research idea can be executed as a single atomic task, or needs decomposition into subtasks.")
+    else:
+        parts.append(f"Task [{task_id}]: {description}")
+        parts.append("Judge whether this task is atomic or needs decomposition.")
+    return "\n".join(parts)

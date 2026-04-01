@@ -1,7 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Request
 
 from backend.models import StartRequest, ActionResponse, PipelineStatus, StageStatus
-from backend.pipeline.orchestrator import STAGE_ORDER
 
 router = APIRouter(prefix="/api")
 
@@ -11,11 +12,6 @@ def _get_orchestrator(request: Request):
     if orch is None:
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
     return orch
-
-
-def _validate_stage(name: str):
-    if name not in STAGE_ORDER:
-        raise HTTPException(status_code=404, detail=f"Unknown stage: {name}")
 
 
 @router.post("/pipeline/start")
@@ -40,35 +36,30 @@ async def get_status(request: Request):
 
 @router.get("/docker/status")
 async def docker_status():
-    """Check if Docker daemon is reachable."""
     try:
         import docker
-        client = docker.from_env()
-        client.ping()
+        def _ping():
+            client = docker.from_env()
+            client.ping()
+        await asyncio.to_thread(_ping)
         return {"connected": True}
     except Exception as e:
         return {"connected": False, "error": str(e)}
 
 
-@router.post("/stage/{stage_name}/stop", response_model=ActionResponse)
-async def stop_stage(stage_name: str, request: Request):
-    _validate_stage(stage_name)
+@router.post("/pipeline/stop", response_model=ActionResponse)
+async def stop_pipeline(request: Request):
     orch = _get_orchestrator(request)
-    await orch.stop_stage(stage_name)
-    return ActionResponse(
-        stage=stage_name,
-        state=orch.stages[stage_name].state.value,
-        message="Stage paused",
-    )
+    await orch.stop()
+    running = next((n for n in ["refine", "research", "write"]
+                     if orch.stages[n].state.value == "paused"), "")
+    return ActionResponse(stage=running, state="paused", message="Pipeline paused")
 
 
-@router.post("/stage/{stage_name}/resume", response_model=ActionResponse)
-async def resume_stage(stage_name: str, request: Request):
-    _validate_stage(stage_name)
+@router.post("/pipeline/resume", response_model=ActionResponse)
+async def resume_pipeline(request: Request):
     orch = _get_orchestrator(request)
-    await orch.resume_stage(stage_name)
-    return ActionResponse(
-        stage=stage_name,
-        state=orch.stages[stage_name].state.value,
-        message="Stage resumed",
-    )
+    await orch.resume()
+    resumed = next((n for n in ["refine", "research", "write"]
+                     if orch.stages[n].state.value == "running"), "")
+    return ActionResponse(stage=resumed, state="running", message="Pipeline resumed")

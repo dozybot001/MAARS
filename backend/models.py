@@ -8,8 +8,8 @@ class StartRequest(BaseModel):
 class StageStatus(BaseModel):
     name: str
     state: str
+    phase: str = ""
     output_length: int
-    rounds: int
 
 
 class PipelineStatus(BaseModel):

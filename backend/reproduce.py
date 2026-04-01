@@ -1,25 +1,21 @@
-"""Generate Docker reproduction files from a research session's execution log.
-
-Creates Dockerfile + run.sh + docker-compose.yml so that
-`docker compose up` re-runs all experiments in order.
-All file writes go through ResearchDB.
-"""
+"""Generate Docker reproduction files from a research session's execution log."""
 
 from backend.config import settings
 from backend.db import ResearchDB
 
 
 def generate_reproduce_files(db: ResearchDB):
-    """Generate Docker reproduction files from the execution log."""
-    if not db.execution_log or not db.research_id:
+    if not db.research_id:
+        return
+    execution_log = db.get_execution_log()
+    if not execution_log:
         return
 
-    # Collect unique requirements and ordered scripts
     all_requirements: set[str] = set()
     ordered_scripts: list[dict] = []
 
-    for entry in db.execution_log:
-        if entry["requirements"]:
+    for entry in execution_log:
+        if entry.get("requirements"):
             for pkg in entry["requirements"].split():
                 all_requirements.add(pkg)
         ordered_scripts.append({
@@ -27,7 +23,6 @@ def generate_reproduce_files(db: ResearchDB):
             "script": entry["script"],
         })
 
-    # --- Dockerfile ---
     pip_line = ""
     if all_requirements:
         pip_line = f"RUN pip install --no-cache-dir {' '.join(sorted(all_requirements))}\n"
@@ -43,7 +38,6 @@ WORKDIR /workspace
 CMD ["bash", "run.sh"]
 """
 
-    # --- run.sh ---
     lines = ["#!/bin/bash", "set -e", "mkdir -p /workspace/results", ""]
     for entry in ordered_scripts:
         task_id = entry["task_id"]
@@ -55,7 +49,6 @@ CMD ["bash", "run.sh"]
     lines.append('echo "All experiments completed."')
     run_sh = "\n".join(lines)
 
-    # --- docker-compose.yml ---
     compose = """\
 services:
   experiment:
@@ -66,6 +59,4 @@ services:
       - ./results:/workspace/results
 """
 
-    # Write all via DB
     db.save_reproduce_files(dockerfile, run_sh, compose)
-    db.execution_log.clear()

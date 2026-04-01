@@ -1,26 +1,12 @@
 import { on } from './events.js';
-import { startPipeline, stageAction } from './api.js';
-
-/**
- * Progress bar + command palette button state machine.
- *
- * Pipeline states: idle → running → (paused | completed | failed)
- * Button rules: at most ONE button enabled at any time.
- *   idle:      Start enabled (only if input non-empty)
- *   running:   Pause enabled
- *   paused:    Resume enabled
- *   completed: Start enabled (for new run)
- *   failed:    Start enabled (for retry)
- */
+import { startPipeline, pipelineAction, fetchStatus } from './api.js';
 
 const NODE_ORDER = ['refine', 'calibrate', 'strategy', 'decompose', 'execute', 'evaluate', 'write'];
+const NODE_SET = new Set(NODE_ORDER);
 const RESEARCH_PHASES = new Set(['calibrate', 'strategy', 'decompose', 'execute', 'evaluate']);
-
 const nodeStates = {};
 NODE_ORDER.forEach((n) => { nodeStates[n] = 'idle'; });
-
-const stageStates = { refine: 'idle', research: 'idle', write: 'idle' };
-
+let seenNodes = new Set();
 let inputEl, startBtn, pauseBtn, resumeBtn, overlay;
 
 export function initPipelineUI() {
@@ -30,136 +16,99 @@ export function initPipelineUI() {
   resumeBtn = document.getElementById('resume-btn');
   overlay = document.getElementById('cmd-overlay');
 
-  // --- Stage state events ---
-  on('stage:state', ({ stage, data }) => {
-    stageStates[stage] = data;
-
-    if (stage === 'refine') {
-      updateNode('refine', stageToNodeState(data));
-    } else if (stage === 'write') {
-      updateNode('write', stageToNodeState(data));
-    } else if (stage === 'research') {
-      if (data === 'completed') {
-        RESEARCH_PHASES.forEach((n) => updateNode(n, 'done'));
-      } else if (data === 'failed') {
-        const active = [...RESEARCH_PHASES].find((n) => nodeStates[n] === 'active');
-        if (active) updateNode(active, 'failed');
-      } else if (data === 'pausing') {
-        const active = [...RESEARCH_PHASES].find((n) => nodeStates[n] === 'active');
-        if (active) updateNode(active, 'pausing');
-      } else if (data === 'paused') {
-        const active = [...RESEARCH_PHASES].find((n) => nodeStates[n] === 'active' || nodeStates[n] === 'pausing');
-        if (active) updateNode(active, 'paused');
-      } else if (data === 'idle') {
-        RESEARCH_PHASES.forEach((n) => updateNode(n, 'idle'));
-      }
+  on('sse', (event) => {
+    const { stage, phase } = event;
+    if (!stage) return;
+    const node = (stage === 'research' && phase) ? phase : stage;
+    if (!NODE_SET.has(node)) return;
+    if (seenNodes.has(node)) return;
+    seenNodes.add(node);
+    for (const n of NODE_ORDER) {
+      if (n === node) { updateNode(n, 'active'); break; }
+      if (nodeStates[n] !== 'done') updateNode(n, 'done');
     }
     syncButtons();
   });
 
-  // --- Research sub-phase events ---
-  on('stage:phase', ({ data }) => {
-    const phase = data;
-    if (!RESEARCH_PHASES.has(phase)) return;
-    for (const n of RESEARCH_PHASES) {
-      if (n === phase) {
-        updateNode(n, 'active');
-        break;
-      }
-      if (nodeStates[n] === 'active' || nodeStates[n] === 'idle') {
-        updateNode(n, 'done');
-      }
-    }
-  });
-
-  // --- Button handlers ---
   startBtn.addEventListener('click', handleStart);
   pauseBtn.addEventListener('click', handlePause);
   resumeBtn.addEventListener('click', handleResume);
   inputEl.addEventListener('input', syncButtons);
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleStart();
-  });
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleStart(); });
 
-  // --- Command palette (Cmd+K / Ctrl+K) ---
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       overlay.classList.toggle('hidden');
       if (!overlay.classList.contains('hidden')) inputEl.focus();
     }
-    if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
-      overlay.classList.add('hidden');
-    }
+    if (e.key === 'Escape' && !overlay.classList.contains('hidden')) overlay.classList.add('hidden');
   });
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.add('hidden');
-  });
-
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
   syncButtons();
 }
 
-// --- Button state machine ---
-
-function getPipelineState() {
-  if (Object.values(stageStates).some((s) => s === 'pausing')) return 'pausing';
-  if (Object.values(stageStates).some((s) => s === 'running')) return 'running';
-  if (Object.values(stageStates).some((s) => s === 'paused')) return 'paused';
-  return 'idle'; // idle, completed, or failed — all allow Start
+export async function syncFromAPI() {
+  const status = await fetchStatus();
+  if (!status) return;
+  for (const st of status.stages) {
+    if (st.state === 'completed') {
+      if (st.name === 'refine') { updateNode('refine', 'done'); seenNodes.add('refine'); }
+      else if (st.name === 'research') { RESEARCH_PHASES.forEach((n) => { updateNode(n, 'done'); seenNodes.add(n); }); }
+      else if (st.name === 'write') { updateNode('write', 'done'); seenNodes.add('write'); }
+    } else if (st.state === 'running') {
+      if (st.name === 'refine') { updateNode('refine', 'active'); seenNodes.add('refine'); }
+      else if (st.name === 'write') { updateNode('write', 'active'); seenNodes.add('write'); }
+      else if (st.name === 'research' && st.phase) {
+        for (const n of ['calibrate', 'strategy', 'decompose', 'execute', 'evaluate']) {
+          seenNodes.add(n);
+          if (n === st.phase) { updateNode(n, 'active'); break; }
+          updateNode(n, 'done');
+        }
+      }
+    } else if (st.state === 'paused') {
+      const active = NODE_ORDER.find((n) => nodeStates[n] === 'active');
+      if (active) updateNode(active, 'paused');
+    }
+  }
+  syncButtons();
 }
 
 function syncButtons() {
-  const state = getPipelineState();
   const hasInput = inputEl && inputEl.value.trim().length > 0;
-
-  startBtn.disabled = !(state !== 'running' && state !== 'paused' && state !== 'pausing' && hasInput);
-  pauseBtn.disabled = state !== 'running';
-  resumeBtn.disabled = state !== 'paused';
-
-  if (state === 'pausing') {
-    pauseBtn.disabled = true;
-    pauseBtn.textContent = 'Pausing...';
-  } else {
-    pauseBtn.textContent = 'Pause';
-  }
+  const hasActive = NODE_ORDER.some((n) => nodeStates[n] === 'active');
+  const hasPaused = NODE_ORDER.some((n) => nodeStates[n] === 'paused');
+  startBtn.disabled = !(hasInput && !hasActive && !hasPaused);
+  pauseBtn.disabled = !hasActive;
+  resumeBtn.disabled = !hasPaused;
+  pauseBtn.textContent = 'Pause';
 }
 
 async function handleStart() {
   const text = inputEl.value.trim();
   if (!text) return;
-
   overlay.classList.add('hidden');
-  try {
-    await startPipeline(text);
-  } catch (err) {
-    console.error('Failed to start pipeline:', err);
-  }
+  seenNodes.clear();
+  NODE_ORDER.forEach((n) => updateNode(n, 'idle'));
+  syncButtons();
+  try { await startPipeline(text); }
+  catch (err) { console.error('Failed to start pipeline:', err); }
 }
 
 async function handlePause() {
-  const running = Object.keys(stageStates).find((s) => stageStates[s] === 'running');
-  if (!running) return;
-  // Immediate UI feedback before server responds
-  stageStates[running] = 'pausing';
-  syncButtons();
-  try { await stageAction(running, 'stop'); }
+  pauseBtn.disabled = true;
+  pauseBtn.textContent = 'Pausing...';
+  try { await pipelineAction('stop'); await syncFromAPI(); }
   catch (err) { console.error('Pause error:', err); }
 }
 
 async function handleResume() {
-  const paused = Object.keys(stageStates).find((s) => stageStates[s] === 'paused');
-  if (!paused) return;
-  try { await stageAction(paused, 'resume'); }
-  catch (err) { console.error('Resume error:', err); }
-}
-
-// --- Progress bar helpers ---
-
-function stageToNodeState(state) {
-  if (state === 'running') return 'active';
-  if (state === 'completed') return 'done';
-  return state;
+  try {
+    await pipelineAction('resume');
+    const paused = NODE_ORDER.find((n) => nodeStates[n] === 'paused');
+    if (paused) updateNode(paused, 'active');
+    syncButtons();
+  } catch (err) { console.error('Resume error:', err); }
 }
 
 function updateNode(name, state) {
@@ -173,8 +122,6 @@ function updateLines() {
   for (let i = 0; i < NODE_ORDER.length; i++) {
     const name = NODE_ORDER[i];
     const line = document.querySelector(`.progress-line[data-after="${name}"]`);
-    if (line) {
-      line.dataset.filled = (nodeStates[name] === 'done') ? 'true' : 'false';
-    }
+    if (line) line.dataset.filled = (nodeStates[name] === 'done') ? 'true' : 'false';
   }
 }

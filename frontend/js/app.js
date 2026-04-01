@@ -1,20 +1,17 @@
-import { fetchStatus, connectSSE } from './api.js';
-import { initPipelineUI } from './pipeline-ui.js';
+import { connectSSE } from './api.js';
+import { initPipelineUI, syncFromAPI } from './pipeline-ui.js';
 import { initLogViewer } from './log-viewer.js';
 import { initProcessViewer } from './process-viewer.js';
 import { initModal } from './modal.js';
 
-// Initialize modules
 initPipelineUI();
 initLogViewer();
 initProcessViewer();
 initModal();
 
-// Sync with backend state first, then connect SSE for incremental updates
-fetchStatus().catch(() => {});
+syncFromAPI().catch(() => {});
 connectSSE();
 
-// Docker status indicator
 async function checkDocker() {
   const el = document.getElementById('docker-status');
   if (!el) return;

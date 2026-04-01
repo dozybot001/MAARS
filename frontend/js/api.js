@@ -1,5 +1,4 @@
 import { emit } from './events.js';
-import { safeParse } from './shared.js';
 
 const BASE = '/api';
 
@@ -13,56 +12,54 @@ export async function startPipeline(input) {
   return res.json();
 }
 
-export async function fetchStatus() {
-  const res = await fetch(`${BASE}/pipeline/status`);
-  if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
-  const status = await res.json();
-  // Emit state events to sync UI with backend reality
-  for (const stage of status.stages) {
-    emit('stage:state', { stage: stage.name, data: stage.state });
-  }
-  return status;
+export async function pipelineAction(action) {
+  const res = await fetch(`${BASE}/pipeline/${action}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`${action} failed: ${res.status}`);
+  return res.json();
 }
 
-export async function stageAction(stageName, action) {
-  const res = await fetch(`${BASE}/stage/${stageName}/${action}`, {
-    method: 'POST',
-  });
-  if (!res.ok) throw new Error(`${action} failed: ${res.status}`);
+export async function fetchStatus() {
+  const res = await fetch(`${BASE}/pipeline/status`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchPlanTree() {
+  const res = await fetch(`${BASE}/session/plan/tree`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchPlanList() {
+  const res = await fetch(`${BASE}/session/plan/list`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchMeta() {
+  const res = await fetch(`${BASE}/session/meta`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchDocument(name) {
+  const res = await fetch(`${BASE}/session/documents/${encodeURIComponent(name)}`);
+  if (!res.ok) return null;
   return res.json();
 }
 
 export function connectSSE() {
   const source = new EventSource(`${BASE}/events`);
-
-  for (const [event, signal] of [
-    ['state', 'stage:state'],
-    ['phase', 'stage:phase'],
-    ['chunk', 'log:chunk'],
-    ['task_state', 'task:state'],
-    ['exec_tree', 'exec:tree'],
-    ['tree', 'plan:tree'],
-    ['tokens', 'log:tokens'],
-    ['document', 'doc:ready'],
-    ['score', 'score:update'],
-  ]) {
-    source.addEventListener(event, (e) => {
-      const data = safeParse(e);
-      if (data) emit(signal, data);
-    });
-  }
-
-  source.addEventListener('error', (e) => {
-    if (e.data) {
-      const data = safeParse(e);
-      if (data) emit('stage:error', data);
+  source.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      emit('sse', event);
+    } catch {
+      console.warn('[SSE] Parse error:', e.data);
     }
-  });
-
+  };
   source.onerror = () => {
-    // EventSource will auto-reconnect
     console.warn('[SSE] Connection lost, reconnecting...');
   };
-
   return source;
 }

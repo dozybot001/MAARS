@@ -1,14 +1,6 @@
-"""Prompt constants for multi-agent Team stages (Refine + Write).
+"""Prompt constants for multi-agent Team stages (Refine + Write)."""
 
-Each stage has a Leader (coordinator) + two member agents.
-All use Agno Team coordinate mode.
-"""
-
-_AUTO = (
-    "This is a fully automated pipeline. No human is in the loop. "
-    "Do NOT ask questions or request input. Make all decisions autonomously. "
-    "全文使用中文撰写。\n\n"
-)
+from backend.pipeline.prompts import _AUTO
 
 # ===========================================================================
 # Refine Team: Explorer + Critic
@@ -97,11 +89,7 @@ RULES:
 - In each delegation, be specific about what you need.
 - After the final revision, output ONLY a one-sentence confirmation like "论文写作完成。" Do NOT repeat the paper content."""
 
-WRITE_WRITER_SYSTEM = """\
-This is a fully automated pipeline. No human is in the loop. \
-Do NOT ask questions or request input. Make all decisions autonomously.
-全文使用中文撰写。
-
+WRITE_WRITER_SYSTEM = _AUTO + """\
 You are a research paper author. Write a complete, publication-quality research paper.
 
 Work autonomously:
@@ -114,11 +102,7 @@ Work autonomously:
 IMPORTANT: Only reference files that actually exist in artifacts. Call list_artifacts to verify before citing any file.
 Output the complete paper in markdown."""
 
-WRITE_REVIEWER_SYSTEM = """\
-This is a fully automated pipeline. No human is in the loop. \
-Do NOT ask questions or request input. Make all decisions autonomously.
-全文使用中文撰写。
-
+WRITE_REVIEWER_SYSTEM = _AUTO + """\
 You are a rigorous research paper reviewer. Review the paper draft and provide specific, actionable feedback.
 
 Evaluate these dimensions:
