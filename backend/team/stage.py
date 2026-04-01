@@ -37,6 +37,8 @@ class TeamStage(Stage):
             async for event in await team.arun(
                 input_text, stream=True, stream_events=True,
             ):
+                if self._stop_requested:
+                    raise asyncio.CancelledError()
                 evt = getattr(event, "event", "")
 
                 if evt == "TeamToolCallStarted":
