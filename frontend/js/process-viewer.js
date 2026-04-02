@@ -70,16 +70,12 @@ function ensureProcessSection(stage) {
 }
 
 function ensurePhase(phase, displayText) {
-  if (phaseGroups[phase]) {
-    // Update display text if a new label arrives (e.g. round change)
-    if (displayText && phaseGroups[phase].label) {
-      phaseGroups[phase].label.textContent = displayText;
-    }
-    currentPhaseName = phase;
-    return;
-  }
-  currentPhaseName = phase;
-  phaseGroups[phase] = createFold(currentSection, displayText || phase);
+  // Label chunks pass displayText (e.g. "Evaluate · round 2") → round-specific key
+  // Done signals pass only phase → use currentPhaseName (already set by preceding label chunk)
+  const key = displayText || currentPhaseName || phase;
+  if (phaseGroups[key]) { currentPhaseName = key; return; }
+  currentPhaseName = key;
+  phaseGroups[key] = createFold(currentSection, displayText || phase);
   scroller.scroll();
 }
 
@@ -105,7 +101,7 @@ async function handleDoneSignal(stage, phase, taskId, container) {
     const doc = await fetchDocument(PHASE_DOCS[phase]);
     if (doc && doc.content) {
       documentCache[PHASE_DOCS[phase]] = doc.content;
-      const group = phaseGroups[phase];
+      const group = phaseGroups[currentPhaseName] || phaseGroups[phase];
       const displayName = (group && group.label) ? group.label.textContent : phase;
       appendDocCard(PHASE_DOCS[phase], displayName, container);
     }
