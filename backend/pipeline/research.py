@@ -159,17 +159,19 @@ class ResearchStage(Stage):
         self._prev_score = self._load_prev_score()
         self._load_checkpoint()
         idea = self.db.get_refined_idea()
-        await self._prepare(idea)
-        await self._run_iterations(idea)
+
+        await self._calibrate_once(idea)
+        await self._run_loop(idea)
+
         if self.state == StageState.FAILED:
             return self.output
         return self._build_final_output()
 
     # ------------------------------------------------------------------
-    # Prepare: calibrate → strategy → decompose
+    # Calibrate (one-time)
     # ------------------------------------------------------------------
 
-    async def _prepare(self, idea: str):
+    async def _calibrate_once(self, idea: str):
         self._current_phase = "calibrate"
         self._atomic_definition = self.db.get_calibration()
         if not self._atomic_definition:
@@ -178,78 +180,66 @@ class ResearchStage(Stage):
                 self._atomic_definition = calibrated
                 self.db.save_calibration(calibrated)
         self._send()  # done: calibration.md saved
-
         self._check_stop()
 
-        self._current_phase = "strategy"
-        self._strategy = self.db.get_strategy()
-        if not self._strategy:
-            strategy = await self._research_strategy(idea)
-            if strategy:
-                self._strategy = strategy
-                self.db.save_strategy(strategy)
-        self._send()  # done: strategy.md saved
-
-        self._check_stop()
-
-        self._current_phase = "decompose"
-        existing_plan = self.db.get_plan_list()
-        if existing_plan and self._task_results:
-            self._all_tasks = existing_plan
-            tree = self.db.get_plan_tree()
-            if tree:
-                self._tree = tree
-        else:
-            def _on_judge_done(tree):
-                self.db.save_tree(tree)
-                self._send()
-
-            flat_tasks, tree = await decompose(
-                idea=idea,
-                stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(inst, ut, cid, content_level=cl, **kw),
-                max_depth=10,
-                atomic_definition=self._atomic_definition,
-                strategy=self._strategy,
-                on_judge_done=_on_judge_done,
-                is_stale=lambda: False,
-            )
-            self._all_tasks = flat_tasks
-            self._tree = tree
-            self.db.save_plan(flat_tasks, tree)
-        self._send()  # done: decompose finished
-
     # ------------------------------------------------------------------
-    # Iterate: execute → evaluate → strategy update → decompose loop
+    # Main loop: strategy → decompose → execute → evaluate → repeat
     # ------------------------------------------------------------------
 
-    async def _run_iterations(self, idea: str):
-        self._current_phase = "execute"
+    async def _run_loop(self, idea: str):
         await asyncio.to_thread(_preflight_docker)
-
-        # Initialize task statuses with batch numbers
-        batches = topological_batches(self._all_tasks)
-        for batch_idx, batch in enumerate(batches):
-            for t in batch:
-                if t["id"] not in self._task_results:
-                    self.db.update_task_status(t["id"], "pending")
-                    self._update_task_batch(t["id"], batch_idx + 1)
-        self._send(chunk={"text": "Execute", "call_id": "Execute", "label": True, "level": 2})
-        self._send()  # done: plan_list ready with statuses
-
-        self._check_stop()
 
         start_iteration = self.db.get_iteration()
         for iteration in range(start_iteration, self._max_iterations):
+            round_num = iteration + 1
+            is_first = iteration == start_iteration
+            is_last = iteration >= self._max_iterations - 1
+
+            # --- Strategy ---
+            self._current_phase = "strategy"
+            if is_first:
+                self._strategy = self.db.get_strategy()
+                if not self._strategy:
+                    strategy = await self._research_strategy(idea)
+                    if strategy:
+                        self._strategy = strategy
+                        self.db.save_strategy(strategy)
+                self._send()
+            # else: strategy already updated at end of previous iteration
+
+            self._check_stop()
+
+            # --- Decompose ---
+            self._current_phase = "decompose"
+            if is_first:
+                existing_plan = self.db.get_plan_list()
+                if existing_plan and self._task_results:
+                    self._all_tasks = existing_plan
+                    tree = self.db.get_plan_tree()
+                    if tree:
+                        self._tree = tree
+                else:
+                    await self._decompose_fresh(idea)
+                self._send()
+            # else: decompose already done at end of previous iteration
+
+            self._check_stop()
+
+            # --- Execute ---
+            self._current_phase = "execute"
+            self._init_task_batches()
+            label = "Execute" if is_first else f"Execute · round {round_num}"
+            self._send(chunk={"text": label, "call_id": label, "label": True, "level": 2})
+            self._send()  # done: exec list ready
+
             self._check_stop()
 
             failed = await self._execute_all_tasks()
             if failed:
                 break
 
-            is_last = iteration >= self._max_iterations - 1
+            # --- Evaluate ---
             self._current_phase = "evaluate"
-
-            # Update score tracking for meta display
             minimize = self.db.get_score_minimize()
             _, current_score = self._check_score_improved(self._prev_score, minimize)
             prev_score_snapshot = self._prev_score
@@ -259,7 +249,6 @@ class ResearchStage(Stage):
 
             self._check_stop()
 
-            # Evaluate results — LLM decides whether to continue via strategy_update
             summaries = [
                 {"id": tid, "summary": self._task_summaries.get(tid, "(no summary)")}
                 for tid in sorted(self._task_results.keys())
@@ -281,82 +270,109 @@ class ResearchStage(Stage):
 
             self._check_stop()
 
-            # Strategy update → Decompose → next iteration
-            round_num = iteration + 1
-            evaluation["_round"] = round_num
-
+            # --- Strategy Update (for next iteration) ---
+            evaluation["_round"] = round_num + 1
             self._current_phase = "strategy"
             new_strategy = await self._update_strategy(idea, evaluation)
             self._strategy = new_strategy
             self.db.save_strategy(new_strategy)
-            self._send()  # done: strategy updated
+            self._send()
 
             self._check_stop()
 
-            # Decompose with enriched context (includes completed work)
+            # --- Decompose for next iteration ---
             self._current_phase = "decompose"
-            iteration_context = self._build_iteration_context(idea)
+            await self._decompose_round(idea, round_num + 1)
 
-            decompose_label = f"Decompose · round {round_num}"
-            self._send(chunk={"text": decompose_label, "call_id": decompose_label,
-                              "label": True, "level": 2})
+    # ------------------------------------------------------------------
+    # Decompose helpers
+    # ------------------------------------------------------------------
 
-            def _on_judge_done(tree):
-                self.db.save_tree(tree)
-                self._send()
+    async def _decompose_fresh(self, idea: str):
+        """First-pass decompose from research idea."""
+        def _on_done(tree):
+            self.db.save_tree(tree)
+            self._send()
 
-            new_flat, new_subtree = await decompose(
-                idea=iteration_context,
-                stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(
-                    inst, ut, cid, content_level=cl, **kw),
-                max_depth=10,
-                atomic_definition=self._atomic_definition,
-                strategy=self._strategy,
-                on_judge_done=_on_judge_done,
-                is_stale=lambda: False,
-            )
+        flat_tasks, tree = await decompose(
+            idea=idea,
+            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(inst, ut, cid, content_level=cl, **kw),
+            max_depth=10,
+            atomic_definition=self._atomic_definition,
+            strategy=self._strategy,
+            on_judge_done=_on_done,
+            is_stale=lambda: False,
+        )
+        self._all_tasks = flat_tasks
+        self._tree = tree
+        self.db.save_plan(flat_tasks, tree)
 
-            if not new_flat:
-                break
+    async def _decompose_round(self, idea: str, round_num: int):
+        """Iteration decompose with enriched context."""
+        iteration_context = self._build_iteration_context(idea)
 
-            new_flat = self._renumber_tasks(new_flat, round_num)
-            self._all_tasks.extend(new_flat)
+        label = f"Decompose · round {round_num}"
+        self._send(chunk={"text": label, "call_id": label, "label": True, "level": 2})
 
-            round_subtree = {
-                "id": f"r{round_num}",
-                "description": f"Round {round_num}",
-                "is_atomic": False,
-                "dependencies": [],
-                "children": [
-                    {"id": t["id"], "description": t["description"], "is_atomic": True,
-                     "dependencies": t.get("dependencies", []), "children": []}
-                    for t in new_flat
-                ],
-            }
-            if self._tree:
-                self._tree.setdefault("children", []).append(round_subtree)
-            self.db.save_plan_amendment(new_flat, round_num, round_subtree)
+        def _on_done(tree):
+            self.db.save_tree(tree)
+            self._send()
 
-            # Assign batch numbers and pending status for new tasks
-            new_batches = topological_batches(new_flat)
-            max_batch = max(
-                (t.get("batch", 0)
-                 for t in self.db.get_plan_list()
-                 if t["id"] not in [nt["id"] for nt in new_flat]),
-                default=0,
-            )
-            for batch_idx, batch in enumerate(new_batches):
-                for t in batch:
+        new_flat, _ = await decompose(
+            idea=iteration_context,
+            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(
+                inst, ut, cid, content_level=cl, **kw),
+            max_depth=10,
+            atomic_definition=self._atomic_definition,
+            strategy=self._strategy,
+            on_judge_done=_on_done,
+            is_stale=lambda: False,
+        )
+
+        if not new_flat:
+            return
+
+        new_flat = self._renumber_tasks(new_flat, round_num)
+        self._all_tasks.extend(new_flat)
+
+        round_subtree = {
+            "id": f"r{round_num}",
+            "description": f"Round {round_num}",
+            "is_atomic": False,
+            "dependencies": [],
+            "children": [
+                {"id": t["id"], "description": t["description"], "is_atomic": True,
+                 "dependencies": t.get("dependencies", []), "children": []}
+                for t in new_flat
+            ],
+        }
+        if self._tree:
+            self._tree.setdefault("children", []).append(round_subtree)
+        self.db.save_plan_amendment(new_flat, round_num, round_subtree)
+
+        # Assign batch numbers and pending status
+        new_batches = topological_batches(new_flat)
+        max_batch = max(
+            (t.get("batch", 0)
+             for t in self.db.get_plan_list()
+             if t["id"] not in [nt["id"] for nt in new_flat]),
+            default=0,
+        )
+        for batch_idx, batch in enumerate(new_batches):
+            for t in batch:
+                self.db.update_task_status(t["id"], "pending")
+                self._update_task_batch(t["id"], max_batch + batch_idx + 1)
+
+        self._send()  # done: decompose round finished
+
+    def _init_task_batches(self):
+        """Set batch numbers and pending status for unexecuted tasks."""
+        batches = topological_batches(self._all_tasks)
+        for batch_idx, batch in enumerate(batches):
+            for t in batch:
+                if t["id"] not in self._task_results:
                     self.db.update_task_status(t["id"], "pending")
-                    self._update_task_batch(t["id"], max_batch + batch_idx + 1)
-
-            self._send()  # done: decompose round finished
-
-            self._current_phase = "execute"
-            execute_label = f"Execute · round {round_num}"
-            self._send(chunk={"text": execute_label, "call_id": execute_label,
-                              "label": True, "level": 2})
-            self._send()  # done: exec list updated
+                    self._update_task_batch(t["id"], batch_idx + 1)
 
     # ------------------------------------------------------------------
     # Task execution
