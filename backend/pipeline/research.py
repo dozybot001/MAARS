@@ -189,43 +189,47 @@ class ResearchStage(Stage):
     async def _run_loop(self, idea: str):
         await asyncio.to_thread(_preflight_docker)
 
-        # --- First-pass strategy + decompose ---
         start_iteration = self.db.get_iteration()
-        if start_iteration == 0:
-            self._current_phase = "strategy"
-            self._send(chunk={"text": "Strategy · round 1", "call_id": "Strategy · round 1", "label": True, "level": 2})
-            self._strategy = self.db.get_strategy()
-            if not self._strategy:
-                strategy = await self._research_strategy(idea)
-                if strategy:
-                    self._strategy = strategy
-                    self.db.save_strategy(strategy)
-            self._send()
-            self._check_stop()
+        evaluation = None  # None = first pass; has data = subsequent pass
 
-            self._current_phase = "decompose"
-            self._send(chunk={"text": "Decompose · round 1", "call_id": "Decompose · round 1", "label": True, "level": 2})
-            existing_plan = self.db.get_plan_list()
-            if existing_plan and self._task_results:
-                self._all_tasks = existing_plan
-                tree = self.db.get_plan_tree()
-                if tree:
-                    self._tree = tree
-            else:
-                await self._decompose_fresh(idea)
-            self._send()
-            self._check_stop()
-        else:
-            # Checkpoint resume: reload strategy and plan
-            self._strategy = self.db.get_strategy()
-            self._all_tasks = self.db.get_plan_list()
-            tree = self.db.get_plan_tree()
-            if tree:
-                self._tree = tree
-
-        # --- Main loop: execute → evaluate → strategy update → decompose ---
         for iteration in range(start_iteration, self._max_iterations):
             round_label = f"round {iteration + 1}"
+
+            # Strategy
+            self._current_phase = "strategy"
+            strategy_tag = f"Strategy · {round_label}"
+            self._send(chunk={"text": strategy_tag, "call_id": strategy_tag, "label": True, "level": 2})
+            if evaluation:
+                new_strategy = await self._update_strategy(idea, evaluation)
+                self._strategy = new_strategy
+                self.db.save_strategy(new_strategy)
+            else:
+                self._strategy = self.db.get_strategy()
+                if not self._strategy:
+                    strategy = await self._research_strategy(idea)
+                    if strategy:
+                        self._strategy = strategy
+                        self.db.save_strategy(strategy)
+            self._send()
+            self._check_stop()
+
+            # Decompose
+            self._current_phase = "decompose"
+            decompose_tag = f"Decompose · {round_label}"
+            self._send(chunk={"text": decompose_tag, "call_id": decompose_tag, "label": True, "level": 2})
+            if evaluation:
+                await self._decompose_round(idea, iteration + 1)
+            else:
+                existing_plan = self.db.get_plan_list()
+                if existing_plan and self._task_results:
+                    self._all_tasks = existing_plan
+                    tree = self.db.get_plan_tree()
+                    if tree:
+                        self._tree = tree
+                else:
+                    await self._decompose_fresh(idea)
+            self._send()
+            self._check_stop()
 
             # Execute
             self._current_phase = "execute"
@@ -274,21 +278,6 @@ class ResearchStage(Stage):
                 break
 
             self._check_stop()
-
-            # Strategy Update
-            self._current_phase = "strategy"
-            strategy_tag = f"Strategy · {round_label}"
-            self._send(chunk={"text": strategy_tag, "call_id": strategy_tag, "label": True, "level": 2})
-            new_strategy = await self._update_strategy(idea, evaluation)
-            self._strategy = new_strategy
-            self.db.save_strategy(new_strategy)
-            self._send()
-
-            self._check_stop()
-
-            # Decompose
-            self._current_phase = "decompose"
-            await self._decompose_round(idea, iteration + 1)
 
     # ------------------------------------------------------------------
     # Decompose helpers
