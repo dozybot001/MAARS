@@ -117,19 +117,22 @@ port_in_use() {
 }
 
 auto_release_port() {
-    local port="${1:-$SERVER_PORT}" released=0
+    local port="${1:-$SERVER_PORT}"
     local pids
     pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
     [ -z "$pids" ] && return 0
-    while IFS= read -r pid; do
-        [ -n "$pid" ] || continue
-        append_log "Auto-releasing port $port: pid $pid"
-        kill -TERM "$pid" 2>/dev/null || true
-        released=$((released + 1))
-    done <<< "$pids"
-    [ "$released" -eq 0 ] && return 1
+    # TERM first
+    echo "$pids" | xargs kill -TERM 2>/dev/null || true
+    append_log "Auto-releasing port $port: TERM sent to pids $pids"
     local i=0
     while [ "$i" -lt 20 ] && port_in_use "$port"; do sleep 0.25; i=$((i + 1)); done
+    if port_in_use "$port"; then
+        # KILL stragglers
+        pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+        [ -n "$pids" ] && echo "$pids" | xargs kill -9 2>/dev/null || true
+        append_log "Auto-releasing port $port: KILL sent"
+        sleep 0.5
+    fi
     ! port_in_use "$port"
 }
 
