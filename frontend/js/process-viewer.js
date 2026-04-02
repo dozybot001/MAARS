@@ -25,18 +25,18 @@ export function initProcessViewer() {
   scroller = createAutoScroller(processBody);
   const tokenBadge = document.getElementById('token-estimate');
 
-  // Build fixed layout
+  // Build fixed layout sections
   docsRow = el('div', 'po-docs-row');
+  scoreContainer = el('div', 'po-score-container');
   treeContainer = el('ul', 'po-tree');
   treeContainer.id = 'tree-output';
   execContainer = el('div', 'po-exec');
   execContainer.id = 'exec-output';
-  scoreContainer = el('div', 'po-score-container');
 
-  processBody.appendChild(docsRow);
-  processBody.appendChild(scoreContainer);
-  processBody.appendChild(treeContainer);
-  processBody.appendChild(execContainer);
+  processBody.appendChild(section('Documents', docsRow));
+  processBody.appendChild(section('Score', scoreContainer));
+  processBody.appendChild(section('Decompose', treeContainer));
+  processBody.appendChild(section('Tasks', execContainer));
 
   on('sse', async (event) => {
     const { stage, phase, chunk, status, task_id } = event;
@@ -271,6 +271,14 @@ function renderExecList(tasks) {
 // ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
+
+function section(label, content) {
+  const wrapper = el('div', 'po-section');
+  const header = el('div', 'po-section-label', label);
+  wrapper.appendChild(header);
+  wrapper.appendChild(content);
+  return wrapper;
+}
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
