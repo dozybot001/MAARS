@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from enum import Enum
 
@@ -112,10 +113,11 @@ class Stage:
                           call_id: str, content_level: int = 2,
                           timeout: float = 1800, max_retries: int = 3,
                           label: bool = False, label_level: int | None = None,
-                          task_id: str = "") -> str:
+                          task_id: str = "", _skip_semaphore: bool = False) -> str:
         result = ""
         extra = {"task_id": task_id} if task_id else {}
-        async with _get_api_semaphore():
+        sem = contextlib.nullcontext() if _skip_semaphore else _get_api_semaphore()
+        async with sem:
             if label:
                 lvl = label_level if label_level is not None else content_level
                 self._send(chunk={"text": call_id, "call_id": call_id, "label": True, "level": lvl}, **extra)

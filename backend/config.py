@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # --- API ---
     api_concurrency: int
+    output_language: str = "Chinese"
 
     # --- Docker Sandbox ---
     docker_sandbox_image: str

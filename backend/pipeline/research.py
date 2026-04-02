@@ -13,7 +13,7 @@ from backend.db import ResearchDB
 from backend.pipeline.stage import Stage, StageState
 from backend.pipeline.decompose import decompose
 from backend.pipeline.prompts import (
-    CALIBRATE_SYSTEM, EVALUATE_SYSTEM, REDECOMPOSE_CONTEXT,
+    CALIBRATE_SYSTEM, EVALUATE_SYSTEM,
     STRATEGY_SYSTEM, build_execute_prompt, build_verify_prompt, build_retry_prompt,
     build_evaluate_user, build_strategy_update_user,
 )
@@ -61,23 +61,6 @@ def _find_node(tree: dict, node_id: str) -> dict | None:
     return None
 
 
-def _renumber_subtree(children: list[dict], parent_id: str) -> list[dict]:
-    id_map: dict[str, str] = {}
-    def collect(nodes):
-        for n in nodes:
-            id_map[n["id"]] = f"{parent_id}_d{n['id']}"
-            collect(n.get("children", []))
-    collect(children)
-    def rename(node):
-        return {
-            "id": id_map.get(node["id"], node["id"]),
-            "description": node["description"],
-            "is_atomic": node.get("is_atomic"),
-            "dependencies": [id_map.get(d, d) for d in node.get("dependencies", [])],
-            "children": [rename(c) for c in node.get("children", [])],
-        }
-    return [rename(c) for c in children]
-
 
 class ResearchStage(Stage):
 
@@ -95,23 +78,75 @@ class ResearchStage(Stage):
         self._atomic_definition: str = ""
         self._prev_score: float | None = None
         self._partial_outputs: dict[str, str] = {}
-        self._redecompose_parent: dict[str, str] = {}
         self._current_task_id: str | None = None
 
     def _llm(self, instruction, user_text, call_id, content_level=2, timeout=1800, **kwargs):
         task_id = kwargs.pop("task_id", None) or self._current_task_id or ""
+        skip_sem = kwargs.pop("_skip_semaphore", False)
         return self._stream_llm(
             self._model, self._tools, instruction, user_text, call_id,
-            content_level=content_level, timeout=timeout, task_id=task_id, **kwargs,
+            content_level=content_level, timeout=timeout, task_id=task_id,
+            _skip_semaphore=skip_sem, **kwargs,
         )
 
-    def _describe_capabilities(self) -> str:
-        tool_descs = []
+    def _build_capability_profile(self) -> str:
+        """Deterministic capability profile built from config + tools."""
+        _TOOL_DESCS = {
+            'code_execute': 'Execute Python in Docker sandbox. Returns stdout, stderr, exit_code, generated file list. stdout truncated to 5000 chars.',
+            'list_artifacts': 'List files in current task artifacts directory.',
+            'read_task_output': 'Read markdown output of a completed sibling task.',
+            'list_tasks': 'List all completed tasks with IDs and sizes.',
+            'read_refined_idea': 'Read the refined research idea.',
+            'read_plan_tree': 'Read the full decomposition tree.',
+            'DuckDuckGoTools': 'Web search via DuckDuckGo.',
+            'ArxivTools': 'Search academic papers on arXiv.',
+            'WikipediaTools': 'Search Wikipedia articles.',
+        }
+        lines = [
+            "## Execution Environment",
+            "",
+            "### Docker Sandbox",
+            f"- Timeout per code_execute: {settings.docker_sandbox_timeout}s",
+            f"- Memory: {settings.docker_sandbox_memory}",
+            f"- CPU: {settings.docker_sandbox_cpu} cores",
+            f"- Network: {'enabled' if settings.docker_sandbox_network else 'disabled'}",
+            "",
+            "### Execution Model",
+            "- Each task = ONE independent agent session (single system prompt + user message)",
+            "- Agent can make MULTIPLE tool calls within one session",
+            "- Each code_execute runs in a fresh container; files persist in /workspace/output/ within the same task",
+            "- Tasks share data ONLY via artifact files — no direct communication",
+            "",
+            "### Available Tools",
+        ]
         for t in self._tools:
             name = getattr(t, 'name', type(t).__name__)
-            tool_descs.append(f"- {name}")
-        tools_str = "\n".join(tool_descs) if tool_descs else "(none)"
-        return f"AI Agent (Agno) with multi-step reasoning. Model: {self._model.__class__.__name__}\nAvailable tools:\n{tools_str}"
+            desc = _TOOL_DESCS.get(name, getattr(t, '__doc__', '') or '')
+            lines.append(f"- **{name}**: {desc}" if desc else f"- {name}")
+        return "\n".join(lines)
+
+    def _describe_dataset(self) -> str:
+        """Describe dataset files if available."""
+        from pathlib import Path
+        if not settings.dataset_dir:
+            return ""
+        dataset_path = Path(settings.dataset_dir)
+        if not dataset_path.exists():
+            return ""
+        files = []
+        for f in sorted(dataset_path.iterdir()):
+            if f.is_file():
+                size = f.stat().st_size
+                if size >= 1024 * 1024:
+                    s = f"{size / 1024 / 1024:.1f}MB"
+                elif size >= 1024:
+                    s = f"{size / 1024:.1f}KB"
+                else:
+                    s = f"{size}B"
+                files.append(f"- {f.name} ({s})")
+        if not files:
+            return ""
+        return "## Dataset\nFiles at /workspace/data/:\n" + "\n".join(files)
 
     def _check_stop(self):
         if self._stop_requested:
@@ -301,12 +336,27 @@ class ResearchStage(Stage):
             if self._tree:
                 self._tree.setdefault("children", []).append(round_subtree)
             self.db.save_plan_amendment(new_flat, round_num, round_subtree)
+
+            # Assign batch numbers and pending status for new tasks
+            new_batches = topological_batches(new_flat)
+            max_batch = max(
+                (t.get("batch", 0)
+                 for t in self.db.get_plan_list()
+                 if t["id"] not in [nt["id"] for nt in new_flat]),
+                default=0,
+            )
+            for batch_idx, batch in enumerate(new_batches):
+                for t in batch:
+                    self.db.update_task_status(t["id"], "pending")
+                    self._update_task_batch(t["id"], max_batch + batch_idx + 1)
+
             self._send()  # done: decompose round finished
 
             self._current_phase = "execute"
             execute_label = f"Execute · round {round_num}"
             self._send(chunk={"text": execute_label, "call_id": execute_label,
                               "label": True, "level": 2})
+            self._send()  # done: exec list updated
 
     # ------------------------------------------------------------------
     # Task execution
@@ -363,30 +413,46 @@ class ResearchStage(Stage):
         return False
 
     async def _execute_task(self, task: dict) -> tuple[bool, dict, str, str]:
-        task_id = task["id"]
-        self._current_task_id = task_id
-        self.db.current_task_id = task_id
-        try:
-            return await self._execute_task_inner(task)
-        finally:
-            self._current_task_id = None
-            self.db.current_task_id = None
+        return await self._execute_task_inner(task)
 
     async def _execute_task_inner(self, task: dict) -> tuple[bool, dict, str, str]:
         task_id = task["id"]
-        parent_id = self._redecompose_parent.get(task_id)
+        # Derive parent from ID; _partial_outputs only has entries for redecomposed parents
+        parts = task_id.rsplit("_", 1)
+        parent_id = parts[0] if len(parts) > 1 else None
         prior_attempt = self._partial_outputs.get(parent_id, "") if parent_id else ""
 
         call_id = f"Exec {task_id}"
-        self._send(status="running", task_id=task_id, description=task["description"])
-        instruction, user_text = build_execute_prompt(task, prior_attempt)
-        result = await self._llm(instruction, user_text, call_id, content_level=4, label=True, label_level=3)
+
+        from backend.pipeline.stage import _get_api_semaphore
+        async with _get_api_semaphore():
+            self._current_task_id = task_id
+            self.db.current_task_id = task_id
+            self._send(status="running", task_id=task_id, description=task["description"])
+            try:
+                return await self._run_task_cycle(task, task_id, call_id, prior_attempt)
+            finally:
+                self._current_task_id = None
+                self.db.current_task_id = None
+
+    async def _run_task_cycle(self, task, task_id, call_id, prior_attempt):
+        dep_summaries = {
+            d: self._task_summaries[d]
+            for d in task.get("dependencies", [])
+            if d in self._task_summaries
+        }
+        instruction, user_text = build_execute_prompt(task, prior_attempt, dep_summaries)
+        result = await self._llm(instruction, user_text, call_id, content_level=4, label=True, label_level=3, _skip_semaphore=True)
+
+        # Summary comes from execute, not verify
+        summary = self._extract_summary(result)
+        if summary:
+            self._task_summaries[task_id] = summary
 
         self._send(status="verifying", task_id=task_id)
         vi, vt = build_verify_prompt(task, result)
-        verify_response = await self._llm(vi, vt, call_id, content_level=4)
-        passed, review, summary, redecompose = self._parse_verification(verify_response)
-        self._task_summaries[task_id] = summary
+        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True)
+        passed, review, redecompose = self._parse_verification(verify_response)
 
         if passed:
             self._save_task(task_id, result)
@@ -396,13 +462,16 @@ class ResearchStage(Stage):
 
         self._send(status="retrying", task_id=task_id)
         ri, rt = build_retry_prompt(task, result, review)
-        result = await self._llm(ri, rt, call_id, content_level=4)
+        result = await self._llm(ri, rt, call_id, content_level=4, _skip_semaphore=True)
+
+        retry_summary = self._extract_summary(result)
+        if retry_summary:
+            self._task_summaries[task_id] = retry_summary
 
         self._send(status="verifying", task_id=task_id)
         vi, vt = build_verify_prompt(task, result)
-        verify_response = await self._llm(vi, vt, call_id, content_level=4)
-        passed, review, summary, redecompose = self._parse_verification(verify_response)
-        self._task_summaries[task_id] = summary
+        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True)
+        passed, review, redecompose = self._parse_verification(verify_response)
 
         if passed:
             self._save_task(task_id, result)
@@ -415,23 +484,34 @@ class ResearchStage(Stage):
 
     def _save_task(self, task_id: str, result: str):
         summary = self._task_summaries.get(task_id, "")
+        if not summary:
+            log.warning("Task %s completed without SUMMARY line — downstream context will be degraded", task_id)
+            summary = f"(Task {task_id} completed, no summary provided)"
         if self.db:
             self.db.save_task_output(task_id, result)
             self.db.update_task_status(task_id, "completed", summary)
         self._task_results[task_id] = result
         self._send(task_id=task_id)  # done: task output saved
 
-    def _parse_verification(self, response: str) -> tuple[bool, str, str, bool]:
-        data = parse_json_fenced(response, fallback={"pass": True})
+    @staticmethod
+    def _extract_summary(result: str) -> str:
+        """Extract SUMMARY: line from execute result."""
+        for line in reversed(result.strip().splitlines()):
+            stripped = line.strip()
+            if stripped.upper().startswith("SUMMARY:"):
+                return stripped[len("SUMMARY:"):].strip()
+        return ""
+
+    def _parse_verification(self, response: str) -> tuple[bool, str, bool]:
+        data = parse_json_fenced(response, fallback={"pass": False})
         return (
-            data.get("pass", True),
+            data.get("pass", False),
             data.get("review", ""),
-            data.get("summary", ""),
             data.get("redecompose", False),
         )
 
     # ------------------------------------------------------------------
-    # Replan
+    # Evaluate & Strategy
     # ------------------------------------------------------------------
 
     def _load_prev_score(self) -> float | None:
@@ -443,7 +523,14 @@ class ResearchStage(Stage):
     async def _research_strategy(self, idea: str) -> str:
         call_id = "Strategy"
         self._send(chunk={"text": call_id, "call_id": call_id, "label": True, "level": 2})
-        response = await self._llm(STRATEGY_SYSTEM, f"## Research Topic\n{idea}", call_id, content_level=3)
+        parts = [self._build_capability_profile()]
+        dataset = self._describe_dataset()
+        if dataset:
+            parts.append(dataset)
+        if self._atomic_definition:
+            parts.append(f"## Atomic Task Definition (from Calibrate)\n{self._atomic_definition}")
+        parts.append(f"## Research Topic\n{idea}")
+        response = await self._llm(STRATEGY_SYSTEM, "\n\n".join(parts), call_id, content_level=3)
         direction_data = parse_json_fenced(response, fallback={})
         if "score_direction" in direction_data:
             minimize = direction_data["score_direction"] != "maximize"
@@ -484,7 +571,7 @@ class ResearchStage(Stage):
             f"- **Task [{s['id']}]**: {s['summary']}" for s in task_summaries
         )
         prior_evals = self.db.load_evaluations() if iteration > 0 else []
-        capabilities = self._describe_capabilities()
+        capabilities = self._build_capability_profile()
         user_text = build_evaluate_user(
             idea=idea,
             summaries_text=summaries_text,
@@ -535,69 +622,95 @@ class ResearchStage(Stage):
         return "\n".join(parts)
 
     async def _calibrate(self, idea: str) -> str:
-        capabilities = self._describe_capabilities()
+        profile = self._build_capability_profile()
+        dataset = self._describe_dataset()
         call_id = "Calibrate"
         self._send(chunk={"text": call_id, "call_id": call_id, "label": True, "level": 2})
-        user_text = f"## Your Capabilities\n{capabilities}\n\n## Research Topic\n{idea}"
-        response = await self._llm(CALIBRATE_SYSTEM, user_text, call_id, content_level=3)
+        parts = [profile]
+        if dataset:
+            parts.append(dataset)
+        parts.append(f"## Research Topic\n{idea}")
+        response = await self._llm(CALIBRATE_SYSTEM, "\n\n".join(parts), call_id, content_level=3)
         return response.strip()
 
     # ------------------------------------------------------------------
     # Redecompose
     # ------------------------------------------------------------------
 
+    def _get_task_siblings(self, task_id: str) -> list[dict]:
+        """Get sibling tasks from the decomposition tree."""
+        if not self._tree:
+            return []
+        def find_parent(node, target_id):
+            for child in node.get("children", []):
+                if child.get("id") == target_id:
+                    return node
+                found = find_parent(child, target_id)
+                if found:
+                    return found
+            return None
+        parent = find_parent(self._tree, task_id)
+        if not parent:
+            return []
+        return [
+            {"id": c["id"], "description": c["description"]}
+            for c in parent.get("children", [])
+            if c.get("id") != task_id
+        ]
+
     async def _redecompose_task(self, task: dict, result: str, review: str) -> list[dict]:
         task_id = task["id"]
         self._send(status="decomposing", task_id=task_id)
         self._partial_outputs[task_id] = result
-        context = REDECOMPOSE_CONTEXT.format(
-            task_id=task_id, description=task["description"],
-            result=result, review=review,
-        )
 
-        def _on_redecomp_done(tree):
-            self.db.save_tree(tree)
+        if settings.output_language.lower().startswith("ch"):
+            enriched_desc = (
+                f"{task['description']}\n\n"
+                f"--- 此任务曾尝试执行但验证未通过 ---\n"
+                f"审查反馈：{review}\n"
+                f"已有结果中合格的部分不需要重做，聚焦于缺失或需要不同方法的部分。"
+            )
+        else:
+            enriched_desc = (
+                f"{task['description']}\n\n"
+                f"--- This task was attempted but failed verification ---\n"
+                f"Review: {review}\n"
+                f"Do not redo parts that are already adequate — focus on what is missing."
+            )
+
+        def _on_done(tree):
+            if self._tree:
+                node = _find_node(self._tree, task_id)
+                if node:
+                    node.update(tree)
+                self.db.save_tree(self._tree)
             saved = self._current_phase
             self._current_phase = "decompose"
             self._send()
             self._current_phase = saved
 
         flat_tasks, subtree = await decompose(
-            idea=context,
+            idea=enriched_desc,
             stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(inst, ut, cid, content_level=cl, **kw),
-            max_depth=3,
+            max_depth=10,
             atomic_definition=self._atomic_definition,
-            on_judge_done=_on_redecomp_done,
+            strategy=self._strategy,
+            on_judge_done=_on_done,
             is_stale=lambda: False,
+            context=self.db.get_refined_idea(),
+            root_siblings=self._get_task_siblings(task_id),
+            root_id=task_id,
         )
         if not flat_tasks:
             return []
 
-        parent_deps = task.get("dependencies", [])
-        id_map = {t["id"]: f"{task_id}_d{t['id']}" for t in flat_tasks}
-        renumbered = []
-        for t in flat_tasks:
-            new_id = id_map[t["id"]]
-            internal_deps = [id_map.get(d, d) for d in t.get("dependencies", [])]
-            new_deps = internal_deps if internal_deps else list(parent_deps)
-            renumbered.append({"id": new_id, "description": t["description"], "dependencies": new_deps})
-            self._redecompose_parent[new_id] = task_id
-
         if self.db:
-            updated = [t for t in self._all_tasks if t["id"] != task_id] + renumbered
-            if self._tree:
-                parent_node = _find_node(self._tree, task_id)
-                if parent_node:
-                    parent_node["is_atomic"] = False
-                    parent_node["children"] = _renumber_subtree(subtree.get("children", []), task_id)
+            updated = [t for t in self._all_tasks if t["id"] != task_id] + flat_tasks
             self.db.save_plan(updated, self._tree or {})
-            saved = self._current_phase
-            self._current_phase = "decompose"
+            self._current_phase = "execute"
             self._send()
-            self._current_phase = saved
-            self._send()  # execute done: plan_list updated
 
-        return renumbered
+        return flat_tasks
 
     # ------------------------------------------------------------------
     # Helpers
@@ -643,6 +756,12 @@ class ResearchStage(Stage):
             output = self.db.get_task_output(task_id)
             if output:
                 self._task_results[task_id] = output
+        # Warm summary cache from plan_list.json
+        for task in self.db.get_plan_list():
+            tid = task.get("id", "")
+            summary = task.get("summary", "")
+            if tid and summary and tid in self._task_results:
+                self._task_summaries[tid] = summary
 
     def retry(self):
         super().retry()
@@ -653,7 +772,6 @@ class ResearchStage(Stage):
         self._strategy = ""
         self._prev_score = None
         self._partial_outputs.clear()
-        self._redecompose_parent.clear()
         if self.db:
             self.db.clear_tasks()
             self.db.clear_plan()

@@ -1,7 +1,11 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from backend.config import settings
 from backend.pipeline.orchestrator import PipelineOrchestrator
@@ -20,7 +24,18 @@ async def lifespan(app):
         await orch.shutdown()
 
 
+class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    """Disable caching for JS/CSS so dev changes take effect immediately."""
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        path = request.url.path
+        if path.endswith(('.js', '.css')):
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
+
 app = FastAPI(title="MAARS", version="0.1.0", lifespan=lifespan)
+app.add_middleware(NoCacheStaticMiddleware)
 
 orchestrator = PipelineOrchestrator()
 

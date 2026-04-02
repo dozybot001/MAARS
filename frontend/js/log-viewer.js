@@ -9,6 +9,7 @@ let taskGroups = {}, taskDescriptions = {};
 let callBlocks = {}, callScrollers = {};
 let timerBadge = null, timerInterval = null, timerStart = null;
 let activityBadge = null, lastActivityTime = null, activityInterval = null;
+let pausedAt = null;
 
 function currentTarget(taskId) {
   if (taskId && taskGroups[taskId]) return taskGroups[taskId].body;
@@ -158,6 +159,30 @@ function updateActivityBadge() {
   if (idle < 5) { activityBadge.textContent = 'Active'; activityBadge.dataset.state = 'active'; }
   else if (idle < 60) { activityBadge.textContent = `Waiting ${idle}s`; activityBadge.dataset.state = 'waiting'; }
   else { const m = Math.floor(idle / 60), s = idle % 60; activityBadge.textContent = `No output ${m}m${s}s`; activityBadge.dataset.state = 'stale'; }
+}
+
+export function pauseTimers() {
+  pausedAt = Date.now();
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  if (activityInterval) { clearInterval(activityInterval); activityInterval = null; }
+  if (activityBadge) { activityBadge.textContent = 'Paused'; activityBadge.dataset.state = 'paused'; }
+}
+
+export function resumeTimers() {
+  if (pausedAt) {
+    const paused = Date.now() - pausedAt;
+    if (timerStart) timerStart += paused;
+    if (lastActivityTime) lastActivityTime += paused;
+    pausedAt = null;
+  }
+  if (timerStart && !timerInterval) {
+    timerInterval = setInterval(updateTimerBadge, 1000);
+    updateTimerBadge();
+  }
+  if (lastActivityTime && !activityInterval) {
+    activityInterval = setInterval(updateActivityBadge, 1000);
+    updateActivityBadge();
+  }
 }
 
 function wireCopyButton(btnId, sourceEl) {

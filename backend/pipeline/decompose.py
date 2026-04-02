@@ -27,17 +27,21 @@ async def decompose(
     strategy: str = "",
     on_judge_done: Callable | None = None,
     is_stale: Callable[[], bool] | None = None,
+    context: str = "",
+    root_siblings: list[dict] | None = None,
+    root_id: str = "0",
 ) -> tuple[list[dict], dict]:
     system_prompt = build_decompose_system(atomic_definition, strategy)
     progress_fn = on_judge_done or (lambda tree: None)
     stale = is_stale or (lambda: False)
+    ctx = context or idea
 
     tasks: dict[str, Task] = {}
     pending: list[str] = []
 
-    root = Task(id="0", description=idea)
-    tasks["0"] = root
-    pending.append("0")
+    root = Task(id=root_id, description=idea)
+    tasks[root_id] = root
+    pending.append(root_id)
 
     while pending:
         if stale():
@@ -45,31 +49,35 @@ async def decompose(
         batch = list(pending)
         pending.clear()
         await asyncio.gather(*[
-            _process_task(tid, tasks, pending, idea, system_prompt,
-                          max_depth, stream_fn, progress_fn, stale)
+            _process_task(tid, tasks, pending, ctx, system_prompt,
+                          max_depth, stream_fn, progress_fn, stale,
+                          root_id, root_siblings)
             for tid in batch
         ])
 
-    tree = _serialize_tree(tasks)
-    flat_tasks = _finalize(tasks)
+    tree = _serialize_tree(tasks, root_id)
+    flat_tasks = _finalize(tasks, root_id)
     return flat_tasks, tree
 
 
 async def _process_task(task_id, tasks, pending, context, system_prompt,
-                        max_depth, stream_fn, progress_fn, stale):
+                        max_depth, stream_fn, progress_fn, stale,
+                        root_id="0", root_siblings=None):
     task = tasks[task_id]
-    depth = 0 if task_id == "0" else len(task_id.split("_"))
+    depth = _depth(task_id, root_id)
     if depth >= max_depth:
         task.is_atomic = True
-        progress_fn(_serialize_tree(tasks))
+        progress_fn(_serialize_tree(tasks, root_id))
         return
 
-    call_id = "Decompose" if task_id == "0" else f"Judge {task_id}"
-    label_level = 2 if task_id == "0" else 3
+    is_root = task_id == root_id
+    call_id = "Decompose" if is_root and root_id == "0" else f"Judge {task_id}"
+    label_level = 2 if is_root and root_id == "0" else 3
     content_level = label_level + 1
 
+    siblings = root_siblings if is_root and root_siblings else _get_siblings(task_id, tasks, root_id)
     response = await stream_fn(
-        system_prompt, build_decompose_user(task.id, task.description, context),
+        system_prompt, build_decompose_user(task.id, task.description, context, siblings),
         call_id, content_level, label=True, label_level=label_level,
     )
 
@@ -79,14 +87,14 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
         subtasks = data.get("subtasks", [])
         if not subtasks or not all("id" in st and "description" in st for st in subtasks):
             task.is_atomic = True
-            progress_fn(_serialize_tree(tasks))
+            progress_fn(_serialize_tree(tasks, root_id))
             return
 
     task.is_atomic = False
     for st in data["subtasks"]:
-        child_id = st["id"] if task_id == "0" else f"{task_id}_{st['id']}"
+        child_id = st["id"] if is_root and root_id == "0" else f"{task_id}_{st['id']}"
         child_deps = [
-            d if task_id == "0" else f"{task_id}_{d}"
+            d if is_root and root_id == "0" else f"{task_id}_{d}"
             for d in st.get("dependencies", [])
         ]
         child = Task(id=child_id, description=st["description"], dependencies=child_deps)
@@ -94,19 +102,46 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
         task.children.append(child_id)
         pending.append(child_id)
 
-    progress_fn(_serialize_tree(tasks))
+    progress_fn(_serialize_tree(tasks, root_id))
 
 
-def _finalize(tasks):
+def _depth(task_id: str, root_id: str) -> int:
+    """Compute depth relative to root."""
+    if task_id == root_id:
+        return 0
+    # Count segments after root prefix
+    if root_id == "0":
+        return len(task_id.split("_"))
+    suffix = task_id[len(root_id):]  # e.g. "6_1_2" with root "6" → "_1_2"
+    return len(suffix.split("_")) - 1
+
+
+def _get_siblings(task_id: str, tasks: dict[str, Task], root_id: str = "0") -> list[dict]:
+    """Return sibling tasks (same parent, excluding self)."""
+    if task_id == root_id:
+        return []
+    parts = task_id.rsplit("_", 1)
+    parent_id = parts[0] if len(parts) > 1 else root_id
+    parent = tasks.get(parent_id)
+    if not parent:
+        return []
+    return [
+        {"id": tasks[cid].id, "description": tasks[cid].description}
+        for cid in parent.children
+        if cid != task_id and cid in tasks
+    ]
+
+
+def _finalize(tasks, root_id="0"):
     atomic_tasks = {tid: t for tid, t in tasks.items() if t.is_atomic}
-    resolved = _resolve_dependencies(tasks, atomic_tasks)
+    resolved = _resolve_dependencies(tasks, atomic_tasks, root_id)
     return [
         {"id": tid, "description": atomic_tasks[tid].description, "dependencies": deps}
         for tid, deps in resolved.items()
     ]
 
 
-def _serialize_tree(tasks):
+def _serialize_tree(tasks, root_id="0"):
     def build_node(task_id):
         task = tasks.get(task_id)
         if not task:
@@ -116,14 +151,14 @@ def _serialize_tree(tasks):
             "dependencies": task.dependencies, "is_atomic": task.is_atomic,
             "children": [build_node(cid) for cid in task.children],
         }
-    return build_node("0") or {}
+    return build_node(root_id) or {}
 
 
-def _resolve_dependencies(all_tasks, atomic_tasks):
+def _resolve_dependencies(all_tasks, atomic_tasks, root_id="0"):
     resolved = {}
     for tid in atomic_tasks:
         collected = set()
-        for ancestor_id in _ancestor_chain(tid):
+        for ancestor_id in _ancestor_chain(tid, root_id):
             ancestor = all_tasks.get(ancestor_id)
             if ancestor:
                 collected.update(ancestor.dependencies)
@@ -139,12 +174,17 @@ def _resolve_dependencies(all_tasks, atomic_tasks):
     return resolved
 
 
-def _ancestor_chain(task_id):
+def _ancestor_chain(task_id, root_id="0"):
     parts = task_id.split("_")
     ancestors = []
     for i in range(len(parts) - 1, 0, -1):
-        ancestors.append("_".join(parts[:i]))
-    ancestors.append("0")
+        candidate = "_".join(parts[:i])
+        ancestors.append(candidate)
+        if candidate == root_id:
+            break
+    else:
+        if root_id not in ancestors:
+            ancestors.append(root_id)
     return ancestors
 
 

@@ -103,6 +103,21 @@ class ResearchDB:
         eval_dir = self._root / "evaluations"
         eval_dir.mkdir(exist_ok=True)
         _write_json(eval_dir / f"eval_v{iteration}.json", data)
+        # Also save readable markdown for frontend display
+        parts = []
+        if data.get("feedback"):
+            parts.append(f"## Feedback\n\n{data['feedback']}")
+        if data.get("suggestions"):
+            items = "\n".join(f"- {s}" for s in data["suggestions"])
+            parts.append(f"## Suggestions\n\n{items}")
+        if data.get("score") is not None:
+            parts.append(f"## Score\n\n{data['score']}")
+        if data.get("satisfied"):
+            parts.append("*Pipeline satisfied — no further iterations needed.*")
+        if parts:
+            (self._root / "evaluation.md").write_text(
+                "\n\n".join(parts), encoding="utf-8"
+            )
 
     def save_plan_amendment(self, tasks: list[dict], iteration: int,
                             replan_subtree: dict | None = None):

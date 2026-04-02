@@ -12,7 +12,7 @@ const PHASE_LABELS = {
   calibrate: 'Calibrate', strategy: 'Strategy',
   decompose: 'Decompose', execute: 'Execute', evaluate: 'Evaluate',
 };
-const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy' };
+const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluation' };
 
 let processBody, scroller;
 let activeStage = null, currentSection = null;

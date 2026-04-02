@@ -1,5 +1,6 @@
 import { on } from './events.js';
 import { startPipeline, pipelineAction, fetchStatus } from './api.js';
+import { pauseTimers, resumeTimers } from './log-viewer.js';
 
 const NODE_ORDER = ['refine', 'calibrate', 'strategy', 'decompose', 'execute', 'evaluate', 'write'];
 const NODE_SET = new Set(NODE_ORDER);
@@ -98,12 +99,13 @@ async function handleStart() {
 async function handlePause() {
   pauseBtn.disabled = true;
   pauseBtn.textContent = 'Pausing...';
-  try { await pipelineAction('stop'); await syncFromAPI(); }
+  try { await pipelineAction('stop'); pauseTimers(); await syncFromAPI(); }
   catch (err) { console.error('Pause error:', err); }
 }
 
 async function handleResume() {
   try {
+    resumeTimers();
     await pipelineAction('resume');
     const paused = NODE_ORDER.find((n) => nodeStates[n] === 'paused');
     if (paused) updateNode(paused, 'active');
