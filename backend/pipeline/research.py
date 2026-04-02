@@ -189,48 +189,48 @@ class ResearchStage(Stage):
     async def _run_loop(self, idea: str):
         await asyncio.to_thread(_preflight_docker)
 
+        # --- First-pass strategy + decompose ---
         start_iteration = self.db.get_iteration()
+        if start_iteration == 0:
+            self._current_phase = "strategy"
+            self._strategy = self.db.get_strategy()
+            if not self._strategy:
+                strategy = await self._research_strategy(idea)
+                if strategy:
+                    self._strategy = strategy
+                    self.db.save_strategy(strategy)
+            self._send()
+            self._check_stop()
+
+            self._current_phase = "decompose"
+            existing_plan = self.db.get_plan_list()
+            if existing_plan and self._task_results:
+                self._all_tasks = existing_plan
+                tree = self.db.get_plan_tree()
+                if tree:
+                    self._tree = tree
+            else:
+                await self._decompose_fresh(idea)
+            self._send()
+            self._check_stop()
+        else:
+            # Checkpoint resume: reload strategy and plan
+            self._strategy = self.db.get_strategy()
+            self._all_tasks = self.db.get_plan_list()
+            tree = self.db.get_plan_tree()
+            if tree:
+                self._tree = tree
+
+        # --- Main loop: execute → evaluate → strategy update → decompose ---
         for iteration in range(start_iteration, self._max_iterations):
             round_num = iteration + 1
-            is_first = iteration == start_iteration
-            is_last = iteration >= self._max_iterations - 1
 
-            # --- Strategy ---
-            self._current_phase = "strategy"
-            if is_first:
-                self._strategy = self.db.get_strategy()
-                if not self._strategy:
-                    strategy = await self._research_strategy(idea)
-                    if strategy:
-                        self._strategy = strategy
-                        self.db.save_strategy(strategy)
-                self._send()
-            # else: strategy already updated at end of previous iteration
-
-            self._check_stop()
-
-            # --- Decompose ---
-            self._current_phase = "decompose"
-            if is_first:
-                existing_plan = self.db.get_plan_list()
-                if existing_plan and self._task_results:
-                    self._all_tasks = existing_plan
-                    tree = self.db.get_plan_tree()
-                    if tree:
-                        self._tree = tree
-                else:
-                    await self._decompose_fresh(idea)
-                self._send()
-            # else: decompose already done at end of previous iteration
-
-            self._check_stop()
-
-            # --- Execute ---
+            # Execute
             self._current_phase = "execute"
             self._init_task_batches()
-            label = "Execute" if is_first else f"Execute · round {round_num}"
+            label = f"Execute · round {round_num}" if iteration > 0 else "Execute"
             self._send(chunk={"text": label, "call_id": label, "label": True, "level": 2})
-            self._send()  # done: exec list ready
+            self._send()
 
             self._check_stop()
 
@@ -238,7 +238,7 @@ class ResearchStage(Stage):
             if failed:
                 break
 
-            # --- Evaluate ---
+            # Evaluate
             self._current_phase = "evaluate"
             minimize = self.db.get_score_minimize()
             _, current_score = self._check_score_improved(self._prev_score, minimize)
@@ -260,18 +260,20 @@ class ResearchStage(Stage):
             evaluation["score"] = current_score
             strategy_update = evaluation.get("strategy_update", "").strip()
 
+            is_last = iteration >= self._max_iterations - 1
             if is_last or not strategy_update:
                 evaluation["satisfied"] = True
             self.db.save_evaluation(evaluation, iteration)
-            self._send()  # done: evaluation saved
+            self._send()
 
             if is_last or not strategy_update:
                 break
 
             self._check_stop()
 
-            # --- Strategy Update (for next iteration) ---
-            evaluation["_round"] = round_num + 1
+            # Strategy Update
+            next_round = round_num + 1
+            evaluation["_round"] = next_round
             self._current_phase = "strategy"
             new_strategy = await self._update_strategy(idea, evaluation)
             self._strategy = new_strategy
@@ -280,9 +282,9 @@ class ResearchStage(Stage):
 
             self._check_stop()
 
-            # --- Decompose for next iteration ---
+            # Decompose next round
             self._current_phase = "decompose"
-            await self._decompose_round(idea, round_num + 1)
+            await self._decompose_round(idea, next_round)
 
     # ------------------------------------------------------------------
     # Decompose helpers
