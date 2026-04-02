@@ -225,7 +225,12 @@ function renderExecList(tasks, parent) {
 function appendDocCard(name, label, parent) {
   const t = parent || target();
   if (!t) return;
-  if (t.querySelector(`[data-doc-name="${name}"]`)) return;
+  const existing = t.querySelector(`[data-doc-name="${name}"]`);
+  if (existing) {
+    // Update content for subsequent rounds (e.g. evaluation.md refreshed)
+    existing.onclick = () => showModal(label, documentCache[name] || '');
+    return;
+  }
   const item = document.createElement('div');
   item.className = 'po-file-item'; item.dataset.docName = name;
   item.appendChild(document.createTextNode('\uD83D\uDCC4 '));
