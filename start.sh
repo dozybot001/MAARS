@@ -123,10 +123,7 @@ auto_release_port() {
     [ -z "$pids" ] && return 0
     while IFS= read -r pid; do
         [ -n "$pid" ] || continue
-        local cmd
-        cmd="$(ps -p "$pid" -o args= 2>/dev/null || true)"
-        case "$cmd" in *backend.main:app*|*"$PWD"*) ;; *) continue ;; esac
-        append_log "Auto-releasing port $port: pid $pid ($cmd)"
+        append_log "Auto-releasing port $port: pid $pid"
         kill -TERM "$pid" 2>/dev/null || true
         released=$((released + 1))
     done <<< "$pids"
