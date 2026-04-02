@@ -202,18 +202,6 @@
   content: "";
 }
 
-/* Round badge */
-.po-round-badge {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 4px 0 8px;
-  min-height: 20px;
-}
-.po-round-badge.po-round-active {
-  color: var(--accent);
-}
-
 /* Document cards row */
 .po-docs-row {
   display: flex;

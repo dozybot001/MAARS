@@ -19,7 +19,7 @@ let processBody, scroller;
 const documentCache = {}, taskSummaryCache = {};
 
 // Fixed DOM containers (created once)
-let roundBadge, docsRow, treeContainer, execContainer, scoreContainer;
+let docsRow, treeContainer, execContainer, scoreContainer;
 
 export function initProcessViewer() {
   processBody = document.getElementById('process-body');
@@ -27,7 +27,6 @@ export function initProcessViewer() {
   const tokenBadge = document.getElementById('token-estimate');
 
   // Build fixed layout
-  roundBadge = el('div', 'po-round-badge', '');
   docsRow = el('div', 'po-docs-row');
   treeContainer = el('ul', 'po-tree');
   treeContainer.id = 'tree-output';
@@ -35,7 +34,6 @@ export function initProcessViewer() {
   execContainer.id = 'exec-output';
   scoreContainer = el('div', 'po-score-container');
 
-  processBody.appendChild(roundBadge);
   processBody.appendChild(docsRow);
   processBody.appendChild(scoreContainer);
   processBody.appendChild(treeContainer);
@@ -48,13 +46,7 @@ export function initProcessViewer() {
     // Task status updates (running/verifying/retrying/etc.)
     if (status && task_id) { updateTaskStatus(task_id, status); return; }
 
-    // Label chunks → update round badge
-    if (chunk) {
-      if (chunk.label && chunk.level <= 2 && chunk.text) {
-        updateRoundBadge(chunk.text);
-      }
-      return;
-    }
+    if (chunk) return;
 
     // Done signals → fetch DB and update fixed containers
     await handleDoneSignal(stage, phase, task_id);
@@ -70,15 +62,6 @@ export function initProcessViewer() {
       }
     }
   });
-}
-
-// ------------------------------------------------------------------
-// Round badge
-// ------------------------------------------------------------------
-
-function updateRoundBadge(text) {
-  roundBadge.textContent = text;
-  roundBadge.classList.add('po-round-active');
 }
 
 // ------------------------------------------------------------------
