@@ -193,6 +193,7 @@ class ResearchStage(Stage):
         start_iteration = self.db.get_iteration()
         if start_iteration == 0:
             self._current_phase = "strategy"
+            self._send(chunk={"text": "Strategy · round 1", "call_id": "Strategy · round 1", "label": True, "level": 2})
             self._strategy = self.db.get_strategy()
             if not self._strategy:
                 strategy = await self._research_strategy(idea)
@@ -203,6 +204,7 @@ class ResearchStage(Stage):
             self._check_stop()
 
             self._current_phase = "decompose"
+            self._send(chunk={"text": "Decompose · round 1", "call_id": "Decompose · round 1", "label": True, "level": 2})
             existing_plan = self.db.get_plan_list()
             if existing_plan and self._task_results:
                 self._all_tasks = existing_plan
