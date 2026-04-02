@@ -310,10 +310,10 @@ CONTEXT: This is an automated research pipeline.
 {strategy}
 
 WHEN TO STOP DECOMPOSING:
-- A task is atomic when it produces ONE clear, verifiable deliverable: a single file, score, plot, cleaned dataset, or focused analysis.
+- Strictly follow the atomic task definition above. If a task's complexity exceeds the atomic examples given above, it needs decomposition.
 - Err on the side of SMALLER, MORE RELIABLE tasks. It is better to have many tasks that each reliably succeed than fewer tasks that are ambitious but fragile.
-- Decompose when a task has multiple independent deliverables, distinct reasoning steps, or when failure of one part would waste the work of other parts.
-- Do NOT merge tasks just because they seem "related". If they produce different artifacts, they should be separate tasks.
+- When a task contains multiple independent processing steps (e.g., field parsing, missing value imputation, and feature computation together), split by step.
+- Do NOT merge tasks just because they seem "related". If they produce different artifacts or process different data fields, they should be separate tasks.
 - A task that requires more than 2-3 code_execute calls to complete is likely too large.
 
 Rules for subtasks:
