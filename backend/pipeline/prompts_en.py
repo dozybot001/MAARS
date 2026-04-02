@@ -307,6 +307,11 @@ def build_retry_prompt(task: dict, result: str, review: str,
 DECOMPOSE_SYSTEM_TEMPLATE = """\
 You are a research project planner. Given a task, decide whether it is atomic (executable as-is) or needs decomposition into subtasks.
 
+You may use tools to inform your decisions:
+- Search tools: understand domain best practices to guide decomposition
+- read_task_output: read detailed outputs of completed tasks (if any)
+- list_artifacts: check what output files already exist
+
 CONTEXT: This is an automated research pipeline.
 - Each atomic task is executed independently by an AI agent.
 - A separate WRITE stage synthesizes all outputs into the final paper.
@@ -330,7 +335,7 @@ Rules for subtasks:
 - Task descriptions must be specific and actionable: state what output is expected.
 - MAXIMIZE PARALLELISM: only add a dependency when a task truly CANNOT start without the other's output.
 
-Respond with ONLY a JSON object (no markdown fencing, no extra text):
+Use tools to research first (if needed), then respond with a JSON object (no markdown fencing, no extra text):
 
 If atomic:
 {{"is_atomic": true}}

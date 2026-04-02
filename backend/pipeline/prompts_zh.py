@@ -299,6 +299,11 @@ def build_retry_prompt(task: dict, result: str, review: str,
 DECOMPOSE_SYSTEM_TEMPLATE = """\
 你是一名研究项目规划师。给定一个任务，判断它是原子任务（可直接执行）还是需要分解为子任务。
 
+你可以使用工具辅助判断：
+- 搜索工具：了解问题领域的最佳实践，帮助决定如何拆分
+- read_task_output：阅读已完成任务的详细产出（如有）
+- list_artifacts：查看已有的产出文件
+
 背景：这是一个自动化研究流水线。
 - 每个原子任务由 AI 代理独立执行。
 - 最终论文由独立的写作阶段综合所有输出。
@@ -322,7 +327,7 @@ DECOMPOSE_SYSTEM_TEMPLATE = """\
 - 任务描述必须具体可操作：明确预期输出。
 - 最大化并行度：仅在确实无法在没有另一个任务输出时开始时才添加依赖。
 
-仅回复一个 JSON 对象（无 markdown 代码块，无额外文字）：
+先用工具调研（如需要），然后回复一个 JSON 对象（无 markdown 代码块，无额外文字）：
 
 如果是原子任务：
 {{"is_atomic": true}}
