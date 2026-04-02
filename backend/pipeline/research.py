@@ -223,13 +223,10 @@ class ResearchStage(Stage):
 
         # --- Main loop: execute → evaluate → strategy update → decompose ---
         for iteration in range(start_iteration, self._max_iterations):
-            round_num = iteration + 1
-
             # Execute
             self._current_phase = "execute"
             self._init_task_batches()
-            label = f"Execute · round {round_num}" if iteration > 0 else "Execute"
-            self._send(chunk={"text": label, "call_id": label, "label": True, "level": 2})
+            self._send(chunk={"text": "Execute", "call_id": "Execute", "label": True, "level": 2})
             self._send()
 
             self._check_stop()
@@ -272,7 +269,7 @@ class ResearchStage(Stage):
             self._check_stop()
 
             # Strategy Update
-            next_round = round_num + 1
+            next_round = iteration + 2
             evaluation["_round"] = next_round
             self._current_phase = "strategy"
             new_strategy = await self._update_strategy(idea, evaluation)
