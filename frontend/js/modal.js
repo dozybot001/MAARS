@@ -20,7 +20,11 @@ export function initModal() {
 
 export function showModal(titleText, bodyText) {
   title.textContent = titleText;
-  content.textContent = bodyText;
+  if (typeof marked !== 'undefined' && marked.parse) {
+    content.innerHTML = marked.parse(bodyText || '');
+  } else {
+    content.textContent = bodyText;
+  }
   overlay.classList.remove('hidden');
 }
 
