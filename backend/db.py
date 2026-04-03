@@ -92,7 +92,9 @@ class ResearchDB:
 
     def save_strategy(self, text: str, iteration: int = 0):
         self._ensure_root()
-        (self._root / f"strategy_v{iteration}.md").write_text(text, encoding="utf-8")
+        strategy_dir = self._root / "strategy"
+        strategy_dir.mkdir(exist_ok=True)
+        (strategy_dir / f"v{iteration}.md").write_text(text, encoding="utf-8")
 
     def save_score_direction(self, minimize: bool):
         self._ensure_root()
@@ -118,7 +120,7 @@ class ResearchDB:
             parts.append("*Pipeline satisfied — no further iterations needed.*")
         if parts:
             md = "\n\n".join(parts)
-            (self._root / f"evaluation_v{iteration}.md").write_text(md, encoding="utf-8")
+            (eval_dir / f"v{iteration}.md").write_text(md, encoding="utf-8")
 
     def append_tasks(self, tasks: list[dict]):
         """Append new atomic tasks to plan_list.json (derived cache)."""
@@ -216,18 +218,19 @@ class ResearchDB:
     def get_strategy(self) -> str:
         """Read the latest strategy version."""
         self._ensure_root()
-        versions = sorted(self._root.glob("strategy_v*.md"))
-        if not versions:
+        strategy_dir = self._root / "strategy"
+        if not strategy_dir.exists():
             return ""
-        return _read(versions[-1])
+        versions = sorted(strategy_dir.glob("v*.md"))
+        return _read(versions[-1]) if versions else ""
 
     def list_documents(self, prefix: str) -> list[str]:
-        """List all versioned documents matching a prefix (e.g. 'strategy' → ['strategy_v0', 'strategy_v1'])."""
+        """List all versioned documents in a subdirectory (e.g. 'strategy' → ['strategy/v0', 'strategy/v1'])."""
         self._ensure_root()
-        names = []
-        for f in sorted(self._root.glob(f"{prefix}_v*.md")):
-            names.append(f.stem)  # e.g. "strategy_v0"
-        return names
+        subdir = self._root / prefix
+        if not subdir.is_dir():
+            return []
+        return [f"{prefix}/{f.stem}" for f in sorted(subdir.glob("v*.md"))]
 
     def get_plan_list(self) -> list[dict]:
         self._ensure_root()
