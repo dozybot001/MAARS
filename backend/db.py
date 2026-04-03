@@ -94,7 +94,7 @@ class ResearchDB:
         self._ensure_root()
         strategy_dir = self._root / "strategy"
         strategy_dir.mkdir(exist_ok=True)
-        (strategy_dir / f"v{iteration}.md").write_text(text, encoding="utf-8")
+        (strategy_dir / f"round_{iteration}.md").write_text(text, encoding="utf-8")
 
     def save_score_direction(self, minimize: bool):
         self._ensure_root()
@@ -106,7 +106,7 @@ class ResearchDB:
         self._ensure_root()
         eval_dir = self._root / "evaluations"
         eval_dir.mkdir(exist_ok=True)
-        _write_json(eval_dir / f"eval_v{iteration}.json", data)
+        _write_json(eval_dir / f"round_{iteration}.json", data)
         # Also save readable markdown for frontend display
         parts = []
         if data.get("feedback"):
@@ -120,7 +120,7 @@ class ResearchDB:
             parts.append("*Pipeline satisfied — no further iterations needed.*")
         if parts:
             md = "\n\n".join(parts)
-            (eval_dir / f"v{iteration}.md").write_text(md, encoding="utf-8")
+            (eval_dir / f"round_{iteration}.md").write_text(md, encoding="utf-8")
 
     def append_tasks(self, tasks: list[dict]):
         """Append new atomic tasks to plan_list.json (derived cache)."""
@@ -221,7 +221,7 @@ class ResearchDB:
         strategy_dir = self._root / "strategy"
         if not strategy_dir.exists():
             return ""
-        versions = sorted(strategy_dir.glob("v*.md"))
+        versions = sorted(strategy_dir.glob("round_*.md"))
         return _read(versions[-1]) if versions else ""
 
     def list_documents(self, prefix: str) -> list[str]:
@@ -230,7 +230,7 @@ class ResearchDB:
         subdir = self._root / prefix
         if not subdir.is_dir():
             return []
-        return [f"{prefix}/{f.stem}" for f in sorted(subdir.glob("v*.md"))]
+        return [f"{prefix}/{f.stem}" for f in sorted(subdir.glob("round_*.md"))]
 
     def get_plan_list(self) -> list[dict]:
         self._ensure_root()
@@ -293,14 +293,14 @@ class ResearchDB:
         eval_dir = self._root / "evaluations"
         if not eval_dir.exists():
             return 0
-        return len(list(eval_dir.glob("eval_v*.json")))
+        return len(list(eval_dir.glob("round_*.json")))
 
     def get_latest_score(self) -> float | None:
         self._ensure_root()
         eval_dir = self._root / "evaluations"
         if not eval_dir.exists():
             return None
-        files = sorted(eval_dir.glob("eval_v*.json"))
+        files = sorted(eval_dir.glob("round_*.json"))
         if not files:
             return None
         data = _read_json(files[-1])
@@ -314,7 +314,7 @@ class ResearchDB:
         if not eval_dir.exists():
             return []
         results = []
-        for f in sorted(eval_dir.glob("eval_v*.json")):
+        for f in sorted(eval_dir.glob("round_*.json")):
             data = _read_json(f)
             if data:
                 results.append(data)
@@ -356,10 +356,12 @@ class ResearchDB:
             path = self._root / name
             if path.exists():
                 path.unlink()
-        eval_dir = self._root / "evaluations"
-        if eval_dir.exists():
-            for f in eval_dir.glob("*.json"):
-                f.unlink()
+        for subdir in ("evaluations", "strategy"):
+            d = self._root / subdir
+            if d.exists():
+                for f in d.iterdir():
+                    if f.is_file():
+                        f.unlink()
 
     def promote_best_score(self):
         if not self.current_task_id:
