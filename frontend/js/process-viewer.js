@@ -13,6 +13,7 @@ import { createAutoScroller } from './autoscroll.js';
 import { showModal } from './modal.js';
 
 const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluation' };
+const phaseVersions = { strategy: -1, evaluate: -1 };  // track versions for history cards
 
 let processBody, scroller;
 const documentCache = {};
@@ -83,9 +84,15 @@ async function handleDoneSignal(stage, phase, taskId) {
     return;
   }
 
-  // Document cards (calibration, strategy, evaluation)
+  // Document cards — versioned for strategy/evaluate, singleton for calibrate
   if (phase && PHASE_DOCS[phase]) {
-    const docName = PHASE_DOCS[phase];
+    const baseName = PHASE_DOCS[phase];
+    let docName = baseName;
+    if (phase in phaseVersions) {
+      phaseVersions[phase]++;
+      const v = phaseVersions[phase];
+      docName = `${baseName}_v${v}`;
+    }
     const doc = await fetchDocument(docName);
     if (doc && doc.content) {
       documentCache[docName] = doc.content;
@@ -105,10 +112,10 @@ async function handleDoneSignal(stage, phase, taskId) {
     if (tasks && tasks.length > 0) renderExecList(tasks);
   }
 
-  // Score
+  // Score — append each round, not replace
   if (phase === 'evaluate') {
     const meta = await fetchMeta();
-    if (meta && meta.current_score != null) renderScore(meta);
+    if (meta && meta.current_score != null) appendScore(meta);
   }
 
   // Refine / Write stage docs
@@ -151,15 +158,13 @@ function ensureDocCard(name) {
 // Score (single element, updated in place)
 // ------------------------------------------------------------------
 
-function renderScore(meta) {
-  scoreContainer.innerHTML = '';
+function appendScore(meta) {
   const score = el('div', 'po-score');
   const current = meta.current_score != null ? meta.current_score.toFixed(5) : '\u2014';
   const prev = meta.previous_score != null ? meta.previous_score.toFixed(5) : 'N/A';
   const improved = meta.improved;
   score.classList.add(improved ? 'po-score-improved' : 'po-score-declined');
   score.innerHTML =
-    `<span class="po-score-label">Score</span>` +
     `<span class="po-score-current">${current}</span>` +
     `<span class="po-score-arrow">${improved ? '\u2191' : '\u2192'}</span>` +
     `<span class="po-score-prev">${prev}</span>`;

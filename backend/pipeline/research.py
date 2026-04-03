@@ -202,14 +202,14 @@ class ResearchStage(Stage):
             if evaluation:
                 new_strategy = await self._update_strategy(idea, evaluation)
                 self._strategy = new_strategy
-                self.db.save_strategy(new_strategy)
+                self.db.save_strategy(new_strategy, iteration)
             else:
                 self._strategy = self.db.get_strategy()
                 if not self._strategy:
                     strategy = await self._research_strategy(idea)
                     if strategy:
                         self._strategy = strategy
-                        self.db.save_strategy(strategy)
+                        self.db.save_strategy(strategy, iteration)
             self._send()
             self._check_stop()
 

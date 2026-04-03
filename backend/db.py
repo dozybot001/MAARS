@@ -90,9 +90,10 @@ class ResearchDB:
         self._ensure_root()
         (self._root / "calibration.md").write_text(text, encoding="utf-8")
 
-    def save_strategy(self, text: str):
+    def save_strategy(self, text: str, iteration: int = 0):
         self._ensure_root()
         (self._root / "strategy.md").write_text(text, encoding="utf-8")
+        (self._root / f"strategy_v{iteration}.md").write_text(text, encoding="utf-8")
 
     def save_score_direction(self, minimize: bool):
         self._ensure_root()
@@ -117,9 +118,9 @@ class ResearchDB:
         if data.get("satisfied"):
             parts.append("*Pipeline satisfied — no further iterations needed.*")
         if parts:
-            (self._root / "evaluation.md").write_text(
-                "\n\n".join(parts), encoding="utf-8"
-            )
+            md = "\n\n".join(parts)
+            (self._root / "evaluation.md").write_text(md, encoding="utf-8")
+            (self._root / f"evaluation_v{iteration}.md").write_text(md, encoding="utf-8")
 
     def append_tasks(self, tasks: list[dict]):
         """Append new atomic tasks to plan_list.json (derived cache)."""
