@@ -75,6 +75,7 @@ Key principle: RELIABILITY > AMBITION.
 
 Key constraint reminders:
 - Each code_execute has a timeout limit — compute-intensive tasks must fit within it
+- On single-core CPU with limited memory, hyperparameter search (Optuna/GridSearch) will likely timeout. Prefer model defaults or manually set key parameters instead of automated search
 - Each task is an independent session with no access to other tasks' runtime state; it can only read completed tasks via read_task_output
 - stdout is truncated — excessively long output loses information
 

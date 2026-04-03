@@ -75,6 +75,7 @@ CALIBRATE_SYSTEM = _PREFIX + """\
 
 关键约束提醒：
 - 单次 code_execute 有超时限制，计算密集型任务需考虑时间上限
+- 在单核 CPU + 有限内存下，超参搜索（如 Optuna/GridSearch）极易超时。优先使用模型默认参数或手动设定少量关键参数，而非自动搜索
 - 每个任务是独立 session，无法访问其他任务的运行时状态，只能通过 read_task_output 读取已完成任务的输出
 - stdout 有截断限制，过长的输出会丢失信息
 
