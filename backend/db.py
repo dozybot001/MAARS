@@ -92,7 +92,6 @@ class ResearchDB:
 
     def save_strategy(self, text: str, iteration: int = 0):
         self._ensure_root()
-        (self._root / "strategy.md").write_text(text, encoding="utf-8")
         (self._root / f"strategy_v{iteration}.md").write_text(text, encoding="utf-8")
 
     def save_score_direction(self, minimize: bool):
@@ -119,7 +118,6 @@ class ResearchDB:
             parts.append("*Pipeline satisfied — no further iterations needed.*")
         if parts:
             md = "\n\n".join(parts)
-            (self._root / "evaluation.md").write_text(md, encoding="utf-8")
             (self._root / f"evaluation_v{iteration}.md").write_text(md, encoding="utf-8")
 
     def append_tasks(self, tasks: list[dict]):
@@ -216,8 +214,12 @@ class ResearchDB:
         return _read(self._root / "calibration.md")
 
     def get_strategy(self) -> str:
+        """Read the latest strategy version."""
         self._ensure_root()
-        return _read(self._root / "strategy.md")
+        versions = sorted(self._root.glob("strategy_v*.md"))
+        if not versions:
+            return ""
+        return _read(versions[-1])
 
     def list_documents(self, prefix: str) -> list[str]:
         """List all versioned documents matching a prefix (e.g. 'strategy' → ['strategy_v0', 'strategy_v1'])."""
