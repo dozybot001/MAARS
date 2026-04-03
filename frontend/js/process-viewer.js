@@ -8,12 +8,11 @@
  *   - Execution list (single instance, re-rendered on each done signal)
  */
 import { on } from './events.js';
-import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput } from './api.js';
+import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput, listDocuments } from './api.js';
 import { createAutoScroller } from './autoscroll.js';
 import { showModal } from './modal.js';
 
 const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluation' };
-const phaseVersions = { strategy: -1, evaluate: -1 };  // track versions for history cards
 
 let processBody, scroller;
 const documentCache = {};
@@ -84,19 +83,26 @@ async function handleDoneSignal(stage, phase, taskId) {
     return;
   }
 
-  // Document cards — versioned for strategy/evaluate, singleton for calibrate
+  // Document cards — scan backend for all versions
   if (phase && PHASE_DOCS[phase]) {
     const baseName = PHASE_DOCS[phase];
-    let docName = baseName;
-    if (phase in phaseVersions) {
-      phaseVersions[phase]++;
-      const v = phaseVersions[phase];
-      docName = `${baseName}_v${v}`;
-    }
-    const doc = await fetchDocument(docName);
-    if (doc && doc.content) {
-      documentCache[docName] = doc.content;
-      ensureDocCard(docName);
+    const versions = await listDocuments(baseName);
+    if (versions.length > 0) {
+      // Versioned: show each version as a card
+      for (const docName of versions) {
+        const doc = await fetchDocument(docName);
+        if (doc && doc.content) {
+          documentCache[docName] = doc.content;
+          ensureDocCard(docName);
+        }
+      }
+    } else {
+      // Singleton (e.g. calibration — no versioned files)
+      const doc = await fetchDocument(baseName);
+      if (doc && doc.content) {
+        documentCache[baseName] = doc.content;
+        ensureDocCard(baseName);
+      }
     }
   }
 

@@ -39,6 +39,12 @@ async def get_meta(request: Request):
     return db.get_meta()
 
 
+@router.get("/documents/list/{prefix}")
+async def list_documents(prefix: str, request: Request):
+    db = _get_db(request)
+    return db.list_documents(prefix)
+
+
 @router.get("/tasks/{task_id}")
 async def get_task_output(task_id: str, request: Request):
     db = _get_db(request)

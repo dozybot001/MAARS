@@ -219,6 +219,14 @@ class ResearchDB:
         self._ensure_root()
         return _read(self._root / "strategy.md")
 
+    def list_documents(self, prefix: str) -> list[str]:
+        """List all versioned documents matching a prefix (e.g. 'strategy' → ['strategy_v0', 'strategy_v1'])."""
+        self._ensure_root()
+        names = []
+        for f in sorted(self._root.glob(f"{prefix}_v*.md")):
+            names.append(f.stem)  # e.g. "strategy_v0"
+        return names
+
     def get_plan_list(self) -> list[dict]:
         self._ensure_root()
         return _read_json(self._root / "plan_list.json", default=[])

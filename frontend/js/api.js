@@ -42,6 +42,12 @@ export async function fetchMeta() {
   return res.json();
 }
 
+export async function listDocuments(prefix) {
+  const res = await fetch(`${BASE}/session/documents/list/${encodeURIComponent(prefix)}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function fetchTaskOutput(taskId) {
   const res = await fetch(`${BASE}/session/tasks/${encodeURIComponent(taskId)}`);
   if (!res.ok) return null;
