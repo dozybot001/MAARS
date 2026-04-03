@@ -8,14 +8,14 @@
  *   - Execution list (single instance, re-rendered on each done signal)
  */
 import { on } from './events.js';
-import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta } from './api.js';
+import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput } from './api.js';
 import { createAutoScroller } from './autoscroll.js';
 import { showModal } from './modal.js';
 
 const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluation' };
 
 let processBody, scroller;
-const documentCache = {}, taskSummaryCache = {};
+const documentCache = {};
 
 // Fixed DOM containers (created once)
 let docsRow, treeContainer, execContainer, scoreContainer;
@@ -68,20 +68,16 @@ export function initProcessViewer() {
 // ------------------------------------------------------------------
 
 async function handleDoneSignal(stage, phase, taskId) {
-  // Task completion → update exec node with summary
+  // Task completion → make clickable to show full output
   if (taskId) {
-    const tasks = await fetchPlanList();
-    if (tasks) {
-      const task = tasks.find(t => t.id === taskId);
-      if (task && task.status === 'completed' && task.summary) {
-        taskSummaryCache[taskId] = task.summary;
-        const node = processBody.querySelector(`.exec-node[data-task-id="${taskId}"]`);
-        if (node) {
-          updateTaskStatus(taskId, 'completed');
-          node.style.cursor = 'pointer';
-          node.onclick = () => showModal(`Task ${taskId}`, taskSummaryCache[taskId]);
-        }
-      }
+    const node = processBody.querySelector(`.exec-node[data-task-id="${taskId}"]`);
+    if (node) {
+      updateTaskStatus(taskId, 'completed');
+      node.style.cursor = 'pointer';
+      node.onclick = async () => {
+        const data = await fetchTaskOutput(taskId);
+        showModal(`Task ${taskId}`, data ? data.content : '(no output)');
+      };
     }
     return;
   }
@@ -253,10 +249,12 @@ function renderExecList(tasks) {
         const id = el('span', 'tree-id', task.id);
         const desc = el('span', 'exec-desc', task.description);
         node.appendChild(id); node.appendChild(desc);
-        if (task.summary) {
-          taskSummaryCache[task.id] = task.summary;
+        if (task.status === 'completed') {
           node.style.cursor = 'pointer';
-          node.onclick = () => showModal(`Task ${task.id}`, taskSummaryCache[task.id]);
+          node.onclick = async () => {
+            const data = await fetchTaskOutput(task.id);
+            showModal(`Task ${task.id}`, data ? data.content : '(no output)');
+          };
         }
         batchDiv.appendChild(node);
       }

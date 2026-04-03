@@ -39,6 +39,15 @@ async def get_meta(request: Request):
     return db.get_meta()
 
 
+@router.get("/tasks/{task_id}")
+async def get_task_output(task_id: str, request: Request):
+    db = _get_db(request)
+    content = db.get_task_output(task_id)
+    if not content:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    return {"task_id": task_id, "content": content}
+
+
 @router.get("/documents/{name}")
 async def get_document(name: str, request: Request):
     db = _get_db(request)

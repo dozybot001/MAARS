@@ -42,6 +42,12 @@ export async function fetchMeta() {
   return res.json();
 }
 
+export async function fetchTaskOutput(taskId) {
+  const res = await fetch(`${BASE}/session/tasks/${encodeURIComponent(taskId)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export async function fetchDocument(name) {
   const res = await fetch(`${BASE}/session/documents/${encodeURIComponent(name)}`);
   if (!res.ok) return null;
