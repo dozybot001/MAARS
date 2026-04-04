@@ -54,7 +54,7 @@ async def get_task_output(task_id: str, request: Request):
     return {"task_id": task_id, "content": content}
 
 
-@router.get("/documents/{name}")
+@router.get("/documents/{name:path}")
 async def get_document(name: str, request: Request):
     db = _get_db(request)
     content = db.get_document(name)
