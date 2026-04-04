@@ -203,22 +203,42 @@
 }
 
 /* Section wrapper */
-.po-section {
+.po-stage-section {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
 
-.po-section:last-child {
+.po-stage-section:last-child {
   border-bottom: none;
 }
 
-.po-section-label {
+.po-stage-section.hidden {
+  display: none;
+}
+
+.po-stage-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
+}
+
+.po-sub-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.po-sub-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  min-width: 60px;
 }
 
 /* Document cards row */

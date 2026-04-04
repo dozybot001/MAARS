@@ -1,11 +1,12 @@
 /**
  * Process & Output panel (right side) — state dashboard.
  *
- * Fixed layout with incremental updates:
- *   - Document cards row (calibration, strategy, evaluation — refresh, not duplicate)
- *   - Score display (updates in place)
- *   - Decomposition tree (single instance, re-rendered on each done signal)
- *   - Execution list (single instance, re-rendered on each done signal)
+ * Layout by pipeline stage:
+ *   - Refine: proposals, critiques, refined_idea
+ *   - Research: documents (calibration/strategy/evaluation), score
+ *   - Decompose: tree
+ *   - Tasks: execution list
+ *   - Write: paper
  */
 import { on } from './events.js';
 import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput, listDocuments } from './api.js';
@@ -16,42 +17,69 @@ const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: '
 
 let processBody, scroller;
 const documentCache = {};
-const pendingStatuses = {};  // Buffer for status events that arrive before DOM nodes exist
+const pendingStatuses = {};
 
-// Fixed DOM containers (created once)
-let docsRow, treeContainer, execContainer, scoreContainer;
+// Fixed DOM containers (created once per section)
+let refineSection, refineProposals, refineCritiques, refineFinal;
+let researchSection, researchDocs, scoreContainer;
+let treeSection, treeContainer;
+let taskSection, execContainer;
+let writeSection, writeFinal;
 
 export function initProcessViewer() {
   processBody = document.getElementById('process-body');
   scroller = createAutoScroller(processBody);
   const tokenBadge = document.getElementById('token-estimate');
 
-  // Build fixed layout sections
-  docsRow = el('div', 'po-docs-row');
+  // Refine section
+  refineProposals = el('div', 'po-docs-row');
+  refineCritiques = el('div', 'po-docs-row');
+  refineFinal = el('div', 'po-docs-row');
+  refineSection = stageSection('Refine', [
+    subRow('Proposals', refineProposals),
+    subRow('Critiques', refineCritiques),
+    subRow('Final', refineFinal),
+  ]);
+
+  // Research section
+  researchDocs = el('div', 'po-docs-row');
   scoreContainer = el('div', 'po-score-container');
+  researchSection = stageSection('Research', [
+    subRow('Documents', researchDocs),
+    subRow('Score', scoreContainer),
+  ]);
+
+  // Decompose section
   treeContainer = el('ul', 'po-tree');
   treeContainer.id = 'tree-output';
+  treeSection = stageSection('Decompose', [treeContainer]);
+
+  // Tasks section
   execContainer = el('div', 'po-exec');
   execContainer.id = 'exec-output';
+  taskSection = stageSection('Tasks', [execContainer]);
 
-  processBody.appendChild(section('Documents', docsRow));
-  processBody.appendChild(section('Score', scoreContainer));
-  processBody.appendChild(section('Decompose', treeContainer));
-  processBody.appendChild(section('Tasks', execContainer));
+  // Write section
+  writeFinal = el('div', 'po-docs-row');
+  writeSection = stageSection('Write', [
+    subRow('Final', writeFinal),
+  ]);
+
+  // All hidden initially, shown on first data
+  for (const s of [refineSection, researchSection, treeSection, taskSection, writeSection]) {
+    s.classList.add('hidden');
+    processBody.appendChild(s);
+  }
 
   on('sse', async (event) => {
     const { stage, phase, chunk, status, task_id } = event;
     if (!stage) return;
 
-    // Task status updates (running/verifying/retrying/etc.)
     if (status && task_id) { updateTaskStatus(task_id, status); return; }
-
     if (chunk) return;
 
-    // Done signals → fetch DB and update fixed containers
     await handleDoneSignal(stage, phase, task_id);
 
-    // Token counter
     const meta = await fetchMeta();
     if (meta && tokenBadge) {
       const total = meta.tokens_total || 0;
@@ -69,7 +97,7 @@ export function initProcessViewer() {
 // ------------------------------------------------------------------
 
 async function handleDoneSignal(stage, phase, taskId) {
-  // Task completion → make clickable to show full output
+  // Task completion
   if (taskId) {
     const node = processBody.querySelector(`.exec-node[data-task-id="${taskId}"]`);
     if (node) {
@@ -83,73 +111,94 @@ async function handleDoneSignal(stage, phase, taskId) {
     return;
   }
 
-  // Document cards — scan backend for all versions
-  if (phase && PHASE_DOCS[phase]) {
-    const baseName = PHASE_DOCS[phase];
-    const versions = await listDocuments(baseName);
-    if (versions.length > 0) {
-      // Versioned: show each version as a card
-      for (const docName of versions) {
-        const doc = await fetchDocument(docName);
-        if (doc && doc.content) {
-          documentCache[docName] = doc.content;
-          ensureDocCard(docName);
-        }
-      }
-    } else {
-      // Singleton (e.g. calibration — no versioned files)
-      const doc = await fetchDocument(baseName);
-      if (doc && doc.content) {
-        documentCache[baseName] = doc.content;
-        ensureDocCard(baseName);
-      }
-    }
-  }
+  // --- Refine stage ---
+  if (stage === 'refine') {
+    show(refineSection);
 
-  // Decomposition tree
-  if (phase === 'decompose' || !phase) {
-    const tree = await fetchPlanTree();
-    if (tree && tree.id) renderTree(tree);
-  }
-
-  // Execution list
-  if (phase === 'execute') {
-    const tasks = await fetchPlanList();
-    if (tasks && tasks.length > 0) renderExecList(tasks);
-  }
-
-  // Score — append each round, not replace
-  if (phase === 'evaluate') {
-    const meta = await fetchMeta();
-    if (meta && meta.current_score != null) appendScore(meta);
-  }
-
-  // Refine / Write stage docs
-  if (!phase) {
-    if (stage === 'refine') {
+    if (phase === 'proposal') {
+      await loadDocCards('proposals', refineProposals);
+    } else if (phase === 'critique') {
+      await loadDocCards('critiques', refineCritiques);
+    } else if (!phase) {
+      // Final done signal
       const doc = await fetchDocument('refined_idea');
       if (doc && doc.content) {
         documentCache['refined_idea'] = doc.content;
-        ensureDocCard('refined_idea');
+        ensureDocCard('refined_idea', refineFinal);
       }
-    } else if (stage === 'write') {
+    }
+    return;
+  }
+
+  // --- Research stage ---
+  if (stage === 'research') {
+    if (phase && PHASE_DOCS[phase]) {
+      show(researchSection);
+      const baseName = PHASE_DOCS[phase];
+      await loadDocCards(baseName, researchDocs);
+
+      if (phase === 'evaluate') {
+        const meta = await fetchMeta();
+        if (meta && meta.current_score != null) appendScore(meta);
+      }
+    }
+
+    if (phase === 'decompose' || !phase) {
+      const tree = await fetchPlanTree();
+      if (tree && tree.id) { show(treeSection); renderTree(tree); }
+    }
+
+    if (phase === 'execute') {
+      const tasks = await fetchPlanList();
+      if (tasks && tasks.length > 0) { show(taskSection); renderExecList(tasks); }
+    }
+    return;
+  }
+
+  // --- Write stage ---
+  if (stage === 'write') {
+    show(writeSection);
+    if (phase === 'proposal') {
+      // Future: write proposals
+    } else if (phase === 'critique') {
+      // Future: write critiques
+    } else if (!phase) {
       const doc = await fetchDocument('paper');
       if (doc && doc.content) {
         documentCache['paper'] = doc.content;
-        ensureDocCard('paper');
+        ensureDocCard('paper', writeFinal);
       }
     }
+    return;
   }
 }
 
 // ------------------------------------------------------------------
-// Document cards (horizontal row, refresh in place)
+// Document cards
 // ------------------------------------------------------------------
 
-function ensureDocCard(name) {
-  let card = docsRow.querySelector(`[data-doc-name="${name}"]`);
+async function loadDocCards(prefix, container) {
+  const versions = await listDocuments(prefix);
+  if (versions.length > 0) {
+    for (const docName of versions) {
+      const doc = await fetchDocument(docName);
+      if (doc && doc.content) {
+        documentCache[docName] = doc.content;
+        ensureDocCard(docName, container);
+      }
+    }
+  } else {
+    const doc = await fetchDocument(prefix);
+    if (doc && doc.content) {
+      documentCache[prefix] = doc.content;
+      ensureDocCard(prefix, container);
+    }
+  }
+}
+
+function ensureDocCard(name, container) {
+  let card = container.querySelector(`[data-doc-name="${name}"]`);
   if (card) {
-    // Refresh click handler with latest content
     card.onclick = () => showModal(name, documentCache[name] || '');
     return;
   }
@@ -157,11 +206,11 @@ function ensureDocCard(name) {
   card.dataset.docName = name;
   card.textContent = '\uD83D\uDCC4 ' + name;
   card.onclick = () => showModal(name, documentCache[name] || '');
-  docsRow.appendChild(card);
+  container.appendChild(card);
 }
 
 // ------------------------------------------------------------------
-// Score (single element, updated in place)
+// Score
 // ------------------------------------------------------------------
 
 function appendScore(meta) {
@@ -184,7 +233,6 @@ function appendScore(meta) {
 function updateTaskStatus(taskId, status) {
   const node = processBody.querySelector(`.exec-node[data-task-id="${taskId}"]`);
   if (!node) {
-    // DOM not ready yet — buffer for renderExecList to apply later
     pendingStatuses[taskId] = status;
     return;
   }
@@ -194,7 +242,7 @@ function updateTaskStatus(taskId, status) {
 }
 
 // ------------------------------------------------------------------
-// Decomposition tree (single instance, full re-render)
+// Decomposition tree
 // ------------------------------------------------------------------
 
 function renderTree(data) {
@@ -233,7 +281,7 @@ function renderDecompNode(node, isRoot) {
 }
 
 // ------------------------------------------------------------------
-// Execution list (single instance, full re-render preserving status)
+// Execution list
 // ------------------------------------------------------------------
 
 function renderExecList(tasks) {
@@ -280,7 +328,6 @@ function renderExecList(tasks) {
   execContainer.innerHTML = '';
   execContainer.appendChild(fragment);
 
-  // Apply buffered status events that arrived before DOM was ready
   for (const [tid, status] of Object.entries(pendingStatuses)) {
     updateTaskStatus(tid, status);
   }
@@ -293,12 +340,24 @@ function renderExecList(tasks) {
 // Helpers
 // ------------------------------------------------------------------
 
-function section(label, content) {
-  const wrapper = el('div', 'po-section');
-  const header = el('div', 'po-section-label', label);
+function stageSection(label, children) {
+  const wrapper = el('div', 'po-stage-section');
+  const header = el('div', 'po-stage-label', label);
+  wrapper.appendChild(header);
+  for (const child of children) wrapper.appendChild(child);
+  return wrapper;
+}
+
+function subRow(label, content) {
+  const wrapper = el('div', 'po-sub-row');
+  const header = el('span', 'po-sub-label', label);
   wrapper.appendChild(header);
   wrapper.appendChild(content);
   return wrapper;
+}
+
+function show(el) {
+  el.classList.remove('hidden');
 }
 
 function el(tag, className, text) {
