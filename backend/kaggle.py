@@ -30,7 +30,7 @@ def extract_competition_id(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def fetch_competition(competition_id: str, data_dir: str = "data") -> dict:
+def fetch_competition(competition_id: str, data_dir: str) -> dict:
     """Fetch competition info and download dataset.
 
     Args:
@@ -78,7 +78,7 @@ def fetch_competition(competition_id: str, data_dir: str = "data") -> dict:
     file_names = [f.name for f in files_resp.files] if hasattr(files_resp, "files") else []
 
     # Download dataset
-    dest = Path(data_dir) / competition_id
+    dest = Path(data_dir)
     dest.mkdir(parents=True, exist_ok=True)
 
     # Skip download if files already exist

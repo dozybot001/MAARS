@@ -77,6 +77,8 @@ flowchart TB
 
 ## 3. Research 阶段
 
+主循环开始前会调用 `_preflight_docker`：须本机 Docker daemon 可用，并已构建 `MAARS_DOCKER_SANDBOX_IMAGE` 指向的沙箱镜像（默认 `maars-sandbox:latest`）。
+
 ### 3.1 原则
 
 - 每轮 LLM 带能力画像 `_build_capability_profile`。

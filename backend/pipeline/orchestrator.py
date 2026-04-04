@@ -89,9 +89,7 @@ class PipelineOrchestrator:
         import re
         from backend.kaggle import fetch_competition, build_kaggle_idea
         from backend.config import settings
-        info = fetch_competition(competition_id)
-        # Mutate settings for current session — safe for single-session use
-        settings.dataset_dir = info["data_dir"]
+        info = fetch_competition(competition_id, data_dir=settings.dataset_dir)
         settings.kaggle_competition_id = competition_id
         refined = build_kaggle_idea(info)
         user_hint = re.sub(r'https?://\S+', '', raw_input).strip()

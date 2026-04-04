@@ -42,12 +42,14 @@ def _preflight_docker():
     try:
         import docker
     except ImportError:
-        raise RuntimeError("Docker SDK not installed. Run: pip install docker")
+        raise RuntimeError("Research requires Docker: install the SDK with `pip install docker`")
     try:
         client = docker.from_env()
         client.ping()
     except Exception as e:
-        raise RuntimeError(f"Docker is not running: {e}")
+        raise RuntimeError(
+            f"Research requires Docker daemon to be running and reachable: {e}"
+        )
 
 
 def _find_node(tree: dict, node_id: str) -> dict | None:
