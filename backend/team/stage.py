@@ -22,14 +22,15 @@ class ProposalState:
         if not self.issues:
             return "(No open issues)"
         lines = []
-        for i, issue in enumerate(self.issues, 1):
+        for issue in self.issues:
+            iid = issue.get("id", "unknown")
             severity = issue.get("severity", "major")
             section = issue.get("section", "General")
             problem = issue.get("problem", "")
             suggestion = issue.get("suggestion", "")
-            lines.append(f"{i}. [{severity}] {section}: {problem}")
+            lines.append(f"- **{iid}** [{severity}] {section}: {problem}")
             if suggestion:
-                lines.append(f"   Suggestion: {suggestion}")
+                lines.append(f"  Suggestion: {suggestion}")
         return "\n".join(lines)
 
     def update(self, new_proposal: str, feedback: dict):
