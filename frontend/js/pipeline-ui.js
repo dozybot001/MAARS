@@ -8,14 +8,12 @@ const RESEARCH_PHASES = new Set(['calibrate', 'strategy', 'decompose', 'execute'
 const nodeStates = {};
 NODE_ORDER.forEach((n) => { nodeStates[n] = 'idle'; });
 let seenNodes = new Set();
-let inputEl, startBtn, pauseBtn, resumeBtn, overlay;
+let inputEl, pauseBtn, resumeBtn;
 
 export function initPipelineUI() {
   inputEl = document.getElementById('research-input');
-  startBtn = document.getElementById('start-btn');
   pauseBtn = document.getElementById('pause-btn');
   resumeBtn = document.getElementById('resume-btn');
-  overlay = document.getElementById('cmd-overlay');
 
   on('sse', (event) => {
     const { stage, phase } = event;
@@ -31,21 +29,9 @@ export function initPipelineUI() {
     syncButtons();
   });
 
-  startBtn.addEventListener('click', handleStart);
   pauseBtn.addEventListener('click', handlePause);
   resumeBtn.addEventListener('click', handleResume);
-  inputEl.addEventListener('input', syncButtons);
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleStart(); });
-
-  document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-      e.preventDefault();
-      overlay.classList.toggle('hidden');
-      if (!overlay.classList.contains('hidden')) inputEl.focus();
-    }
-    if (e.key === 'Escape' && !overlay.classList.contains('hidden')) overlay.classList.add('hidden');
-  });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
   syncButtons();
 }
 
@@ -76,19 +62,20 @@ export async function syncFromAPI() {
 }
 
 function syncButtons() {
-  const hasInput = inputEl && inputEl.value.trim().length > 0;
   const hasActive = NODE_ORDER.some((n) => nodeStates[n] === 'active');
   const hasPaused = NODE_ORDER.some((n) => nodeStates[n] === 'paused');
-  startBtn.disabled = !(hasInput && !hasActive && !hasPaused);
   pauseBtn.disabled = !hasActive;
   resumeBtn.disabled = !hasPaused;
   pauseBtn.textContent = 'Pause';
+  inputEl.disabled = hasActive;
 }
 
 async function handleStart() {
   const text = inputEl.value.trim();
   if (!text) return;
-  overlay.classList.add('hidden');
+  const hasActive = NODE_ORDER.some((n) => nodeStates[n] === 'active');
+  const hasPaused = NODE_ORDER.some((n) => nodeStates[n] === 'paused');
+  if (hasActive || hasPaused) return;
   seenNodes.clear();
   NODE_ORDER.forEach((n) => updateNode(n, 'idle'));
   syncButtons();

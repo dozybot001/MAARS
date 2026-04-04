@@ -1,7 +1,38 @@
-/* ── Slim progress bar ── */
-#pipeline-progress {
+/* ── Top input bar ── */
+#input-bar {
   position: sticky;
   top: 0;
+  z-index: 101;
+  padding: 8px 32px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+#input-bar input {
+  width: 100%;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#input-bar input:focus {
+  border-bottom-color: var(--accent);
+}
+
+#input-bar input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Pipeline progress bar ── */
+#pipeline-progress {
+  position: sticky;
+  top: 41px;
   z-index: 100;
   background: var(--bg-primary);
   padding: 10px 32px;
@@ -138,69 +169,33 @@
   50% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.6); }
 }
 
-/* ── Command palette overlay ── */
-#cmd-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
+/* ── Pipeline action buttons ── */
+#pipeline-actions {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 20vh;
-  backdrop-filter: blur(2px);
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-#cmd-overlay.hidden {
-  display: none;
-}
-
-#cmd-panel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 6px 8px;
-  width: 640px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-
-#cmd-panel input {
-  flex: 1;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 15px;
-  outline: none;
-  min-width: 0;
-}
-
-#cmd-panel button {
-  padding: 7px 16px;
+#pipeline-actions button {
+  padding: 4px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-#cmd-panel button {
   background: transparent;
   color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
-#cmd-panel button:hover:not(:disabled) {
+#pipeline-actions button:hover:not(:disabled) {
   color: var(--accent);
   border-color: var(--accent);
 }
 
-#cmd-panel button:disabled {
+#pipeline-actions button:disabled {
   opacity: 0.2;
   cursor: not-allowed;
 }

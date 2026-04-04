@@ -9,7 +9,17 @@
 </head>
 <body>
 
-  <!-- Slim progress bar at top -->
+  <!-- Top input bar -->
+  <div id="input-bar">
+    <input
+      type="text"
+      id="research-input"
+      placeholder="Research idea or Kaggle URL... (Enter to start)"
+      autocomplete="off"
+    >
+  </div>
+
+  <!-- Pipeline progress bar -->
   <div id="pipeline-progress">
     <div id="sse-status" class="status-indicator status-unknown" title="SSE connecting...">SSE</div>
     <div id="docker-status" class="status-indicator status-unknown" title="Checking Docker...">Docker</div>
@@ -27,6 +37,10 @@
       <div class="progress-node" data-node="evaluate"><span>Evaluate</span></div>
       <div class="progress-line" data-after="evaluate"></div>
       <div class="progress-node" data-node="write"><span>Write</span></div>
+    </div>
+    <div id="pipeline-actions">
+      <button id="pause-btn" disabled>Pause</button>
+      <button id="resume-btn" disabled>Resume</button>
     </div>
   </div>
 
@@ -67,21 +81,6 @@
     </div>
   </div>
 
-  <!-- Command palette (Cmd+K) -->
-  <div id="cmd-overlay" class="hidden">
-    <div id="cmd-panel">
-      <input
-        type="text"
-        id="research-input"
-        placeholder="Research idea or Kaggle URL..."
-        autocomplete="off"
-      >
-      <button id="start-btn">Start</button>
-      <button id="pause-btn" disabled>Pause</button>
-      <button id="resume-btn" disabled>Resume</button>
-    </div>
-  </div>
-
-  <script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
