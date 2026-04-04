@@ -66,6 +66,19 @@ class ResearchDB:
         self._ensure_root()
         (self._root / "refined_idea.md").write_text(text, encoding="utf-8")
 
+    def save_proposal(self, text: str, iteration: int):
+        self._ensure_root()
+        d = self._root / "proposals"
+        d.mkdir(exist_ok=True)
+        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+
+    def save_critique(self, text: str, data: dict, iteration: int):
+        self._ensure_root()
+        d = self._root / "critiques"
+        d.mkdir(exist_ok=True)
+        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+        _write_json(d / f"round_{iteration}.json", data)
+
     def save_plan(self, tree: dict, flat_tasks: list[dict] | None = None):
         """Save tree (source of truth) and derive/update flat task list.
 

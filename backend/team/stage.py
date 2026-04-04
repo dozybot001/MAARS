@@ -74,6 +74,7 @@ class TeamStage(Stage):
                 raise asyncio.CancelledError()
 
             # 1. Primary agent produces/revises proposal
+            self._current_phase = "proposal"
             primary_user = self._build_primary_prompt(input_text, state)
             proposal = await self._stream_llm(
                 self._model, primary_tools, primary_instr, primary_user,
@@ -81,6 +82,11 @@ class TeamStage(Stage):
                 label=True, label_level=2,
             )
             state.proposal = proposal
+
+            # Persist proposal
+            if self.db:
+                self.db.save_proposal(proposal, round_num)
+            self._send()  # done signal -> right panel fetches proposals/
 
             # Skip review on final allowed round
             if round_num >= self._max_delegations - 1:
@@ -90,6 +96,7 @@ class TeamStage(Stage):
                 raise asyncio.CancelledError()
 
             # 2. Reviewer critiques proposal
+            self._current_phase = "critique"
             reviewer_user = self._build_reviewer_prompt(input_text, state)
             review_raw = await self._stream_llm(
                 self._model, reviewer_tools, reviewer_instr, reviewer_user,
@@ -97,8 +104,12 @@ class TeamStage(Stage):
                 label=True, label_level=2,
             )
 
-            # 3. Parse structured feedback
+            # 3. Parse structured feedback and persist
             feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
+
+            if self.db:
+                self.db.save_critique(review_raw, feedback, round_num)
+            self._send()  # done signal -> right panel fetches critiques/
 
             if feedback.get("pass", False):
                 break
@@ -106,6 +117,7 @@ class TeamStage(Stage):
             # 4. Update state for next round
             state.update(proposal, feedback)
 
+        self._current_phase = ""
         self.output = state.proposal
         if not self.output:
             log.warning("%s: no content produced", self.name)
