@@ -4,7 +4,7 @@
 
 > 回到 [架构概览](architecture.md)
 
-Research 是 MAARS 的核心阶段，采用 agentic workflow 模式：runtime 控制循环和状态，Agent 执行每个原子任务。
+Research 是 MAARS 的核心阶段。Runtime 编排任务分解、并行执行、验证和迭代评估，Agent 在 Docker 沙箱中执行每个原子任务。
 
 ## 1. 前置条件
 

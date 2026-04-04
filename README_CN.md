@@ -67,7 +67,7 @@ graph TD
 
 上下文大小恒定——每轮只传最新的 draft 和未解决的 issues，不是完整历史。
 
-### Research——Agentic Workflow
+### Research
 
 ```
 Calibrate（定义原子任务粒度）

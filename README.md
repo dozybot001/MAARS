@@ -67,7 +67,7 @@ graph TD
 
 Context size stays constant — only the latest draft and unresolved issues are passed each round, not the full history.
 
-### Research — Agentic Workflow
+### Research
 
 ```
 Calibrate (define atomic task granularity)

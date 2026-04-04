@@ -12,7 +12,7 @@
 
 **分工**：`if/for/while`、调度、重试、迭代终止 -> runtime；检索、编码、解释 -> agent。
 
-**形态**：Research = agentic workflow（DAG、checkpoint、反馈在代码里）；Refine / Write = 自编排双 Agent 循环（IterationState 状态管理）。
+**形态**：三个阶段均为 Multi-Agent——agent 产出落盘，runtime 编排，下一个 agent 从持久化文件恢复上下文。各阶段复杂度不同，但核心一致：Python 控制流程，Agent 执行开放性工作，状态存于磁盘。
 
 ## 2. 系统全景
 
@@ -28,7 +28,7 @@
 
 ```
 Stage                          -- 生命周期 + 统一 SSE (_send) + LLM streaming (_stream_llm)
-+-- ResearchStage              -- agentic workflow（直接调用 Agno Agent）
++-- ResearchStage              -- Multi-Agent（任务分解 + 并行执行 + 评估循环）
 +-- TeamStage                  -- 自编排双 Agent 循环（primary + reviewer + IterationState）
     +-- RefineStage
     +-- WriteStage
@@ -47,7 +47,7 @@ flowchart TB
 
     Refine -- "refined_idea" --> Calibrate
 
-    subgraph Research ["Research: Agentic Workflow x N"]
+    subgraph Research ["Research x N"]
         Calibrate --> Strategy
         Strategy --> D1["Decompose"]
         D1 --> Execute
@@ -79,7 +79,7 @@ flowchart TB
 | 阶段 | 模式 | 职责 | 详情 |
 |---|---|---|---|
 | **Refine** | TeamStage（Explorer + Critic） | 意图 -> 可执行研究目标 | [refine-write.md](refine-write.md) |
-| **Research** | Agentic workflow | 分解 -> 执行 <-> 验证 -> 评估 | [research.md](research.md) |
+| **Research** | Multi-Agent | 分解 -> 执行 <-> 验证 -> 评估 | [research.md](research.md) |
 | **Write** | TeamStage（Writer + Reviewer） | 综合为论文 | [refine-write.md](refine-write.md) |
 
 ## 3. SSE

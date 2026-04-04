@@ -12,7 +12,7 @@
 
 **Split**: `if/for/while`, scheduling, retries, termination -> runtime; search, coding, reasoning -> agent.
 
-**Patterns**: Research = agentic workflow (DAG, checkpoint, feedback in code); Refine / Write = self-orchestrated dual-agent loop (IterationState).
+**Pattern**: All three stages are multi-agent — agents produce artifacts, runtime orchestrates, next agent restores context from persisted files. Stages differ in complexity but share the same core: Python controls flow, agents execute open-ended work, state lives on disk.
 
 ## 2. System Overview
 
@@ -28,7 +28,7 @@
 
 ```
 Stage                          -- lifecycle + SSE (_send) + LLM streaming (_stream_llm)
-+-- ResearchStage              -- agentic workflow (direct Agno Agent calls)
++-- ResearchStage              -- multi-agent (task decomposition + parallel execution + evaluation loop)
 +-- TeamStage                  -- dual-agent loop (primary + reviewer + IterationState)
     +-- RefineStage
     +-- WriteStage
@@ -47,7 +47,7 @@ flowchart TB
 
     Refine -- "refined_idea" --> Calibrate
 
-    subgraph Research ["Research: Agentic Workflow x N"]
+    subgraph Research ["Research x N"]
         Calibrate --> Strategy
         Strategy --> D1["Decompose"]
         D1 --> Execute
@@ -79,7 +79,7 @@ flowchart TB
 | Stage | Pattern | Role | Details |
 |---|---|---|---|
 | **Refine** | TeamStage (Explorer + Critic) | Intent -> actionable research goal | [refine-write.md](refine-write.md) |
-| **Research** | Agentic workflow | Decompose -> Execute <-> Verify -> Evaluate | [research.md](research.md) |
+| **Research** | Multi-agent | Decompose -> Execute <-> Verify -> Evaluate | [research.md](research.md) |
 | **Write** | TeamStage (Writer + Reviewer) | Synthesize into paper | [refine-write.md](refine-write.md) |
 
 ## 3. SSE

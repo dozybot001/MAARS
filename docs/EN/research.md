@@ -4,7 +4,7 @@
 
 > Back to [Architecture Overview](architecture.md)
 
-Research is the core MAARS stage, using an agentic workflow pattern: runtime controls the loop and state, agents execute each atomic task.
+Research is the core MAARS stage. Runtime orchestrates task decomposition, parallel execution, verification, and iterative evaluation. Agents execute each atomic task in Docker sandboxes.
 
 ## 1. Prerequisites
 
