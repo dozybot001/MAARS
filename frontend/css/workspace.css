@@ -4,7 +4,7 @@
   display: flex;
   background: var(--bg-primary);
   overflow: hidden;
-  height: calc(100vh - 64px); /* full height minus progress bar */
+  height: 100vh;
 }
 
 .panel {

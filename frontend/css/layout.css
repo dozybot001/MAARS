@@ -38,5 +38,5 @@ body {
 
 main {
   padding: 12px 24px;
-  height: calc(100vh - 80px); /* viewport minus input bar + progress bar */
+  min-height: 100vh;
 }
