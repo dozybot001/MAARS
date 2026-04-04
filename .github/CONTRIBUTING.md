@@ -21,9 +21,9 @@ uvicorn backend.main:app --reload
 
 ```
 backend/
-├── pipeline/    # Core framework (BaseStage, orchestrator)
-├── llm/         # LLMClient interface + AgnoClient adapter
-├── agno/        # Agno mode: stages, instructions, tools, model factory
+├── pipeline/    # Core framework (Stage, orchestrator, ResearchStage)
+├── team/        # TeamStage (RefineStage, WriteStage)
+├── agno/        # Stage factory, model factory, tools
 ├── routes/      # FastAPI HTTP/SSE endpoints
 └── db.py        # File-based research storage
 
