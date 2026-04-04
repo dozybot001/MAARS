@@ -49,11 +49,11 @@ bash start.sh
 3. 构建 Docker 沙箱镜像
 4. 在 **http://localhost:8000** 启动服务
 
-<p align="center"><img src="docs/assets/terminal.png" width="720" alt="MAARS 启动"></p>
+<p align="center"><img src="docs/assets/tui.png" width="720" alt="MAARS 启动"></p>
 
 然后在输入框粘贴你的研究想法或 Kaggle 链接，点击 Start。
 
-<p align="center"><img src="docs/assets/start.png" width="720" alt="MAARS 界面"></p>
+<p align="center"><img src="docs/assets/ui.png" width="720" alt="MAARS 界面"></p>
 
 ## Kaggle 模式
 

@@ -49,11 +49,11 @@ On first run, `start.sh` will:
 3. Build the Docker sandbox image
 4. Start the server at **http://localhost:8000**
 
-<p align="center"><img src="docs/assets/terminal.png" width="720" alt="MAARS startup"></p>
+<p align="center"><img src="docs/assets/tui.png" width="720" alt="MAARS startup"></p>
 
 Then paste your research idea or a Kaggle URL into the input box and hit Start.
 
-<p align="center"><img src="docs/assets/start.png" width="720" alt="MAARS UI"></p>
+<p align="center"><img src="docs/assets/ui.png" width="720" alt="MAARS UI"></p>
 
 ## Kaggle Mode
 
