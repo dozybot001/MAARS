@@ -43,14 +43,13 @@ flowchart TB
 
     subgraph Research ["Research: Agentic Workflow x N"]
         Calibrate --> Strategy
-        Strategy --> D1["Decompose(1st)"]
-        D1 --> Decompose
+        Strategy --> D1["Decompose"]
+        D1 --> Execute
 
         subgraph Loop ["Execute ⇄ Verify"]
-            Decompose --> Execute
             Execute --> Verify
             Verify -- "retry" --> Execute
-            Verify -- "redecomp" --> Decompose
+            Verify -- "re-decompose" --> Execute
         end
 
         Verify -- "pass" --> Artifacts[(Artifacts)]
