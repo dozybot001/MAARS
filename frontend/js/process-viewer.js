@@ -65,9 +65,7 @@ export function initProcessViewer() {
     subRow('Final', writeFinal),
   ]);
 
-  // All hidden initially, shown on first data
   for (const s of [refineSection, researchSection, treeSection, taskSection, writeSection]) {
-    s.classList.add('hidden');
     processBody.appendChild(s);
   }
 
@@ -113,7 +111,7 @@ async function handleDoneSignal(stage, phase, taskId) {
 
   // --- Refine stage ---
   if (stage === 'refine') {
-    show(refineSection);
+
 
     if (phase === 'proposal') {
       await loadDocCards('proposals', refineProposals);
@@ -133,7 +131,7 @@ async function handleDoneSignal(stage, phase, taskId) {
   // --- Research stage ---
   if (stage === 'research') {
     if (phase && PHASE_DOCS[phase]) {
-      show(researchSection);
+
       const baseName = PHASE_DOCS[phase];
       await loadDocCards(baseName, researchDocs);
 
@@ -145,19 +143,19 @@ async function handleDoneSignal(stage, phase, taskId) {
 
     if (phase === 'decompose' || !phase) {
       const tree = await fetchPlanTree();
-      if (tree && tree.id) { show(treeSection); renderTree(tree); }
+      if (tree && tree.id) { renderTree(tree); }
     }
 
     if (phase === 'execute') {
       const tasks = await fetchPlanList();
-      if (tasks && tasks.length > 0) { show(taskSection); renderExecList(tasks); }
+      if (tasks && tasks.length > 0) { renderExecList(tasks); }
     }
     return;
   }
 
   // --- Write stage ---
   if (stage === 'write') {
-    show(writeSection);
+
     if (phase === 'proposal') {
       // Future: write proposals
     } else if (phase === 'critique') {
@@ -354,10 +352,6 @@ function subRow(label, content) {
   wrapper.appendChild(header);
   wrapper.appendChild(content);
   return wrapper;
-}
-
-function show(el) {
-  el.classList.remove('hidden');
 }
 
 function el(tag, className, text) {
