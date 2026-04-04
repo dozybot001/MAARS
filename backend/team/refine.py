@@ -1,12 +1,9 @@
-"""Refine stage: multi-agent idea refinement via Agno Team coordinate mode."""
+"""Refine stage: iterative idea refinement (Explorer + Critic)."""
 
 from backend.team.stage import TeamStage
 
 
 class RefineStage(TeamStage):
-
-    _member_map = {"explorer": "Explorer", "critic": "Critic"}
-    _capture_member = "Explorer"
 
     def __init__(self, name: str = "refine", model=None, explorer_tools=None, db=None,
                  max_delegations: int = 10):
@@ -16,23 +13,13 @@ class RefineStage(TeamStage):
     def load_input(self) -> str:
         return self.db.get_idea()
 
-    def _create_team(self):
-        from agno.agent import Agent
-        from agno.team.team import Team
-        from agno.team.mode import TeamMode
-        from backend.team.prompts import (
-            REFINE_LEADER_SYSTEM, REFINE_EXPLORER_SYSTEM, REFINE_CRITIC_SYSTEM,
-        )
-        explorer = Agent(name="Explorer", role="Research explorer", model=self._model,
-                         tools=self._explorer_tools, instructions=[REFINE_EXPLORER_SYSTEM],
-                         markdown=True, id="explorer")
-        critic = Agent(name="Critic", role="Research critic", model=self._model,
-                       tools=self._explorer_tools, instructions=[REFINE_CRITIC_SYSTEM],
-                       markdown=True, id="critic")
-        return Team(name="Refine Team", mode=TeamMode.coordinate, members=[explorer, critic],
-                    model=self._model, instructions=[REFINE_LEADER_SYSTEM],
-                    max_iterations=self._max_delegations,
-                    share_member_interactions=True, stream_member_events=True, markdown=True)
+    def _primary_config(self) -> tuple[str, list, str]:
+        from backend.team.prompts import REFINE_EXPLORER_SYSTEM
+        return REFINE_EXPLORER_SYSTEM, self._explorer_tools, "Explorer"
+
+    def _reviewer_config(self) -> tuple[str, list, str]:
+        from backend.team.prompts import REFINE_CRITIC_SYSTEM
+        return REFINE_CRITIC_SYSTEM, self._explorer_tools, "Critic"
 
     def _finalize(self) -> str:
         result = self.output

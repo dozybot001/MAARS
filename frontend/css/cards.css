@@ -18,8 +18,8 @@
   margin: 0 auto;
 }
 
-/* Docker status indicator */
-.docker-indicator {
+/* Status indicators (SSE, Docker, etc.) */
+.status-indicator {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 4px;
@@ -27,7 +27,7 @@
   flex-shrink: 0;
 }
 
-.docker-indicator::before {
+.status-indicator::before {
   content: "";
   display: inline-block;
   width: 6px;
@@ -37,14 +37,14 @@
   vertical-align: middle;
 }
 
-.docker-unknown { color: var(--text-muted); }
-.docker-unknown::before { background: var(--text-muted); }
+.status-unknown { color: var(--text-muted); }
+.status-unknown::before { background: var(--text-muted); }
 
-.docker-connected { color: var(--green); }
-.docker-connected::before { background: var(--green); }
+.status-connected { color: var(--green); }
+.status-connected::before { background: var(--green); }
 
-.docker-disconnected { color: var(--red); }
-.docker-disconnected::before { background: var(--red); }
+.status-disconnected { color: var(--red); }
+.status-disconnected::before { background: var(--red); }
 
 .progress-node {
   display: flex;

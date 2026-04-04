@@ -1,12 +1,9 @@
-"""Write stage: multi-agent paper writing via Agno Team coordinate mode."""
+"""Write stage: iterative paper writing (Writer + Reviewer)."""
 
 from backend.team.stage import TeamStage
 
 
 class WriteStage(TeamStage):
-
-    _member_map = {"writer": "Writer", "reviewer": "Reviewer"}
-    _capture_member = "Writer"
 
     def __init__(self, name: str = "write", model=None, writer_tools=None,
                  reviewer_tools=None, db=None, max_delegations: int = 10):
@@ -22,23 +19,13 @@ class WriteStage(TeamStage):
             "Write the complete research paper in markdown."
         )
 
-    def _create_team(self):
-        from agno.agent import Agent
-        from agno.team.team import Team
-        from agno.team.mode import TeamMode
-        from backend.team.prompts import (
-            WRITE_LEADER_SYSTEM, WRITE_WRITER_SYSTEM, WRITE_REVIEWER_SYSTEM,
-        )
-        writer = Agent(name="Writer", role="Research paper author", model=self._model,
-                       tools=self._writer_tools, instructions=[WRITE_WRITER_SYSTEM],
-                       markdown=True, id="writer")
-        reviewer = Agent(name="Reviewer", role="Research paper reviewer", model=self._model,
-                         tools=self._reviewer_tools, instructions=[WRITE_REVIEWER_SYSTEM],
-                         markdown=True, id="reviewer")
-        return Team(name="Write Team", mode=TeamMode.coordinate, members=[writer, reviewer],
-                    model=self._model, instructions=[WRITE_LEADER_SYSTEM],
-                    max_iterations=self._max_delegations,
-                    share_member_interactions=True, stream_member_events=True, markdown=True)
+    def _primary_config(self) -> tuple[str, list, str]:
+        from backend.team.prompts import WRITE_WRITER_SYSTEM
+        return WRITE_WRITER_SYSTEM, self._writer_tools, "Writer"
+
+    def _reviewer_config(self) -> tuple[str, list, str]:
+        from backend.team.prompts import WRITE_REVIEWER_SYSTEM
+        return WRITE_REVIEWER_SYSTEM, self._reviewer_tools, "Reviewer"
 
     def _finalize(self) -> str:
         result = self.output

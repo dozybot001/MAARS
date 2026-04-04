@@ -17,17 +17,17 @@ async function checkDocker() {
   try {
     const res = await fetch('/api/docker/status');
     const data = await res.json();
-    el.classList.remove('docker-unknown', 'docker-connected', 'docker-disconnected');
+    el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
     if (data.connected) {
-      el.classList.add('docker-connected');
+      el.classList.add('status-connected');
       el.title = 'Docker connected';
     } else {
-      el.classList.add('docker-disconnected');
+      el.classList.add('status-disconnected');
       el.title = `Docker: ${data.error || 'not available'}`;
     }
   } catch {
-    el.classList.remove('docker-unknown', 'docker-connected', 'docker-disconnected');
-    el.classList.add('docker-disconnected');
+    el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
+    el.classList.add('status-disconnected');
     el.title = 'Cannot check Docker status';
   }
 }

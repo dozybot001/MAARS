@@ -60,9 +60,21 @@ export async function fetchDocument(name) {
   return res.json();
 }
 
+function setSSEStatus(state, title) {
+  const el = document.getElementById('sse-status');
+  if (!el) return;
+  el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
+  el.classList.add(`status-${state}`);
+  el.title = title;
+}
+
 export function connectSSE() {
   const source = new EventSource(`${BASE}/events`);
+  source.onopen = () => {
+    setSSEStatus('connected', 'SSE connected');
+  };
   source.onmessage = (e) => {
+    setSSEStatus('connected', 'SSE connected');
     try {
       const event = JSON.parse(e.data);
       emit('sse', event);
@@ -71,6 +83,7 @@ export function connectSSE() {
     }
   };
   source.onerror = () => {
+    setSSEStatus('disconnected', 'SSE disconnected, reconnecting...');
     console.warn('[SSE] Connection lost, reconnecting...');
   };
   return source;

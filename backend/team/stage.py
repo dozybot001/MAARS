@@ -1,17 +1,48 @@
-"""TeamStage — base for multi-agent stages using Agno Team coordinate mode."""
+"""TeamStage -- base for iterative two-agent stages (primary + reviewer)."""
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 
-from backend.pipeline.stage import Stage, StageState
+from backend.pipeline.stage import Stage
+from backend.utils import parse_json_fenced
 
 log = logging.getLogger(__name__)
 
 
-class TeamStage(Stage):
+@dataclass
+class ProposalState:
+    """Compact state passed between iterations. Replaces share_member_interactions."""
 
-    _member_map: dict[str, str] = {}
-    _capture_member: str = ""
+    proposal: str = ""
+    issues: list[dict] = field(default_factory=list)
+    iteration: int = 0
+
+    def format_issues(self) -> str:
+        if not self.issues:
+            return "(No open issues)"
+        lines = []
+        for i, issue in enumerate(self.issues, 1):
+            severity = issue.get("severity", "major")
+            section = issue.get("section", "General")
+            problem = issue.get("problem", "")
+            suggestion = issue.get("suggestion", "")
+            lines.append(f"{i}. [{severity}] {section}: {problem}")
+            if suggestion:
+                lines.append(f"   Suggestion: {suggestion}")
+        return "\n".join(lines)
+
+    def update(self, new_proposal: str, feedback: dict):
+        self.proposal = new_proposal
+        resolved_ids = set(feedback.get("resolved", []))
+        remaining = [iss for iss in self.issues if iss.get("id") not in resolved_ids]
+        remaining.extend(feedback.get("issues", []))
+        self.issues = remaining
+        self.iteration += 1
+
+
+class TeamStage(Stage):
+    """Iterative two-agent loop: primary produces, reviewer critiques."""
 
     def __init__(self, name: str, model=None, db=None, max_delegations: int = 10):
         super().__init__(name=name, db=db)
@@ -21,95 +52,78 @@ class TeamStage(Stage):
     def load_input(self) -> str:
         raise NotImplementedError
 
-    def _create_team(self):
+    def _primary_config(self) -> tuple[str, list, str]:
+        """Return (instruction, tools, label) for the primary agent."""
+        raise NotImplementedError
+
+    def _reviewer_config(self) -> tuple[str, list, str]:
+        """Return (instruction, tools, label) for the reviewer agent."""
         raise NotImplementedError
 
     def _finalize(self) -> str:
         raise NotImplementedError
 
     async def _execute(self) -> str:
-        team = self._create_team()
         input_text = self.load_input()
+        state = ProposalState()
+        primary_instr, primary_tools, primary_label = self._primary_config()
+        reviewer_instr, reviewer_tools, reviewer_label = self._reviewer_config()
 
-        output_content = ""
-        current_member = None
+        for round_num in range(self._max_delegations):
+            if self._stop_requested:
+                raise asyncio.CancelledError()
 
-        async with asyncio.timeout(3600):
-            async for event in team.arun(
-                input_text, stream=True, stream_events=True,
-            ):
-                if self._stop_requested:
-                    raise asyncio.CancelledError()
-                evt = getattr(event, "event", "")
+            # 1. Primary agent produces/revises proposal
+            primary_user = self._build_primary_prompt(input_text, state)
+            proposal = await self._stream_llm(
+                self._model, primary_tools, primary_instr, primary_user,
+                call_id=primary_label, content_level=3,
+                label=True, label_level=2,
+            )
+            state.proposal = proposal
 
-                if evt == "TeamToolCallStarted":
-                    tool = getattr(event, "tool", None)
-                    if tool and getattr(tool, "tool_name", "") == "delegate_task_to_member":
-                        args = getattr(tool, "tool_args", {}) or {}
-                        member_id = args.get("member_id", "")
-                        label = self._resolve_member(member_id)
-                        if label == self._capture_member:
-                            output_content = ""
-                        current_member = label
-                        self._send(chunk={"text": label, "call_id": label, "label": True, "level": 2})
+            # Skip review on final allowed round
+            if round_num >= self._max_delegations - 1:
+                break
 
-                elif evt == "TeamRunContent":
-                    content = getattr(event, "content", None)
-                    if content:
-                        self._send(chunk={"text": str(content), "call_id": "Summary", "level": 2})
+            if self._stop_requested:
+                raise asyncio.CancelledError()
 
-                elif evt == "TeamRunCompleted":
-                    metrics = getattr(event, "metrics", None)
-                    if metrics and self.db:
-                        meta = self.db.get_meta()
-                        self.db.update_meta(
-                            tokens_input=meta.get("tokens_input", 0) + (getattr(metrics, "input_tokens", 0) or 0),
-                            tokens_output=meta.get("tokens_output", 0) + (getattr(metrics, "output_tokens", 0) or 0),
-                            tokens_total=meta.get("tokens_total", 0) + (getattr(metrics, "total_tokens", 0) or 0),
-                        )
+            # 2. Reviewer critiques proposal
+            reviewer_user = self._build_reviewer_prompt(input_text, state)
+            review_raw = await self._stream_llm(
+                self._model, reviewer_tools, reviewer_instr, reviewer_user,
+                call_id=reviewer_label, content_level=3,
+                label=True, label_level=2,
+            )
 
-                elif evt in ("TeamRunError", "RunError"):
-                    error_msg = str(getattr(event, "content", "")) or "Unknown error"
-                    log.error("%s team error: %s (full event: %s)", self.name, error_msg, event)
-                    raise RuntimeError(f"{self.name} team error: {error_msg}")
+            # 3. Parse structured feedback
+            feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
 
-                elif evt == "RunContent":
-                    content = getattr(event, "content", None)
-                    if content:
-                        text = str(content)
-                        member = current_member or self.name.capitalize()
-                        self._send(chunk={"text": text, "call_id": member, "level": 3})
-                        if member == self._capture_member:
-                            output_content += text
+            if feedback.get("pass", False):
+                break
 
-                elif evt == "ToolCallStarted":
-                    tool = getattr(event, "tool", None)
-                    if tool:
-                        tool_name = getattr(tool, "tool_name", "tool") or "tool"
-                        call_id = getattr(tool, "tool_call_id", "") or f"{tool_name}_{id(tool)}"
-                        _active_tool_call_id = f"Tool: {call_id}"
-                        self._send(chunk={"text": f"Tool: {tool_name}", "call_id": _active_tool_call_id, "label": True, "level": 3})
+            # 4. Update state for next round
+            state.update(proposal, feedback)
 
-                elif evt == "ToolCallCompleted":
-                    tool = getattr(event, "tool", None)
-                    if tool:
-                        call_id = getattr(tool, "tool_call_id", "") or f"{getattr(tool, 'tool_name', 'tool')}_{id(tool)}"
-                        cid = f"Tool: {call_id}"
-                        result_text = str(getattr(event, "content", ""))[:500]
-                        if result_text:
-                            self._send(chunk={"text": result_text, "call_id": cid, "level": 3})
-
-                elif evt == "RunCompleted":
-                    pass
-
-        self.output = output_content
+        self.output = state.proposal
         if not self.output:
-            log.warning("%s: no content captured from primary member", self.name)
+            log.warning("%s: no content produced", self.name)
 
         return self._finalize()
 
-    def _resolve_member(self, member_id: str) -> str:
-        for key, label in self._member_map.items():
-            if key in member_id:
-                return label
-        return member_id or "Member"
+    def _build_primary_prompt(self, input_text: str, state: ProposalState) -> str:
+        if state.iteration == 0:
+            return input_text
+        parts = [input_text]
+        parts.append(f"\n## Current Draft (Revision {state.iteration})\n{state.proposal}")
+        parts.append(f"\n## Issues to Address\n{state.format_issues()}")
+        parts.append("\nRevise the draft to address all listed issues. Output the complete revised version.")
+        return "\n".join(parts)
+
+    def _build_reviewer_prompt(self, input_text: str, state: ProposalState) -> str:
+        parts = [input_text]
+        parts.append(f"\n## Proposal to Review\n{state.proposal}")
+        if state.issues:
+            parts.append(f"\n## Previously Identified Issues\n{state.format_issues()}")
+        return "\n".join(parts)
