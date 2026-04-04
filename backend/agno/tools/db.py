@@ -11,11 +11,19 @@ def create_db_tools(db: ResearchDB) -> list:
         return output if output else f"No output found for task {task_id}"
 
     def list_tasks() -> str:
-        """List all completed atomic tasks with their IDs and output sizes."""
-        tasks = db.list_completed_tasks()
+        """List all research tasks with their IDs, descriptions, summaries, and status."""
+        tasks = db.get_plan_list()
         if not tasks:
-            return "No tasks completed yet."
-        return json.dumps(tasks, indent=2)
+            return "No tasks available."
+        result = []
+        for t in tasks:
+            result.append({
+                "id": t.get("id", ""),
+                "description": t.get("description", ""),
+                "summary": t.get("summary", ""),
+                "status": t.get("status", "unknown"),
+            })
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     def read_refined_idea() -> str:
         """Read the refined research idea produced by the Refine stage."""

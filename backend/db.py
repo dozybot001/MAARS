@@ -79,6 +79,41 @@ class ResearchDB:
         (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
         _write_json(d / f"round_{iteration}.json", data)
 
+    def save_outline(self, outline: list[dict], iteration: int):
+        self._ensure_root()
+        d = self._root / "outlines"
+        d.mkdir(exist_ok=True)
+        _write_json(d / f"round_{iteration}.json", outline)
+        lines = []
+        for s in outline:
+            lines.append(f"## {s.get('title', s.get('section_id', '?'))}")
+            lines.append(s.get("description", ""))
+            if s.get("primary_tasks"):
+                lines.append(f"Primary tasks: {', '.join(str(t) for t in s['primary_tasks'])}")
+            if s.get("reference_tasks"):
+                lines.append(f"Reference tasks: {', '.join(str(t) for t in s['reference_tasks'])}")
+            lines.append("")
+        (d / f"round_{iteration}.md").write_text("\n".join(lines), encoding="utf-8")
+
+    def save_section(self, text: str, iteration: int, section_id: str):
+        self._ensure_root()
+        d = self._root / "sections" / f"round_{iteration}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{section_id}.md").write_text(text, encoding="utf-8")
+
+    def save_draft(self, text: str, iteration: int):
+        self._ensure_root()
+        d = self._root / "drafts"
+        d.mkdir(exist_ok=True)
+        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+
+    def save_write_review(self, text: str, data: dict, iteration: int):
+        self._ensure_root()
+        d = self._root / "reviews"
+        d.mkdir(exist_ok=True)
+        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+        _write_json(d / f"round_{iteration}.json", data)
+
     def save_plan(self, tree: dict, flat_tasks: list[dict] | None = None):
         """Save tree (source of truth) and derive/update flat task list.
 
