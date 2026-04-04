@@ -206,8 +206,7 @@
 .po-stage-section {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
-  min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .po-stage-section:last-child {
@@ -245,11 +244,9 @@
   flex-wrap: nowrap;
   flex-direction: row-reverse;
   justify-content: flex-end;
-  overflow-x: auto;
   gap: 6px;
   height: 26px;
   align-items: center;
-  flex-shrink: 0;
 }
 
 /* File item card */
@@ -283,7 +280,6 @@
   list-style: none;
   font-size: 12px;
   line-height: 1.4;
-  overflow: hidden;
 }
 
 .po-tree ul {
@@ -296,7 +292,6 @@
 /* Exec inside process panel */
 .po-exec {
   padding: 4px 0 8px;
-  overflow: hidden;
 }
 
 /* Evaluation row: score + report side by side, one row per round */
