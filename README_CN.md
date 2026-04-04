@@ -57,15 +57,12 @@ bash start.sh
 
 两个阶段使用相同的 `IterationState` 模式：
 
-```
-Primary Agent (Explorer/Writer)  ->  draft
-                                      |
-Reviewer Agent (Critic/Reviewer) ->  {pass, issues, resolved}
-                                      |
-              问题已解决？ ──是──> 完成
-                    | 否
-                    v
-              更新状态，下一轮
+```mermaid
+graph TD
+    P[Primary Agent] -->|draft| R[Reviewer Agent]
+    R -->|"{pass, issues, resolved}"| Check{pass?}
+    Check -->|yes| Done((Done))
+    Check -->|no| Update[Update IterationState] --> P
 ```
 
 上下文大小恒定——每轮只传最新的 draft 和未解决的 issues，不是完整历史。

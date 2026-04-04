@@ -57,15 +57,12 @@ Then paste your research idea or a Kaggle URL into the input box and hit Start.
 
 Both stages use the same `IterationState` pattern:
 
-```
-Primary Agent (Explorer/Writer)  →  draft
-                                      ↓
-Reviewer Agent (Critic/Reviewer) →  {pass, issues, resolved}
-                                      ↓
-              issues resolved? ──yes──→ done
-                    │ no
-                    ↓
-              update state, next round
+```mermaid
+graph TD
+    P[Primary Agent] -->|draft| R[Reviewer Agent]
+    R -->|"{pass, issues, resolved}"| Check{pass?}
+    Check -->|yes| Done((Done))
+    Check -->|no| Update[Update IterationState] --> P
 ```
 
 Context size stays constant — only the latest draft and unresolved issues are passed each round, not the full history.
