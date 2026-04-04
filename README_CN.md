@@ -85,18 +85,38 @@ bash start.sh
 
 ```
 results/{session}/
-+-- refined_idea.md          # Refine 产出
-+-- proposals/               # Refine 各版提案
-+-- critiques/               # Refine 各轮评审
-+-- calibration.md           # Research：任务粒度定义
-+-- strategy/                # Research：策略版本
-+-- tasks/                   # Research：任务产出
-+-- artifacts/               # Research：代码、图表、数据
-+-- evaluations/             # Research：评估版本
-+-- drafts/                  # Write 各版草稿
-+-- reviews/                 # Write 各轮评审
-+-- paper.md                 # 最终论文
-+-- meta.json                # Token 用量、分数
+├── idea.md                     # 用户原始输入
+├── refined_idea.md             # Refine 最终产出
+├── proposals/                  # Refine: Explorer 各版提案
+│   └── round_N.md
+├── critiques/                  # Refine: Critic 各轮评审
+│   ├── round_N.md
+│   └── round_N.json
+├── calibration.md              # Research: 原子任务定义
+├── strategy/                   # Research: 策略版本
+│   └── round_N.md
+├── plan_tree.json              # Research: 分解树
+├── plan_list.json              # Research: 扁平任务列表
+├── tasks/                      # Research: 各任务产出
+│   └── {id}.md
+├── artifacts/                  # Research: 代码、图表等
+│   └── {id}/
+├── evaluations/                # Research: 评估版本
+│   ├── round_N.json
+│   └── round_N.md
+├── drafts/                     # Write: Writer 各版论文
+│   └── round_N.md
+├── reviews/                    # Write: Reviewer 各轮评审
+│   ├── round_N.md
+│   └── round_N.json
+├── paper.md                    # Write 最终产出
+├── meta.json                   # 元信息（tokens、score）
+├── log.jsonl                   # 流式 chunk 日志
+├── execution_log.jsonl         # Docker 执行记录
+└── reproduce/                  # 复现文件
+    ├── Dockerfile
+    ├── run.sh
+    └── docker-compose.yml
 ```
 
 ## 文档

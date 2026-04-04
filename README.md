@@ -85,18 +85,38 @@ Each run produces a session directory:
 
 ```
 results/{session}/
-├── refined_idea.md          # Refine output
-├── proposals/               # Refine draft versions
-├── critiques/               # Refine review versions
-├── calibration.md           # Research: task granularity
-├── strategy/                # Research: strategy versions
-├── tasks/                   # Research: task outputs
-├── artifacts/               # Research: code, figures, data
-├── evaluations/             # Research: evaluation versions
-├── drafts/                  # Write draft versions
-├── reviews/                 # Write review versions
-├── paper.md                 # Final paper
-└── meta.json                # Token usage, scores
+├── idea.md                     # User raw input
+├── refined_idea.md             # Refine final output
+├── proposals/                  # Refine: Explorer draft versions
+│   └── round_N.md
+├── critiques/                  # Refine: Critic reviews
+│   ├── round_N.md
+│   └── round_N.json
+├── calibration.md              # Research: atomic task definition
+├── strategy/                   # Research: strategy versions
+│   └── round_N.md
+├── plan_tree.json              # Research: decomposition tree
+├── plan_list.json              # Research: flat task list
+├── tasks/                      # Research: task outputs
+│   └── {id}.md
+├── artifacts/                  # Research: code, figures, data
+│   └── {id}/
+├── evaluations/                # Research: evaluation versions
+│   ├── round_N.json
+│   └── round_N.md
+├── drafts/                     # Write: Writer draft versions
+│   └── round_N.md
+├── reviews/                    # Write: Reviewer reviews
+│   ├── round_N.md
+│   └── round_N.json
+├── paper.md                    # Write final output
+├── meta.json                   # Metadata (tokens, score)
+├── log.jsonl                   # Streaming chunk log
+├── execution_log.jsonl         # Docker execution log
+└── reproduce/                  # Reproduction files
+    ├── Dockerfile
+    ├── run.sh
+    └── docker-compose.yml
 ```
 
 ## Documentation
