@@ -1,10 +1,6 @@
 /* ── Top input bar ── */
 #input-bar {
-  position: sticky;
-  top: 0;
-  z-index: 101;
   padding: 8px 32px;
-  background: var(--bg-primary);
 }
 
 #input-bar input {
@@ -31,10 +27,6 @@
 
 /* ── Pipeline progress bar ── */
 #pipeline-progress {
-  position: sticky;
-  top: 41px;
-  z-index: 100;
-  background: var(--bg-primary);
   padding: 10px 32px;
   display: flex;
   align-items: center;
