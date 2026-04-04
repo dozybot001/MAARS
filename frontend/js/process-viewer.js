@@ -22,7 +22,7 @@ let refineSection, refineProposals, refineCritiques, refineFinal;
 let researchSection, researchCalibration, researchStrategies, researchEvaluations, scoreContainer;
 let treeSection, treeContainer;
 let taskSection, execContainer;
-let writeSection, writeOutlines, writeDrafts, writeReviews, writeFinal;
+let writeSection, writeProposals, writeCritiques, writeFinal;
 
 export function initProcessViewer() {
   processBody = document.getElementById('process-body');
@@ -62,14 +62,12 @@ export function initProcessViewer() {
   taskSection = stageSection('Tasks', [execContainer]);
 
   // Write section
-  writeOutlines = el('div', 'po-docs-row');
-  writeDrafts = el('div', 'po-docs-row');
-  writeReviews = el('div', 'po-docs-row');
+  writeProposals = el('div', 'po-docs-row');
+  writeCritiques = el('div', 'po-docs-row');
   writeFinal = el('div', 'po-docs-row');
   writeSection = stageSection('Write', [
-    subRow('Outlines', writeOutlines),
-    subRow('Drafts', writeDrafts),
-    subRow('Reviews', writeReviews),
+    subRow('Drafts', writeProposals),
+    subRow('Reviews', writeCritiques),
     subRow('Final', writeFinal),
   ]);
 
@@ -162,12 +160,10 @@ async function handleDoneSignal(stage, phase, taskId) {
 
   // --- Write stage ---
   if (stage === 'write') {
-    if (phase === 'outline') {
-      await loadDocCards('outlines', writeOutlines);
-    } else if (phase === 'edit') {
-      await loadDocCards('drafts', writeDrafts);
+    if (phase === 'draft') {
+      await loadDocCards('drafts', writeProposals);
     } else if (phase === 'review') {
-      await loadDocCards('reviews', writeReviews);
+      await loadDocCards('reviews', writeCritiques);
     } else if (!phase) {
       const doc = await fetchDocument('paper');
       if (doc && doc.content) {

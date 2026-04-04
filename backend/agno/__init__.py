@@ -34,6 +34,6 @@ def create_agno_stages(
             max_iterations=max_iterations,
         ),
         "write": WriteStage(model=model, writer_tools=writer_tools,
-                            reviewer_tools=reviewer_tools, db_tools=db_tools,
-                            db=db, max_delegations=max_delegations),
+                            reviewer_tools=reviewer_tools, db=db,
+                            max_delegations=max_delegations),
     }

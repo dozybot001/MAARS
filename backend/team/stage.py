@@ -45,6 +45,11 @@ class ProposalState:
 class TeamStage(Stage):
     """Iterative two-agent loop: primary produces, reviewer critiques."""
 
+    _primary_dir: str = "proposals"
+    _reviewer_dir: str = "critiques"
+    _primary_phase: str = "proposal"
+    _reviewer_phase: str = "critique"
+
     def __init__(self, name: str, model=None, db=None, max_delegations: int = 10):
         super().__init__(name=name, db=db)
         self._model = model
@@ -74,8 +79,8 @@ class TeamStage(Stage):
             if self._stop_requested:
                 raise asyncio.CancelledError()
 
-            # 1. Primary agent produces/revises proposal
-            self._current_phase = "proposal"
+            # 1. Primary agent produces/revises
+            self._current_phase = self._primary_phase
             primary_user = self._build_primary_prompt(input_text, state)
             proposal = await self._stream_llm(
                 self._model, primary_tools, primary_instr, primary_user,
@@ -84,10 +89,10 @@ class TeamStage(Stage):
             )
             state.proposal = proposal
 
-            # Persist proposal
+            # Persist primary output
             if self.db:
-                self.db.save_proposal(proposal, round_num + 1)
-            self._send()  # done signal -> right panel fetches proposals/
+                self._save_round_md(self._primary_dir, proposal, round_num + 1)
+            self._send()
 
             # Skip review on final allowed round
             if round_num >= self._max_delegations - 1:
@@ -96,8 +101,8 @@ class TeamStage(Stage):
             if self._stop_requested:
                 raise asyncio.CancelledError()
 
-            # 2. Reviewer critiques proposal
-            self._current_phase = "critique"
+            # 2. Reviewer critiques
+            self._current_phase = self._reviewer_phase
             reviewer_user = self._build_reviewer_prompt(input_text, state)
             review_raw = await self._stream_llm(
                 self._model, reviewer_tools, reviewer_instr, reviewer_user,
@@ -109,8 +114,9 @@ class TeamStage(Stage):
             feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
 
             if self.db:
-                self.db.save_critique(review_raw, feedback, round_num + 1)
-            self._send()  # done signal -> right panel fetches critiques/
+                self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
+                self._save_round_json(self._reviewer_dir, feedback, round_num + 1)
+            self._send()
 
             if feedback.get("pass", False):
                 break
@@ -140,3 +146,18 @@ class TeamStage(Stage):
         if state.issues:
             parts.append(f"\n## Previously Identified Issues\n{state.format_issues()}")
         return "\n".join(parts)
+
+    def _save_round_md(self, dirname: str, text: str, iteration: int):
+        from pathlib import Path
+        self.db._ensure_root()
+        d = self.db._root / dirname
+        d.mkdir(exist_ok=True)
+        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+
+    def _save_round_json(self, dirname: str, data: dict, iteration: int):
+        from pathlib import Path
+        self.db._ensure_root()
+        d = self.db._root / dirname
+        d.mkdir(exist_ok=True)
+        from backend.db import _write_json
+        _write_json(d / f"round_{iteration}.json", data)
