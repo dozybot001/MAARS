@@ -148,15 +148,19 @@ class Stage:
                                     self._send(chunk={"text": str(event.content), "call_id": rid, "level": content_level}, **extra)
                             elif event.event == RunEvent.tool_call_started:
                                 tool_name = event.tool.tool_name if event.tool else "tool"
-                                self._send(chunk={"text": f"Tool: {tool_name}", "call_id": f"Tool: {tool_name}", "label": True, "level": content_level}, **extra)
+                                tcid = getattr(event.tool, "tool_call_id", "") or f"{tool_name}_{id(event.tool)}" if event.tool else tool_name
+                                _active_tool_cid = f"Tool: {tcid}"
+                                self._send(chunk={"text": f"Tool: {tool_name}", "call_id": _active_tool_cid, "label": True, "level": content_level}, **extra)
                                 if event.tool and event.tool.tool_args:
                                     args_str = ", ".join(f"{k}={v}" for k, v in event.tool.tool_args.items())
-                                    self._send(chunk={"text": f"{tool_name}({args_str})", "call_id": f"Tool: {tool_name}", "level": content_level}, **extra)
+                                    self._send(chunk={"text": f"{tool_name}({args_str})", "call_id": _active_tool_cid, "level": content_level}, **extra)
                             elif event.event == RunEvent.tool_call_completed:
                                 tool_name = event.tool.tool_name if event.tool else "tool"
+                                tcid = getattr(event.tool, "tool_call_id", "") or f"{tool_name}_{id(event.tool)}" if event.tool else tool_name
+                                cid = f"Tool: {tcid}"
                                 result_text = str(event.content)[:500] if event.content else ""
                                 if result_text:
-                                    self._send(chunk={"text": result_text, "call_id": f"Tool: {tool_name}", "level": content_level}, **extra)
+                                    self._send(chunk={"text": result_text, "call_id": cid, "level": content_level}, **extra)
                             elif event.event == RunEvent.run_error:
                                 error_msg = str(event.content) if event.content else "Unknown agent error"
                                 raise RuntimeError(f"Agno agent error: {error_msg}")

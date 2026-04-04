@@ -16,6 +16,7 @@ def create_agno_stages(
     api_key: str = "",
     db=None,
     max_iterations: int = 1,
+    max_delegations: int = 10,
 ) -> dict:
     model = create_model("google", model_id, api_key)
     db_tools = create_db_tools(db) if db else []
@@ -27,11 +28,13 @@ def create_agno_stages(
     reviewer_tools = db_tools + list_artifacts
 
     return {
-        "refine": RefineStage(model=model, explorer_tools=research_tools, db=db),
+        "refine": RefineStage(model=model, explorer_tools=research_tools, db=db,
+                              max_delegations=max_delegations),
         "research": ResearchStage(
             model=model, tools=all_research_tools, db=db,
             max_iterations=max_iterations,
         ),
         "write": WriteStage(model=model, writer_tools=writer_tools,
-                            reviewer_tools=reviewer_tools, db=db),
+                            reviewer_tools=reviewer_tools, db=db,
+                            max_delegations=max_delegations),
     }

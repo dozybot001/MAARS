@@ -334,6 +334,7 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
@@ -399,6 +400,8 @@
   padding: 10px;
   border-radius: var(--radius);
   overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
   font-size: 12px;
   line-height: 1.5;
 }

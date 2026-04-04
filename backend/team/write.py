@@ -9,8 +9,8 @@ class WriteStage(TeamStage):
     _capture_member = "Writer"
 
     def __init__(self, name: str = "write", model=None, writer_tools=None,
-                 reviewer_tools=None, db=None):
-        super().__init__(name=name, model=model, db=db)
+                 reviewer_tools=None, db=None, max_delegations: int = 10):
+        super().__init__(name=name, model=model, db=db, max_delegations=max_delegations)
         self._writer_tools = writer_tools or []
         self._reviewer_tools = reviewer_tools or []
 
@@ -37,6 +37,7 @@ class WriteStage(TeamStage):
                          markdown=True, id="reviewer")
         return Team(name="Write Team", mode=TeamMode.coordinate, members=[writer, reviewer],
                     model=self._model, instructions=[WRITE_LEADER_SYSTEM],
+                    max_iterations=self._max_delegations,
                     share_member_interactions=True, stream_member_events=True, markdown=True)
 
     def _finalize(self) -> str:

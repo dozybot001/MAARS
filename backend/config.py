@@ -9,15 +9,15 @@ class Settings(BaseSettings):
 
     # --- Research ---
     research_max_iterations: int
+    team_max_delegations: int
 
     # --- Kaggle ---
-    kaggle_api_token: str = ""
-    kaggle_competition_id: str = ""
-    dataset_dir: str = ""
+    kaggle_api_token: str
+    dataset_dir: str
 
     # --- API ---
     api_concurrency: int
-    output_language: str = "Chinese"
+    output_language: str
 
     # --- Docker Sandbox ---
     docker_sandbox_image: str

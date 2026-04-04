@@ -13,9 +13,10 @@ class TeamStage(Stage):
     _member_map: dict[str, str] = {}
     _capture_member: str = ""
 
-    def __init__(self, name: str, model=None, db=None):
+    def __init__(self, name: str, model=None, db=None, max_delegations: int = 10):
         super().__init__(name=name, db=db)
         self._model = model
+        self._max_delegations = max_delegations
 
     def load_input(self) -> str:
         raise NotImplementedError
@@ -34,7 +35,7 @@ class TeamStage(Stage):
         current_member = None
 
         async with asyncio.timeout(3600):
-            async for event in await team.arun(
+            async for event in team.arun(
                 input_text, stream=True, stream_events=True,
             ):
                 if self._stop_requested:
@@ -85,15 +86,18 @@ class TeamStage(Stage):
                     tool = getattr(event, "tool", None)
                     if tool:
                         tool_name = getattr(tool, "tool_name", "tool") or "tool"
-                        self._send(chunk={"text": f"Tool: {tool_name}", "call_id": f"Tool: {tool_name}", "label": True, "level": 3})
+                        call_id = getattr(tool, "tool_call_id", "") or f"{tool_name}_{id(tool)}"
+                        _active_tool_call_id = f"Tool: {call_id}"
+                        self._send(chunk={"text": f"Tool: {tool_name}", "call_id": _active_tool_call_id, "label": True, "level": 3})
 
                 elif evt == "ToolCallCompleted":
                     tool = getattr(event, "tool", None)
                     if tool:
-                        tool_name = getattr(tool, "tool_name", "tool") or "tool"
+                        call_id = getattr(tool, "tool_call_id", "") or f"{getattr(tool, 'tool_name', 'tool')}_{id(tool)}"
+                        cid = f"Tool: {call_id}"
                         result_text = str(getattr(event, "content", ""))[:500]
                         if result_text:
-                            self._send(chunk={"text": result_text, "call_id": f"Tool: {tool_name}", "level": 3})
+                            self._send(chunk={"text": result_text, "call_id": cid, "level": 3})
 
                 elif evt == "RunCompleted":
                     pass

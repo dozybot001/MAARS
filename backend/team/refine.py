@@ -8,8 +8,9 @@ class RefineStage(TeamStage):
     _member_map = {"explorer": "Explorer", "critic": "Critic"}
     _capture_member = "Explorer"
 
-    def __init__(self, name: str = "refine", model=None, explorer_tools=None, db=None):
-        super().__init__(name=name, model=model, db=db)
+    def __init__(self, name: str = "refine", model=None, explorer_tools=None, db=None,
+                 max_delegations: int = 10):
+        super().__init__(name=name, model=model, db=db, max_delegations=max_delegations)
         self._explorer_tools = explorer_tools or []
 
     def load_input(self) -> str:
@@ -30,6 +31,7 @@ class RefineStage(TeamStage):
                        markdown=True, id="critic")
         return Team(name="Refine Team", mode=TeamMode.coordinate, members=[explorer, critic],
                     model=self._model, instructions=[REFINE_LEADER_SYSTEM],
+                    max_iterations=self._max_delegations,
                     share_member_interactions=True, stream_member_events=True, markdown=True)
 
     def _finalize(self) -> str:

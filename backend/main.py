@@ -45,6 +45,7 @@ stages = create_agno_stages(
     api_key=settings.google_api_key,
     db=orchestrator.db,
     max_iterations=settings.research_max_iterations,
+    max_delegations=settings.team_max_delegations,
 )
 
 orchestrator.stages.update(stages)
