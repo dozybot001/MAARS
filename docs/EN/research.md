@@ -1,5 +1,7 @@
 # Research Stage Details
 
+[中文](../CN/research.md) | English
+
 > Back to [Architecture Overview](architecture.md)
 
 Research is the core MAARS stage, using an agentic workflow pattern: runtime controls the loop and state, agents execute each atomic task.

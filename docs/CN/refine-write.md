@@ -1,5 +1,7 @@
 # Refine / Write 阶段详情
 
+中文 | [English](../EN/refine-write.md)
+
 > 回到 [架构概览](architecture.md)
 
 Refine 和 Write 共享同一个 `TeamStage` 基类，使用 `IterationState` 驱动的双 Agent 循环。两者完全对称，仅配置不同。

@@ -1,5 +1,7 @@
 # Refine / Write Stage Details
 
+[中文](../CN/refine-write.md) | English
+
 > Back to [Architecture Overview](architecture.md)
 
 Refine and Write share the same `TeamStage` base class, driven by an `IterationState` dual-agent loop. They are fully symmetric — only configuration differs.

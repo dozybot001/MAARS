@@ -130,12 +130,9 @@ results/{session}/
 
 | Document | Description |
 |----------|-------------|
-| [Architecture (EN)](docs/EN/architecture.md) | System overview, SSE protocol, storage layout |
-| [Refine & Write (EN)](docs/EN/refine-write.md) | IterationState pattern, dual-agent loop details |
-| [Research (EN)](docs/EN/research.md) | Agentic workflow, parallel execution, key decisions |
-| [Architecture (CN)](docs/CN/architecture.md) | 系统概览、SSE 协议、存储结构 |
-| [Refine & Write (CN)](docs/CN/refine-write.md) | IterationState 模式、双 Agent 循环详情 |
-| [Research (CN)](docs/CN/research.md) | Agentic workflow、并行执行、关键决策 |
+| [Architecture](docs/EN/architecture.md) | System overview, SSE protocol, storage layout |
+| [Refine & Write](docs/EN/refine-write.md) | IterationState pattern, dual-agent loop details |
+| [Research](docs/EN/research.md) | Agentic workflow, parallel execution, key decisions |
 
 ## Tech Stack
 

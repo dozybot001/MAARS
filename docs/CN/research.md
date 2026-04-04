@@ -1,5 +1,7 @@
 # Research 阶段详情
 
+中文 | [English](../EN/research.md)
+
 > 回到 [架构概览](architecture.md)
 
 Research 是 MAARS 的核心阶段，采用 agentic workflow 模式：runtime 控制循环和状态，Agent 执行每个原子任务。

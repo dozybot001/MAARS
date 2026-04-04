@@ -1,5 +1,7 @@
 # MAARS Architecture v13.4.0
 
+[中文](../CN/architecture.md) | English
+
 > Boundary: runtime controls flow and state; agents handle open-ended tasks. Three stages connected via file-based session DB.
 >
 > Stage details: [Refine / Write](refine-write.md) | [Research](research.md)

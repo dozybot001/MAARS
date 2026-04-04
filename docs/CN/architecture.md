@@ -1,5 +1,7 @@
 # MAARS 架构设计 v13.4.0
 
+中文 | [English](../EN/architecture.md)
+
 > 架构边界：runtime 管控制流与状态；agent 管开放任务。三阶段经文件型 session DB 衔接。
 >
 > 阶段详情：[Refine / Write](refine-write.md) | [Research](research.md)
