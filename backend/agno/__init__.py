@@ -1,7 +1,6 @@
 """Stage factory: assembles all pipeline stages."""
 
 from agno.tools.arxiv import ArxivTools
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.wikipedia import WikipediaTools
 
 from backend.agno.tools import create_db_tools, create_docker_tools
@@ -22,7 +21,7 @@ def create_agno_stages(
     db_tools = create_db_tools(db) if db else []
     docker_tools = create_docker_tools(db) if db else []
     list_artifacts = docker_tools[1:] if len(docker_tools) > 1 else []
-    research_tools = [DuckDuckGoTools(), ArxivTools(), WikipediaTools()]
+    research_tools = [ArxivTools(), WikipediaTools()]
     all_research_tools = db_tools + docker_tools + research_tools
     writer_tools = db_tools + list_artifacts + research_tools
     reviewer_tools = db_tools + list_artifacts
