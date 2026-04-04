@@ -223,9 +223,9 @@
 
 .po-sub-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+  height: 26px;
 }
 
 .po-sub-label {
@@ -245,6 +245,9 @@
   justify-content: flex-end;
   overflow-x: auto;
   gap: 6px;
+  height: 26px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* File item card */
@@ -252,12 +255,14 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius);
   background: var(--bg-input);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-primary);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: background 0.15s;
 }
 
