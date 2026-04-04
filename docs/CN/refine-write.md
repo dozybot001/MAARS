@@ -4,7 +4,7 @@
 
 > 回到 [架构概览](architecture.md)
 
-Refine 和 Write 共享同一个 `TeamStage` 基类，使用 `IterationState` 驱动的双 Agent 循环。两者完全对称，仅配置不同。
+Refine 和 Write 共享同一个 `TeamStage` 基类，使用 `IterationState` 驱动的 Multi-Agent 循环。两者完全对称，仅配置不同。
 
 ## 1. IterationState
 
@@ -110,7 +110,7 @@ Round 3:
 | 编排者 | Python `_run_loop` | Python `TeamStage._execute` |
 | Agent 角色 | 每个 task 独立 Agent | 两个固定角色交替 |
 | 通信方式 | 通过 artifacts/DB | 通过 IterationState 注入 prompt |
-| 持久化 | checkpoint/resume | 每轮落盘，最终产物持久化 |
+| 持久化 | checkpoint/resume | checkpoint/resume（每轮落盘） |
 | 终止条件 | Evaluate 无 strategy_update | Reviewer pass=true 或达到 max_delegations |
 
 核心模式一致：**Python 控制流程，Agent 只负责执行单步，状态在 runtime 层管理。**

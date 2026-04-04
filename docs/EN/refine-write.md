@@ -4,7 +4,7 @@
 
 > Back to [Architecture Overview](architecture.md)
 
-Refine and Write share the same `TeamStage` base class, driven by an `IterationState` dual-agent loop. They are fully symmetric — only configuration differs.
+Refine and Write share the same `TeamStage` base class, driven by an `IterationState` Multi-Agent loop. They are fully symmetric — only configuration differs.
 
 ## 1. IterationState
 
@@ -110,7 +110,7 @@ Round 3:
 | Orchestrator | Python `_run_loop` | Python `TeamStage._execute` |
 | Agent roles | Independent agent per task | Two fixed roles alternating |
 | Communication | Via artifacts/DB | Via IterationState injected into prompt |
-| Persistence | Checkpoint/resume | Per-round persistence, final output saved |
+| Persistence | Checkpoint/resume | Checkpoint/resume (per-round persistence) |
 | Termination | Evaluate has no strategy_update | Reviewer pass=true or max_delegations reached |
 
 Core pattern is the same: **Python controls flow, agents execute single steps, state managed at runtime layer.**

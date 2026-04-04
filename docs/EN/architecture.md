@@ -21,7 +21,7 @@
 1. **Entry layer**: Frontend + FastAPI
 2. **Orchestration layer**: Three-stage sequencing and lifecycle control
 3. **Stage layer**: Each stage is a stable boundary, connected via session DB
-4. **Execution layer**: Dual-agent loop (Refine/Write) or single-agent workflow (Research)
+4. **Execution layer**: Multi-Agent (all stages)
 5. **Tools & State layer**: Tools for external interaction, file-based DB for state
 
 ### 2.2 Stage Inheritance
@@ -29,7 +29,7 @@
 ```
 Stage                          -- lifecycle + SSE (_send) + LLM streaming (_stream_llm)
 +-- ResearchStage              -- multi-agent (task decomposition + parallel execution + evaluation loop)
-+-- TeamStage                  -- dual-agent loop (primary + reviewer + IterationState)
++-- TeamStage                  -- Multi-Agent (primary + reviewer + IterationState)
     +-- RefineStage
     +-- WriteStage
 ```
@@ -78,9 +78,9 @@ flowchart TB
 
 | Stage | Pattern | Role | Details |
 |---|---|---|---|
-| **Refine** | TeamStage (Explorer + Critic) | Intent -> actionable research goal | [refine-write.md](refine-write.md) |
-| **Research** | Multi-agent | Decompose -> Execute <-> Verify -> Evaluate | [research.md](research.md) |
-| **Write** | TeamStage (Writer + Reviewer) | Synthesize into paper | [refine-write.md](refine-write.md) |
+| **Refine** | Multi-Agent (Explorer + Critic) | Intent -> actionable research goal | [refine-write.md](refine-write.md) |
+| **Research** | Multi-Agent (Decompose + Execute + Evaluate) | Decompose -> Execute <-> Verify -> Evaluate | [research.md](research.md) |
+| **Write** | Multi-Agent (Writer + Reviewer) | Synthesize into paper | [refine-write.md](refine-write.md) |
 
 ## 3. SSE
 
@@ -174,12 +174,12 @@ backend/
 +-- pipeline/
 |   +-- orchestrator.py          # Three-stage sequencing
 |   +-- stage.py                 # Stage base class (lifecycle + SSE + _stream_llm)
-|   +-- research.py              # ResearchStage -- workflow engine
+|   +-- research.py              # ResearchStage -- Multi-Agent engine
 |   +-- decompose.py             # Recursive decomposition engine
 |   +-- prompts.py               # Language dispatcher
 |   +-- prompts_zh.py / _en.py   # Research prompts + builder functions
 +-- team/
-|   +-- stage.py                 # TeamStage -- IterationState + dual-agent loop
+|   +-- stage.py                 # TeamStage -- IterationState + Multi-Agent loop
 |   +-- refine.py                # RefineStage: Explorer + Critic
 |   +-- write.py                 # WriteStage: Writer + Reviewer
 |   +-- prompts.py               # Language dispatcher

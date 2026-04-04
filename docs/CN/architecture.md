@@ -21,7 +21,7 @@
 1. **入口层**：前端 + FastAPI
 2. **编排层**：三阶段顺序和生命周期控制
 3. **阶段层**：每个 stage 是稳定边界，通过 session DB 连接
-4. **智能执行层**：自编排双 Agent 循环（Refine/Write）或单 Agent workflow（Research）
+4. **智能执行层**：Multi-Agent（所有阶段）
 5. **工具与状态层**：工具与外部交互，文件型 DB 保存状态
 
 ### 2.2 阶段继承关系
@@ -29,7 +29,7 @@
 ```
 Stage                          -- 生命周期 + 统一 SSE (_send) + LLM streaming (_stream_llm)
 +-- ResearchStage              -- Multi-Agent（任务分解 + 并行执行 + 评估循环）
-+-- TeamStage                  -- 自编排双 Agent 循环（primary + reviewer + IterationState）
++-- TeamStage                  -- Multi-Agent（primary + reviewer + IterationState）
     +-- RefineStage
     +-- WriteStage
 ```
@@ -78,9 +78,9 @@ flowchart TB
 
 | 阶段 | 模式 | 职责 | 详情 |
 |---|---|---|---|
-| **Refine** | TeamStage（Explorer + Critic） | 意图 -> 可执行研究目标 | [refine-write.md](refine-write.md) |
-| **Research** | Multi-Agent | 分解 -> 执行 <-> 验证 -> 评估 | [research.md](research.md) |
-| **Write** | TeamStage（Writer + Reviewer） | 综合为论文 | [refine-write.md](refine-write.md) |
+| **Refine** | Multi-Agent（Explorer + Critic） | 意图 -> 可执行研究目标 | [refine-write.md](refine-write.md) |
+| **Research** | Multi-Agent（Decompose + Execute + Evaluate） | 分解 -> 执行 <-> 验证 -> 评估 | [research.md](research.md) |
+| **Write** | Multi-Agent（Writer + Reviewer） | 综合为论文 | [refine-write.md](refine-write.md) |
 
 ## 3. SSE
 
@@ -174,12 +174,12 @@ backend/
 +-- pipeline/
 |   +-- orchestrator.py          # 三阶段顺序控制
 |   +-- stage.py                 # Stage 基类（生命周期 + SSE + _stream_llm）
-|   +-- research.py              # ResearchStage -- workflow 引擎
+|   +-- research.py              # ResearchStage -- Multi-Agent 引擎
 |   +-- decompose.py             # 通用分解引擎（支持 root_id）
 |   +-- prompts.py               # 语言分发层
 |   +-- prompts_zh.py / _en.py   # Research prompts + builder 函数
 +-- team/
-|   +-- stage.py                 # TeamStage -- IterationState + 双 Agent 循环
+|   +-- stage.py                 # TeamStage -- IterationState + Multi-Agent 循环
 |   +-- refine.py                # RefineStage: Explorer + Critic
 |   +-- write.py                 # WriteStage: Writer + Reviewer
 |   +-- prompts.py               # 语言分发层
