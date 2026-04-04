@@ -76,6 +76,7 @@ async function handleStart() {
   const hasActive = NODE_ORDER.some((n) => nodeStates[n] === 'active');
   const hasPaused = NODE_ORDER.some((n) => nodeStates[n] === 'paused');
   if (hasActive || hasPaused) return;
+  inputEl.disabled = true;
   seenNodes.clear();
   NODE_ORDER.forEach((n) => updateNode(n, 'idle'));
   syncButtons();
