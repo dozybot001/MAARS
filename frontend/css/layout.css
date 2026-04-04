@@ -33,10 +33,14 @@ body {
   font-family: var(--font-mono);
   background: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 main {
-  padding: 12px 24px;
-  min-height: 100vh;
+  padding: 0 24px;
+  flex: 1;
+  overflow: hidden;
 }
