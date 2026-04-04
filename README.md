@@ -49,7 +49,11 @@ On first run, `start.sh` will:
 3. Build the Docker sandbox image
 4. Start the server at **http://localhost:8000**
 
+<p align="center"><img src="docs/assets/terminal.png" width="720" alt="MAARS startup"></p>
+
 Then paste your research idea or a Kaggle URL into the input box and hit Start.
+
+<p align="center"><img src="docs/assets/start.png" width="720" alt="MAARS UI"></p>
 
 ## Kaggle Mode
 
@@ -100,7 +104,7 @@ results/{session}/
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/EN/architecture.md) | System overview, SSE protocol, storage layout |
-| [Refine & Write](docs/EN/refine-write.md) | IterationState pattern, dual-agent loop details |
+| [Refine & Write](docs/EN/refine-write.md) | IterationState pattern, Multi-Agent loop details |
 | [Research](docs/EN/research.md) | Task decomposition, parallel execution, evaluation loop |
 
 ## Tech Stack
