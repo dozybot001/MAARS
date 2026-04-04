@@ -85,7 +85,7 @@ class TeamStage(Stage):
 
             # Persist proposal
             if self.db:
-                self.db.save_proposal(proposal, round_num)
+                self.db.save_proposal(proposal, round_num + 1)
             self._send()  # done signal -> right panel fetches proposals/
 
             # Skip review on final allowed round
@@ -108,7 +108,7 @@ class TeamStage(Stage):
             feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
 
             if self.db:
-                self.db.save_critique(review_raw, feedback, round_num)
+                self.db.save_critique(review_raw, feedback, round_num + 1)
             self._send()  # done signal -> right panel fetches critiques/
 
             if feedback.get("pass", False):
