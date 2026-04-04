@@ -288,6 +288,14 @@ class ResearchDB:
         meta = _read_json(self._root / "meta.json")
         return meta.get("score_direction", "minimize") == "minimize"
 
+    def get_strategy_for(self, iteration: int) -> str:
+        self._ensure_root()
+        return _read(self._root / "strategy" / f"round_{iteration}.md")
+
+    def get_evaluation(self, iteration: int) -> dict:
+        self._ensure_root()
+        return _read_json(self._root / "evaluations" / f"round_{iteration}.json", default={})
+
     def get_iteration(self) -> int:
         self._ensure_root()
         eval_dir = self._root / "evaluations"

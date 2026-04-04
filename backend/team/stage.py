@@ -1,6 +1,7 @@
 """TeamStage -- base for iterative two-agent stages (primary + reviewer)."""
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -79,19 +80,19 @@ class TeamStage(Stage):
             if self._stop_requested:
                 raise asyncio.CancelledError()
 
-            # 1. Primary agent produces/revises
+            # 1. Primary agent produces/revises — skip if already on disk
             self._current_phase = self._primary_phase
-            primary_user = self._build_primary_prompt(input_text, state)
-            draft = await self._stream_llm(
-                self._model, primary_tools, primary_instr, primary_user,
-                call_id=primary_label, content_level=3,
-                label=True, label_level=2,
-            )
+            draft = self._load_round_md(self._primary_dir, round_num + 1)
+            if not draft:
+                primary_user = self._build_primary_prompt(input_text, state)
+                draft = await self._stream_llm(
+                    self._model, primary_tools, primary_instr, primary_user,
+                    call_id=primary_label, content_level=3,
+                    label=True, label_level=2,
+                )
+                if self.db:
+                    self._save_round_md(self._primary_dir, draft, round_num + 1)
             state.draft = draft
-
-            # Persist primary output
-            if self.db:
-                self._save_round_md(self._primary_dir, draft, round_num + 1)
             self._send()
 
             # Skip review on final allowed round
@@ -101,27 +102,26 @@ class TeamStage(Stage):
             if self._stop_requested:
                 raise asyncio.CancelledError()
 
-            # 2. Reviewer critiques
+            # 2. Reviewer critiques — skip if already on disk
             self._current_phase = self._reviewer_phase
-            reviewer_user = self._build_reviewer_prompt(input_text, state)
-            review_raw = await self._stream_llm(
-                self._model, reviewer_tools, reviewer_instr, reviewer_user,
-                call_id=reviewer_label, content_level=3,
-                label=True, label_level=2,
-            )
-
-            # 3. Parse structured feedback and persist
-            feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
-
-            if self.db:
-                self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
-                self._save_round_json(self._reviewer_dir, feedback, round_num + 1)
+            feedback = self._load_round_json(self._reviewer_dir, round_num + 1)
+            if feedback is None:
+                reviewer_user = self._build_reviewer_prompt(input_text, state)
+                review_raw = await self._stream_llm(
+                    self._model, reviewer_tools, reviewer_instr, reviewer_user,
+                    call_id=reviewer_label, content_level=3,
+                    label=True, label_level=2,
+                )
+                feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
+                if self.db:
+                    self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
+                    self._save_round_json(self._reviewer_dir, feedback, round_num + 1)
             self._send()
 
             if feedback.get("pass", False):
                 break
 
-            # 4. Update state for next round
+            # 3. Update state for next round
             state.update(draft, feedback)
 
         self._current_phase = ""
@@ -146,6 +146,27 @@ class TeamStage(Stage):
         if state.issues:
             parts.append(f"\n## Previously Identified Issues\n{state.format_issues()}")
         return "\n".join(parts)
+
+    def _load_round_md(self, dirname: str, iteration: int) -> str:
+        if not self.db:
+            return ""
+        self.db._ensure_root()
+        path = self.db._root / dirname / f"round_{iteration}.md"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+        return ""
+
+    def _load_round_json(self, dirname: str, iteration: int) -> dict | None:
+        if not self.db:
+            return None
+        self.db._ensure_root()
+        path = self.db._root / dirname / f"round_{iteration}.json"
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError):
+            return None
 
     def _save_round_md(self, dirname: str, text: str, iteration: int):
         self.db._ensure_root()
