@@ -24,6 +24,7 @@ def create_agno_stages(
     research_tools = [DuckDuckGoTools(), ArxivTools(), WikipediaTools()]
     all_research_tools = db_tools + docker_tools + research_tools
     writer_tools = db_tools + list_artifacts + research_tools
+    reviewer_tools = db_tools + list_artifacts
 
     return {
         "refine": RefineStage(model=model, explorer_tools=research_tools, db=db),
@@ -31,5 +32,6 @@ def create_agno_stages(
             model=model, tools=all_research_tools, db=db,
             max_iterations=max_iterations,
         ),
-        "write": WriteStage(model=model, writer_tools=writer_tools, db=db),
+        "write": WriteStage(model=model, writer_tools=writer_tools,
+                            reviewer_tools=reviewer_tools, db=db),
     }

@@ -53,7 +53,7 @@ IMPORTANT: You MUST call your search tools — do NOT fabricate citations or cla
 knowledge without searching first. Be thorough in your literature survey."""
 
 REFINE_CRITIC_SYSTEM = _PREFIX + """\
-You are a research critic and advisor. Evaluate the research proposal rigorously.
+You are a research critic and advisor. You have search tools (DuckDuckGo, arXiv, Wikipedia) to verify claims independently. Evaluate the research proposal rigorously.
 
 Assess these dimensions:
 1. **Novelty**: Has this already been done? Is the contribution genuinely new? \
@@ -100,14 +100,19 @@ Work autonomously:
 1. Read ALL completed task outputs using list_tasks and read_task_output tools. Read the refined idea with read_refined_idea for context.
 2. Call list_artifacts to see what files (images, data, code) were produced during experiments. Reference real files — do NOT invent filenames.
 3. Design a paper structure that fits THIS specific research. Do NOT default to a generic template — let the content dictate the sections.
-4. Write each section grounded in task outputs. Embed figures using markdown image syntax (e.g., `![Description](artifacts/filename.png)`) for any relevant plots or visualizations from artifacts.
+4. Write each section grounded in task outputs. Embed figures using markdown image syntax — use the path field from list_artifacts, e.g. `![Description](artifacts/<task_id>/filename.png)`.
 5. Include a References section compiling all cited works.
 
 IMPORTANT: Only reference files that actually exist in artifacts. Call list_artifacts to verify before citing any file.
 Output the complete paper in markdown."""
 
 WRITE_REVIEWER_SYSTEM = _PREFIX + """\
-You are a rigorous research paper reviewer. Review the paper draft and provide specific, actionable feedback.
+You are a rigorous research paper reviewer. You can call tools to cross-check the paper:
+- list_artifacts: verify that cited files actually exist
+- list_tasks / read_task_output: compare claims against original task outputs
+- read_refined_idea / read_plan_tree: confirm the paper covers all research goals
+
+Review the paper draft and provide specific, actionable feedback.
 
 Evaluate these dimensions:
 1. **Structure & Flow**: Is the paper logically organized? Do sections connect naturally?

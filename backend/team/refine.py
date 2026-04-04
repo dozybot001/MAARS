@@ -26,7 +26,8 @@ class RefineStage(TeamStage):
                          tools=self._explorer_tools, instructions=[REFINE_EXPLORER_SYSTEM],
                          markdown=True, id="explorer")
         critic = Agent(name="Critic", role="Research critic", model=self._model,
-                       instructions=[REFINE_CRITIC_SYSTEM], markdown=True, id="critic")
+                       tools=self._explorer_tools, instructions=[REFINE_CRITIC_SYSTEM],
+                       markdown=True, id="critic")
         return Team(name="Refine Team", mode=TeamMode.coordinate, members=[explorer, critic],
                     model=self._model, instructions=[REFINE_LEADER_SYSTEM],
                     share_member_interactions=True, stream_member_events=True, markdown=True)

@@ -122,15 +122,22 @@ def create_docker_tools(db: ResearchDB) -> list:
         }, indent=2)
 
     def list_artifacts() -> str:
-        """List all files in the current task's artifacts directory."""
+        """List all files in the artifacts directory. During task execution, lists the current task's artifacts. Otherwise (e.g. Write stage), lists all artifacts recursively with relative paths."""
         try:
-            artifacts_dir = db.get_artifacts_dir(db.current_task_id)
+            task_id = db.current_task_id
+            artifacts_dir = db.get_artifacts_dir(task_id)
         except RuntimeError:
             return "No active research session."
         files = []
-        for f in sorted(artifacts_dir.iterdir()):
-            if f.is_file():
-                files.append({"filename": f.name, "size_bytes": f.stat().st_size})
+        if task_id:
+            for f in sorted(artifacts_dir.iterdir()):
+                if f.is_file():
+                    files.append({"filename": f.name, "size_bytes": f.stat().st_size})
+        else:
+            for f in sorted(artifacts_dir.rglob("*")):
+                if f.is_file():
+                    rel = str(f.relative_to(artifacts_dir))
+                    files.append({"path": rel, "size_bytes": f.stat().st_size})
         return json.dumps(files, indent=2) if files else "No artifacts produced yet."
 
     return [code_execute, list_artifacts]

@@ -8,9 +8,11 @@ class WriteStage(TeamStage):
     _member_map = {"writer": "Writer", "reviewer": "Reviewer"}
     _capture_member = "Writer"
 
-    def __init__(self, name: str = "write", model=None, writer_tools=None, db=None):
+    def __init__(self, name: str = "write", model=None, writer_tools=None,
+                 reviewer_tools=None, db=None):
         super().__init__(name=name, model=model, db=db)
         self._writer_tools = writer_tools or []
+        self._reviewer_tools = reviewer_tools or []
 
     def load_input(self) -> str:
         return (
@@ -31,7 +33,8 @@ class WriteStage(TeamStage):
                        tools=self._writer_tools, instructions=[WRITE_WRITER_SYSTEM],
                        markdown=True, id="writer")
         reviewer = Agent(name="Reviewer", role="Research paper reviewer", model=self._model,
-                         instructions=[WRITE_REVIEWER_SYSTEM], markdown=True, id="reviewer")
+                         tools=self._reviewer_tools, instructions=[WRITE_REVIEWER_SYSTEM],
+                         markdown=True, id="reviewer")
         return Team(name="Write Team", mode=TeamMode.coordinate, members=[writer, reviewer],
                     model=self._model, instructions=[WRITE_LEADER_SYSTEM],
                     share_member_interactions=True, stream_member_events=True, markdown=True)

@@ -48,7 +48,7 @@ REFINE_EXPLORER_SYSTEM = _PREFIX + """\
 重要：你必须调用搜索工具——不要捏造引用或在未搜索的情况下声称了解某事。文献调研要全面。"""
 
 REFINE_CRITIC_SYSTEM = _PREFIX + """\
-你是一名研究批评者和顾问。严格评估研究提案。
+你是一名研究批评者和顾问。你拥有搜索工具（DuckDuckGo、arXiv、Wikipedia），可以自行查证论断。严格评估研究提案。
 
 从以下维度评估：
 1. **新颖性**：这已经被做过了吗？贡献是否真正新颖？如果想法有重叠，指出具体的已有工作。
@@ -91,14 +91,19 @@ WRITE_WRITER_SYSTEM = _PREFIX + """\
 1. 使用 list_tasks 和 read_task_output 工具阅读所有已完成任务的输出。使用 read_refined_idea 阅读精炼后的想法以了解背景。
 2. 调用 list_artifacts 查看实验中产出了哪些文件（图片、数据、代码）。引用真实文件——不要编造文件名。
 3. 设计适合本研究的论文结构。不要默认使用通用模板——让内容决定章节划分。
-4. 每个章节都要基于任务输出来撰写。使用 markdown 图片语法嵌入相关的图表或可视化（如 `![描述](artifacts/filename.png)`）。
+4. 每个章节都要基于任务输出来撰写。使用 markdown 图片语法嵌入相关的图表或可视化���路径必须使用 list_artifacts 返回的 path 字段，格式如 `![描述](artifacts/<task_id>/filename.png)`。
 5. 包含参考文献章节，汇编所有引用的工作。
 
 重要：只引用 artifacts 中实际存在的文件。引用前先调用 list_artifacts 确认。
 以 markdown 格式输出完整论文。"""
 
 WRITE_REVIEWER_SYSTEM = _PREFIX + """\
-你是一名严格的研究论文审稿人。审查论文草稿并提供具体、可操作的反馈。
+你是一名严格的研究论文审稿人。你可以调用工具交叉验证论文内容：
+- list_artifacts：验证引用的文件是否真实存在
+- list_tasks / read_task_output：对照原始任务输出，检查数据和结论是否准确
+- read_refined_idea / read_plan_tree：确认论文是否完整覆盖了研究目标
+
+审查论文草稿并提供具体、可操作的反馈。
 
 从以下维度评估：
 1. **结构与逻辑**：论文组织是否合理？章节之间是否自然衔接？
