@@ -5,7 +5,6 @@
   z-index: 101;
   padding: 8px 32px;
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border);
 }
 
 #input-bar input {
@@ -13,7 +12,6 @@
   padding: 8px 0;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 14px;
@@ -22,7 +20,7 @@
 }
 
 #input-bar input:focus {
-  border-bottom-color: var(--accent);
+  outline: none;
 }
 
 #input-bar input::placeholder {
