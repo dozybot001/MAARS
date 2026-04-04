@@ -8,17 +8,10 @@
   padding: 8px 0;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
-}
-
-#input-bar input:focus {
-  outline: none;
-  border-bottom-color: var(--accent);
 }
 
 #input-bar input::placeholder {
