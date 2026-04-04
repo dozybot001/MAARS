@@ -13,7 +13,7 @@ import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput
 import { createAutoScroller } from './autoscroll.js';
 import { showModal } from './modal.js';
 
-const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluation' };
+const PHASE_DOCS = { calibrate: 'calibration', strategy: 'strategy', evaluate: 'evaluations' };
 
 let processBody, scroller;
 const documentCache = {};
