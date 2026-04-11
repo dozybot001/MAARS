@@ -89,6 +89,7 @@ def refine(
 async def _refine_async(raw_idea: str, thread_id: str, fresh: bool) -> None:
     import uuid
 
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
     from rich.console import Console
     from rich.panel import Panel
@@ -100,7 +101,12 @@ async def _refine_async(raw_idea: str, thread_id: str, fresh: bool) -> None:
     console = Console()
     CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
 
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[("maars.state", "Issue")]
+    )
+
     async with AsyncSqliteSaver.from_conn_string(str(CHECKPOINT_DB)) as checkpointer:
+        checkpointer.serde = serde
         graph = build_refine_graph(checkpointer)
 
         config: dict = {"configurable": {"thread_id": thread_id}}
