@@ -83,6 +83,8 @@ Graph 命令（`refine` / `write`）都支持：
 - `--thread <id>` — checkpointing + resume key
 - `--fresh` — 忽略同 thread 的已有 checkpoint，强制新建
 
+**完整命令参考**（含示例、预期输出、FAQ、debug checklist）：[`docs/cli.md`](docs/cli.md)
+
 ## 环境变量
 
 | 变量 | 默认 | 说明 |
