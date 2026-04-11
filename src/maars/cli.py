@@ -61,5 +61,16 @@ def critique(
         typer.echo(f"Resolved: {', '.join(result.resolved)}")
 
 
+@app.command()
+def draft(
+    raw_idea: str = typer.Argument(..., help="The raw research idea to expand into a draft"),
+) -> None:
+    """Run the Explorer on a raw idea and print the draft proposal."""
+    from maars.agents.explorer import draft_proposal
+
+    result = draft_proposal(raw_idea)
+    typer.echo(result)
+
+
 if __name__ == "__main__":
     app()
