@@ -1,4 +1,17 @@
-"""Refine StateGraph — Explorer <-> Critic adversarial loop."""
+"""Refine StateGraph — Explorer <-> Critic adversarial loop.
+
+State maintenance semantics:
+
+- Critic returns an *incremental* CritiqueFeedback each round
+  (resolved ids + new_issues), NOT the full unresolved list.
+- critic_node applies the delta: next = (prior - resolved) + new_issues.
+- passed is computed by Python from the resulting list (no blockers,
+  at most 1 major) — not by the Critic LLM.
+
+This matches the original MAARS IterationState design and avoids the
+"LLM has to re-list every unresolved issue each round and occasionally
+drops items" failure mode of the earlier snapshot variant.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from maars.agents.critic import critique_draft
 from maars.agents.explorer import draft_proposal
 from maars.config import REFINE_MAX_ROUND
-from maars.state import RefineState
+from maars.state import Issue, RefineState
 
 
 def explorer_node(state: RefineState) -> dict:
@@ -24,15 +37,27 @@ def explorer_node(state: RefineState) -> dict:
 
 
 def critic_node(state: RefineState) -> dict:
-    """Review the current draft and return structured critique."""
-    result = critique_draft(
-        draft=state["draft"],
-        prior_issues=state.get("issues"),
-    )
+    """Review the current draft and merge incremental feedback into state.
+
+    Critic only reports a delta (resolved ids + new issues). This node:
+    1. Applies the delta to obtain the new canonical unresolved list
+    2. Computes passed from the resulting list (Python rule, not LLM)
+    """
+    prior_issues: list[Issue] = state.get("issues") or []
+    feedback = critique_draft(state["draft"], prior_issues=prior_issues)
+
+    resolved_set = set(feedback.resolved)
+    carried = [i for i in prior_issues if i.id not in resolved_set]
+    next_issues = carried + list(feedback.new_issues)
+
+    blocker_count = sum(1 for i in next_issues if i.severity == "blocker")
+    major_count = sum(1 for i in next_issues if i.severity == "major")
+    passed = blocker_count == 0 and major_count <= 1
+
     return {
-        "issues": result.issues,
-        "resolved": result.resolved,
-        "passed": result.passed,
+        "issues": next_issues,
+        "resolved": feedback.resolved,  # appended via state reducer
+        "passed": passed,
     }
 
 

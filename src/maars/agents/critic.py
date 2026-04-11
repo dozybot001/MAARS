@@ -1,4 +1,9 @@
-"""Refine / Critic — structured-output LLM judge."""
+"""Refine / Critic — incremental structured-output judge.
+
+The Critic reports only a delta each round (resolved ids + new issues).
+The system (critic_node in graphs/refine.py) is responsible for applying
+that delta to the canonical unresolved-issues list kept in graph state.
+"""
 
 from __future__ import annotations
 
@@ -9,21 +14,39 @@ from maars.prompts.critic import CRITIC_SYSTEM_PROMPT
 from maars.state import Issue
 
 
-class CritiqueResult(BaseModel):
-    """Output of one Critic review round."""
+class CritiqueFeedback(BaseModel):
+    """Incremental feedback from one Critic review round.
 
-    issues: list[Issue] = Field(
-        description="Issues found in the current draft. Empty list if no issues."
-    )
+    This is NOT the full unresolved list. The Critic only reports what
+    changed this round — the system merges prior_issues with this feedback
+    to obtain the new canonical list:
+
+        next = (prior - resolved) + new_issues
+    """
+
     resolved: list[str] = Field(
         default_factory=list,
-        description="IDs of previously-raised issues that are now resolved in this draft.",
+        description=(
+            "IDs of prior issues that are now resolved in the current draft. "
+            "Must be a subset of the prior issues' ids."
+        ),
     )
-    passed: bool = Field(
-        description="True if the draft is ready to exit the Refine loop (no blockers, and at most 1 major)."
+    new_issues: list[Issue] = Field(
+        default_factory=list,
+        description=(
+            "Newly discovered issues in the current draft only. Do NOT include "
+            "issues that were already in prior_issues and are still unresolved — "
+            "the system will carry those over automatically. Each new issue must "
+            "have a fresh id that does not collide with any prior or historically "
+            "resolved id."
+        ),
     )
     summary: str = Field(
-        description="One-paragraph overall assessment, 3 sentences max."
+        description=(
+            "One-paragraph overall assessment of the current draft, 3 sentences "
+            "max. Do not include a pass/fail verdict — the system decides pass "
+            "based on the resulting canonical issue list."
+        ),
     )
 
 
@@ -31,26 +54,42 @@ def critique_draft(
     draft: str,
     *,
     prior_issues: list[Issue] | None = None,
-) -> CritiqueResult:
-    """Run the Critic once on a draft and return a structured CritiqueResult."""
-    model = get_chat_model(temperature=0.0)
-    critic = model.with_structured_output(CritiqueResult)
+) -> CritiqueFeedback:
+    """Run the Critic once on a draft and return incremental feedback.
 
-    prior_block = ""
+    The caller (typically critic_node in the Refine graph) is responsible
+    for merging the feedback with prior_issues to obtain the new canonical
+    list: next = (prior - resolved) + new_issues.
+    """
+    model = get_chat_model(temperature=0.0)
+    critic = model.with_structured_output(CritiqueFeedback)
+
     if prior_issues:
-        lines = [
+        prior_block = "\n".join(
             f"- [{i.id}] ({i.severity}) {i.summary}: {i.detail}"
             for i in prior_issues
-        ]
-        prior_block = "\n\n## 前轮 issues（检查是否已解决）\n\n" + "\n".join(lines)
+        )
+        prior_section = (
+            "\n\n## 前轮遗留的未解决 issues\n\n"
+            "系统已经为你维护了下面这份 list——这就是当前 draft 需要逐个检查的问题清单。\n\n"
+            f"{prior_block}\n\n"
+            "你的任务只有两件事：\n"
+            "1. **resolved**：上面哪些 id 已经被新 draft 解决了？（只列 id）\n"
+            "2. **new_issues**：这轮**新发现**的问题（不要再列已经在 prior 里的，用新 id）"
+        )
+    else:
+        prior_section = (
+            "\n\n## 注意\n\n这是第一轮，没有 prior issues。"
+            "resolved 留空，只关注 new_issues。"
+        )
 
     user_message = f"""请审查下面的研究提案草稿。
 
 ## Draft
 
-{draft}{prior_block}
+{draft}{prior_section}
 
-请按 CritiqueResult 的结构化格式返回你的评审结果。"""
+按 CritiqueFeedback 的结构化格式返回增量反馈。"""
 
     result = critic.invoke(
         [
