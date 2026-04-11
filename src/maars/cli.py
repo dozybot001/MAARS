@@ -93,9 +93,10 @@ def _next_thread_id() -> str:
 def _session_dir_for(thread_id: str) -> Path:
     """Resolve the data/refine/ subdirectory for a given thread id.
 
-    Strips the 'refine-' prefix if present (so auto thread 'refine-001'
+    Strips only the 'refine-' prefix when present (so auto 'refine-001'
     maps to data/refine/001/), otherwise uses the id verbatim (so a
-    custom 'exp1' maps to data/refine/exp1/).
+    custom 'exp1' or 'verify-stream' maps to data/refine/exp1/ or
+    data/refine/verify-stream/).
     """
     from maars.config import DATA_DIR
 
@@ -106,10 +107,55 @@ def _session_dir_for(thread_id: str) -> Path:
     return DATA_DIR / "refine" / sub
 
 
+def _empty_usage_bucket() -> dict[str, int]:
+    return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+
+def _accumulate_usage(
+    bucket: dict[str, int],
+    usage_meta: dict | None,
+) -> None:
+    """Add LangChain usage_metadata tokens into a running bucket."""
+    if not usage_meta:
+        return
+    bucket["input_tokens"] += int(usage_meta.get("input_tokens") or 0)
+    bucket["output_tokens"] += int(usage_meta.get("output_tokens") or 0)
+    bucket["total_tokens"] += int(usage_meta.get("total_tokens") or 0)
+
+
+def _extract_usage_metadata(data: dict) -> dict | None:
+    """Pull usage_metadata out of an on_chat_model_end event's data.output.
+
+    LangChain 1.x puts the AIMessage under data['output']. Older shapes
+    may wrap it in a generation/message. We probe both to be safe.
+    """
+    output_obj = data.get("output")
+    if output_obj is None:
+        return None
+    # Direct AIMessage
+    usage = getattr(output_obj, "usage_metadata", None)
+    if usage:
+        return usage
+    # ChatGeneration wrapper
+    message = getattr(output_obj, "message", None)
+    if message is not None:
+        usage = getattr(message, "usage_metadata", None)
+        if usage:
+            return usage
+    # Plain dict fallback
+    if isinstance(output_obj, dict):
+        return output_obj.get("usage_metadata")
+    return None
+
+
 def _save_refine_session(
     thread_id: str,
     raw_idea: str,
     values: dict,
+    *,
+    started_at: datetime,
+    finished_at: datetime,
+    usage_by_node: dict[str, dict[str, int]],
 ) -> Path:
     """Save final session artifacts under data/refine/{sub}/.
 
@@ -117,7 +163,7 @@ def _save_refine_session(
         data/refine/{sub}/raw_idea.md   -- the original input
         data/refine/{sub}/draft.md      -- the final refined draft
         data/refine/{sub}/issues.json   -- remaining unresolved issues
-        data/refine/{sub}/meta.json     -- run metadata
+        data/refine/{sub}/meta.json     -- run metadata (incl. timing and usage)
     """
     from maars.config import CHAT_MODEL, REFINE_MAX_ROUND
 
@@ -142,9 +188,19 @@ def _save_refine_session(
     majors = sum(1 for i in issues if i.severity == "major")
     minors = sum(1 for i in issues if i.severity == "minor")
 
+    total_usage = _empty_usage_bucket()
+    for node_usage in usage_by_node.values():
+        total_usage["input_tokens"] += node_usage["input_tokens"]
+        total_usage["output_tokens"] += node_usage["output_tokens"]
+        total_usage["total_tokens"] += node_usage["total_tokens"]
+
+    duration_seconds = round((finished_at - started_at).total_seconds(), 3)
+
     meta = {
         "thread_id": thread_id,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": started_at.isoformat(),
+        "finished_at": finished_at.isoformat(),
+        "duration_seconds": duration_seconds,
         "model": CHAT_MODEL,
         "max_round": REFINE_MAX_ROUND,
         "final_round": values.get("round", 0),
@@ -154,6 +210,12 @@ def _save_refine_session(
             "blocker": blockers,
             "major": majors,
             "minor": minors,
+        },
+        "usage": {
+            "total_tokens": total_usage["total_tokens"],
+            "input_tokens": total_usage["input_tokens"],
+            "output_tokens": total_usage["output_tokens"],
+            "by_node": usage_by_node,
         },
     }
     (session_dir / "meta.json").write_text(
@@ -215,6 +277,12 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
     console = Console()
     CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
 
+    started_at = datetime.now(timezone.utc)
+    usage_by_node: dict[str, dict[str, int]] = {
+        "explorer": _empty_usage_bucket(),
+        "critic": _empty_usage_bucket(),
+    }
+
     serde = JsonPlusSerializer(
         allowed_msgpack_modules=[("maars.state", "Issue")]
     )
@@ -245,6 +313,14 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
             async for event in graph.astream_events(input_state, config=config, version="v2"):
                 kind = event["event"]
                 name = event.get("name", "")
+                metadata = event.get("metadata", {}) or {}
+                langgraph_node = metadata.get("langgraph_node", "")
+
+                # Token usage tracking from LLM end events
+                if kind == "on_chat_model_end" and langgraph_node in ("explorer", "critic"):
+                    data = event.get("data", {}) or {}
+                    usage_meta = _extract_usage_metadata(data)
+                    _accumulate_usage(usage_by_node[langgraph_node], usage_meta)
 
                 if name not in ("explorer", "critic"):
                     continue
@@ -295,9 +371,13 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
         final = await graph.aget_state(config)
         values = (final.values if final else {}) or {}
 
+        finished_at = datetime.now(timezone.utc)
+        total_tokens = sum(b["total_tokens"] for b in usage_by_node.values())
+
         console.print(
             f"[bold]Final:[/bold] rounds={values.get('round', '?')}, "
-            f"passed={values.get('passed', False)}"
+            f"passed={values.get('passed', False)}, "
+            f"tokens={total_tokens:,}"
         )
         console.print("")
 
@@ -319,7 +399,14 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
                     f"[dim]{issue.id}[/dim] {issue.summary}"
                 )
 
-        session_dir = _save_refine_session(thread_id, raw_idea, values)
+        session_dir = _save_refine_session(
+            thread_id,
+            raw_idea,
+            values,
+            started_at=started_at,
+            finished_at=finished_at,
+            usage_by_node=usage_by_node,
+        )
         console.print("")
         console.print(f"[bold green]Session saved to:[/bold green] {session_dir}")
         console.print("  raw_idea.md  draft.md  issues.json  meta.json")
