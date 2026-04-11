@@ -90,23 +90,38 @@ def _next_thread_id() -> str:
     return f"refine-{next_num:03d}"
 
 
+def _session_dir_for(thread_id: str) -> Path:
+    """Resolve the data/refine/ subdirectory for a given thread id.
+
+    Strips the 'refine-' prefix if present (so auto thread 'refine-001'
+    maps to data/refine/001/), otherwise uses the id verbatim (so a
+    custom 'exp1' maps to data/refine/exp1/).
+    """
+    from maars.config import DATA_DIR
+
+    if thread_id.startswith("refine-"):
+        sub = thread_id[len("refine-"):]
+    else:
+        sub = thread_id
+    return DATA_DIR / "refine" / sub
+
+
 def _save_refine_session(
     thread_id: str,
     raw_idea: str,
     values: dict,
 ) -> Path:
-    """Save final session artifacts under data/refine/{num}/.
+    """Save final session artifacts under data/refine/{sub}/.
 
     Writes:
-        data/refine/{num}/raw_idea.md   -- the original input
-        data/refine/{num}/draft.md      -- the final refined draft
-        data/refine/{num}/issues.json   -- remaining unresolved issues
-        data/refine/{num}/meta.json     -- run metadata
+        data/refine/{sub}/raw_idea.md   -- the original input
+        data/refine/{sub}/draft.md      -- the final refined draft
+        data/refine/{sub}/issues.json   -- remaining unresolved issues
+        data/refine/{sub}/meta.json     -- run metadata
     """
-    from maars.config import CHAT_MODEL, DATA_DIR, REFINE_MAX_ROUND
+    from maars.config import CHAT_MODEL, REFINE_MAX_ROUND
 
-    num_str = thread_id.split("-", 1)[-1]
-    session_dir = DATA_DIR / "refine" / num_str
+    session_dir = _session_dir_for(thread_id)
     session_dir.mkdir(parents=True, exist_ok=True)
 
     (session_dir / "raw_idea.md").write_text(raw_idea, encoding="utf-8")
@@ -224,37 +239,56 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
 
         console.print(Rule(style="dim"))
 
-        async for event in graph.astream_events(input_state, config=config, version="v2"):
-            kind = event["event"]
-            name = event.get("name", "")
+        current_status = None
 
-            if name not in ("explorer", "critic"):
-                continue
+        try:
+            async for event in graph.astream_events(input_state, config=config, version="v2"):
+                kind = event["event"]
+                name = event.get("name", "")
 
-            if kind == "on_chain_start":
-                console.print(f"[cyan]->[/cyan] [bold]{name}[/bold] running...")
-            elif kind == "on_chain_end":
-                data = event.get("data", {}) or {}
-                output = data.get("output", {}) or {}
+                if name not in ("explorer", "critic"):
+                    continue
 
-                if name == "explorer":
-                    r = output.get("round", "?")
-                    draft_text = output.get("draft", "") or ""
-                    console.print(
-                        f"[green]ok[/green] [bold]explorer[/bold] round {r} "
-                        f"— draft generated ({len(draft_text)} chars)"
+                if kind == "on_chain_start":
+                    if current_status is not None:
+                        current_status.stop()
+                    current_status = console.status(
+                        f"[cyan]→[/cyan] [bold]{name}[/bold] thinking...",
+                        spinner="dots",
                     )
-                elif name == "critic":
-                    passed = output.get("passed", False)
-                    issues_list = output.get("issues", []) or []
-                    resolved_list = output.get("resolved", []) or []
-                    status_color = "green" if passed else "yellow"
-                    suffix = f", resolved+{len(resolved_list)}" if resolved_list else ""
-                    console.print(
-                        f"[green]ok[/green] [bold]critic[/bold] "
-                        f"— {len(issues_list)} issues, "
-                        f"[{status_color}]passed={passed}[/{status_color}]{suffix}"
-                    )
+                    current_status.start()
+
+                elif kind == "on_chain_end":
+                    if current_status is not None:
+                        current_status.stop()
+                        current_status = None
+
+                    data = event.get("data", {}) or {}
+                    output = data.get("output", {}) or {}
+
+                    if name == "explorer":
+                        r = output.get("round", "?")
+                        draft_text = output.get("draft", "") or ""
+                        console.print(
+                            f"[green]ok[/green] [bold]explorer[/bold] round {r} "
+                            f"— draft generated ({len(draft_text)} chars)"
+                        )
+                    elif name == "critic":
+                        passed = output.get("passed", False)
+                        issues_list = output.get("issues", []) or []
+                        resolved_list = output.get("resolved", []) or []
+                        status_color = "green" if passed else "yellow"
+                        suffix = (
+                            f", resolved+{len(resolved_list)}" if resolved_list else ""
+                        )
+                        console.print(
+                            f"[green]ok[/green] [bold]critic[/bold] "
+                            f"— {len(issues_list)} issues, "
+                            f"[{status_color}]passed={passed}[/{status_color}]{suffix}"
+                        )
+        finally:
+            if current_status is not None:
+                current_status.stop()
 
         console.print(Rule(style="dim"))
 
