@@ -92,6 +92,7 @@ uv run maars refine --thread refine-003
 3. [`docs/graph.md`](docs/graph.md) — Graph / State / Node / Edge 定义
 4. [`docs/roadmap.md`](docs/roadmap.md) — 里程碑
 5. [`docs/cli.md`](docs/cli.md) — CLI 完整参考
+6. [`docs/refine-internals.md`](docs/refine-internals.md) — Refine 阶段实现 walkthrough（开发者参考）
 
 历史设计文档归档在 [`docs/archive/`](docs/archive/)。
 

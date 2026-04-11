@@ -273,3 +273,4 @@ A: 每轮 Explorer + Critic ≈ $0.005-0.007。5 轮（默认 MAX）总共约 $0
 - [docs/architecture.md](architecture.md) — 技术栈和模块设计
 - [docs/graph.md](graph.md) — Graph / State / Node / Edge 定义
 - [docs/roadmap.md](roadmap.md) — 里程碑
+- [docs/refine-internals.md](refine-internals.md) — Refine 阶段实现 walkthrough（开发者参考）
