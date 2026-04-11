@@ -12,7 +12,7 @@ class Issue(BaseModel):
     """A single issue raised by a Critic during Refine iteration."""
 
     id: str = Field(
-        description="Stable identifier for this issue (e.g. 'vague-scope-1')."
+        description="Stable identifier like 'scope-1' or 'variables-2'."
     )
     severity: str = Field(description="One of: blocker, major, minor.")
     summary: str = Field(description="One-line description of the issue.")
@@ -28,4 +28,3 @@ class RefineState(TypedDict, total=False):
     resolved: Annotated[list[str], add]
     round: int
     passed: bool
-    refined_idea: str

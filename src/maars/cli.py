@@ -458,7 +458,7 @@ async def _refine_async(raw_idea: str, thread_id: str) -> None:
         ]
         if interrupted:
             status_bits.append("[yellow]interrupted[/yellow]")
-        console.print(f"[bold]Final:[/bold] " + ", ".join(status_bits))
+        console.print(f"[bold]Final:[/bold] {', '.join(status_bits)}")
         console.print("")
 
         draft_text = values.get("draft", "(no draft)")
