@@ -93,7 +93,7 @@ STRATEGY_SYSTEM = _PREFIX + """\
 
 输出格式——简洁的策略文档（不是任务列表）：
 - **关键洞察**：高性能方案与一般方案的区别
-- **推荐方案**：应优先使用的具体技术（附理由）。只推荐在给定沙箱超时和内存限制内能完成的方案
+- **推荐方案**：应优先使用的具体技术（附理由）。只推荐在给定沙箱超时、内存以及上方能力画像中的硬件（CPU/GPU）条件下能完成的方案
 - **需避免的陷阱**：影响性能的常见错误
 - **目标指标**：基于调研得出的合理分数区间
 
@@ -226,14 +226,19 @@ def build_strategy_update_user(
 def build_execute_prompt(task: dict, prior_attempt: str = "",
                          dep_summaries: dict[str, str] | None = None) -> tuple[str, str]:
     from backend.config import settings
+    from backend.sandbox.gpu_probe import gpu_disclosure_markdown
     parts = []
 
-    # Sandbox constraints
-    parts.append(
-        f"## 环境约束\n"
-        f"- 单次 code_execute 超时：{settings.docker_sandbox_timeout}s\n"
-        f"- 内存限制：{settings.docker_sandbox_memory}\n---\n"
-    )
+    # Sandbox constraints（与 ResearchOrchestrator._build_capability_profile 一致；GPU 为运行时探测，英文规格）
+    env_lines = [
+        "## 环境约束",
+        f"- 单次 code_execute 超时：{settings.docker_sandbox_timeout}s",
+        f"- 内存限制：{settings.docker_sandbox_memory}",
+        f"- CPU 配额（约等于核心数）：{settings.docker_sandbox_cpu}",
+        *gpu_disclosure_markdown().split("\n"),
+        "---",
+    ]
+    parts.append("\n".join(env_lines) + "\n")
 
     # Dependency summaries
     deps = task.get("dependencies", [])

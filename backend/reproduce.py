@@ -49,7 +49,8 @@ CMD ["bash", "run.sh"]
     lines.append('echo "All experiments completed."')
     run_sh = "\n".join(lines)
 
-    compose = """\
+    gpu_line = "    gpus: all\n" if settings.docker_sandbox_gpu else ""
+    compose = f"""\
 services:
   experiment:
     build:
@@ -57,6 +58,6 @@ services:
       dockerfile: reproduce/Dockerfile
     volumes:
       - ./results:/workspace/results
-"""
+{gpu_line}"""
 
     db.save_reproduce_files(dockerfile, run_sh, compose)

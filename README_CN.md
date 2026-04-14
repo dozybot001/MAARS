@@ -43,6 +43,8 @@ git clone https://github.com/dozybot001/MAARS.git && cd MAARS
 bash start.sh
 ```
 
+在 **Windows** 上请在项目目录打开 **Git Bash**（Git for Windows），同样执行 `bash start.sh`。
+
 首次运行时，`start.sh` 会：
 1. 创建虚拟环境并安装依赖
 2. 从 `.env.example` 生成 `.env`——填入你的 `MAARS_GOOGLE_API_KEY`
@@ -51,7 +53,7 @@ bash start.sh
 
 <p align="center"><img src="docs/assets/tui.png" width="720" alt="MAARS 启动"></p>
 
-然后在输入框粘贴你的研究想法或 Kaggle 链接，按 Enter 启动。
+然后在输入框粘贴你的研究想法、Kaggle 链接，或 UTF-8 编码的文本/Markdown 文件路径，按 Enter 启动。
 
 <p align="center"><img src="docs/assets/ui.png" width="720" alt="MAARS 界面"></p>
 

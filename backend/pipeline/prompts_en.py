@@ -95,7 +95,7 @@ WORKFLOW:
 
 OUTPUT FORMAT — a concise strategy document (NOT a task list):
 - **Key Insights**: What distinguishes high-performing solutions from average ones
-- **Recommended Approach**: Specific techniques to prioritize (with rationale). Only recommend approaches that fit within the given sandbox timeout and memory limits
+- **Recommended Approach**: Specific techniques to prioritize (with rationale). Only recommend approaches that fit within the sandbox timeout, memory, and hardware (CPU/GPU) constraints stated in the capability profile above
 - **Pitfalls to Avoid**: Common mistakes that hurt performance
 - **Target Metric**: What score range to aim for based on your research
 
@@ -233,14 +233,19 @@ def build_strategy_update_user(
 def build_execute_prompt(task: dict, prior_attempt: str = "",
                          dep_summaries: dict[str, str] | None = None) -> tuple[str, str]:
     from backend.config import settings
+    from backend.sandbox.gpu_probe import gpu_disclosure_markdown
     parts = []
 
-    # Sandbox constraints
-    parts.append(
-        f"## Environment Constraints\n"
-        f"- code_execute timeout: {settings.docker_sandbox_timeout}s\n"
-        f"- Memory limit: {settings.docker_sandbox_memory}\n---\n"
-    )
+    # Sandbox constraints (keep aligned with ResearchOrchestrator._build_capability_profile)
+    env_lines = [
+        "## Environment Constraints",
+        f"- code_execute timeout: {settings.docker_sandbox_timeout}s",
+        f"- Memory limit: {settings.docker_sandbox_memory}",
+        f"- CPU quota (approx. cores): {settings.docker_sandbox_cpu}",
+        *gpu_disclosure_markdown().split("\n"),
+        "---",
+    ]
+    parts.append("\n".join(env_lines) + "\n")
 
     # Dependency summaries
     deps = task.get("dependencies", [])

@@ -1,16 +1,39 @@
 #!/usr/bin/env bash
+# Universal MAARS launcher: Linux, macOS, and Windows (Git Bash / MSYS2 / Cygwin).
+# Windows: use Git Bash Here (not "Open with" → System32 bash.exe — that is WSL).
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf '%s\n' "MAARS requires Bash. In the project folder use Git Bash Here, then: ./start.sh" >&2
+    exit 1
+fi
 set -Eeuo pipefail
-cd "$(dirname "$0")"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_ROOT" || { printf '%s\n' "Cannot cd to script directory: $SCRIPT_ROOT" >&2; exit 1; }
 
 OS_NAME="$(uname -s)"
+case "$OS_NAME" in
+    Darwin*) OS_KIND=darwin ;;
+    MINGW*|MSYS*|CYGWIN*) OS_KIND=windowsish ;;
+    *) OS_KIND=unix ;;
+esac
+
+# When Explorer opens this script in a throwaway Git Bash window, pause so errors are visible.
+_pause_if_windows_explorer() {
+    [ "$OS_KIND" = windowsish ] || return 0
+    [ -t 0 ] && [ -t 1 ] || return 0
+    case "${MAARS_PAUSE_ON_ERROR:-1}" in 0|false|FALSE|no|NO) return 0 ;; esac
+    printf '\nPress Enter to close this window...\n' >&2
+    read -r _ || true
+}
+
 SERVER_PID=""
 SERVER_PORT="${MAARS_SERVER_PORT:-8000}"
-LOG_FILE="$(mktemp /tmp/maars-start-log-XXXXXX 2>/dev/null || mktemp -t maars-start-log)"
-LOG_KEEP=0
+# Set MAARS_AUTO_RELEASE_PORT=false to fail fast if :PORT is busy (no taskkill).
+AUTO_RELEASE_PORT="${MAARS_AUTO_RELEASE_PORT:-true}"
+LOG_FILE="$PWD/maars-start.log"
 ACTIVE_LABEL=""
 SERVER_STARTED=0
 
-find /tmp -maxdepth 1 -name 'maars-start-log-*' -not -name "$(basename "$LOG_FILE")" -mmin +10 -delete 2>/dev/null || true
+: >"$LOG_FILE"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -51,14 +74,14 @@ cleanup() {
         kill -TERM "$SERVER_PID" 2>/dev/null || true
         wait "$SERVER_PID" 2>/dev/null || true
     fi
-    [ "$LOG_KEEP" -eq 0 ] && rm -f "$LOG_FILE"
 }
 trap cleanup EXIT
 
 fail_startup() {
-    LOG_KEEP=1
     print_check "fail" "$1" "$2"
     printf '\n  %b\n' "${DIM}Log: ${LOG_FILE}${NC}"
+    printf '\n  %b\n' "${DIM}Tip: On Windows use Git Bash Here (avoid Open with → bash.exe from System32 — that is WSL).${NC}"
+    _pause_if_windows_explorer
     exit 1
 }
 
@@ -72,21 +95,24 @@ trap 'on_error $? ${LINENO} "$BASH_COMMAND"' ERR
 on_interrupt() {
     trap - INT TERM
     if [ "$SERVER_STARTED" -eq 1 ]; then
-        LOG_KEEP=0
         printf '\n  %b\n' "${GREEN}[PASS]${NC} MAARS stopped"
     else
-        LOG_KEEP=1
         printf '\n  %b\n' "${YELLOW}[WARN]${NC} Startup interrupted"
         printf '  %b\n' "${DIM}Log: ${LOG_FILE}${NC}"
+        _pause_if_windows_explorer
     fi
     exit 130
 }
 trap on_interrupt INT TERM
 
 bootstrap_python() {
-    if command -v python3 >/dev/null 2>&1; then python3 "$@"
-    elif command -v python >/dev/null 2>&1; then python "$@"
-    else return 127; fi
+    if [ "$OS_KIND" = windowsish ] && command -v py >/dev/null 2>&1; then
+        py -3 "$@"
+        return $?
+    fi
+    if command -v python3 >/dev/null 2>&1; then python3 "$@"; return $?; fi
+    if command -v python >/dev/null 2>&1; then python "$@"; return $?; fi
+    return 127
 }
 
 check_python_version() {
@@ -110,30 +136,173 @@ run_logged() { "$@" >>"$LOG_FILE" 2>&1; }
 port_in_use() {
     local port="${1:-$SERVER_PORT}"
     if command -v lsof >/dev/null 2>&1; then
-        lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
-    else
+        lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
         return 1
     fi
+    if (echo >/dev/tcp/127.0.0.1/"$port") 2>/dev/null; then
+        return 0
+    fi
+    if command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+listen_pids_on_port() {
+    local port="$1"
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | tr '\n' ' '
+        return 0
+    fi
+    if [ "$OS_KIND" = windowsish ]; then
+        local ps_out ns_out
+        ps_out=""
+        if command -v powershell.exe >/dev/null 2>&1; then
+            ps_out="$(MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+                "Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Where-Object { \$_.OwningProcess -gt 0 } | Select-Object -ExpandProperty OwningProcess -Unique" 2>/dev/null \
+                | tr ' \r' '\n' | grep -E '^[0-9]+$' | grep -v '^0$' || true)"
+        fi
+        ns_out="$(MSYS2_ARG_CONV_EXCL='*' cmd.exe //c "netstat -ano" 2>/dev/null | tr -d '\r' | awk -v p="$port" \
+            '$0 ~ /LISTENING/ && NF >= 5 && $2 ~ (":" p "$") {
+                pid = $NF
+                if (pid ~ /^[0-9]+$/ && (pid + 0) > 0) print pid
+            }' || true)"
+        printf '%s\n%s\n' "$ps_out" "$ns_out" | grep -E '^[0-9]+$' | sort -nu | tr '\n' ' '
+        return 0
+    fi
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -n tcp "$port" 2>/dev/null | tr -cs '0-9\n' '\n' | grep -E '^[0-9]+$' | tr '\n' ' '
+        return 0
+    fi
+    if command -v ss >/dev/null 2>&1; then
+        ss -tlnp 2>/dev/null | sed -n "s/.*:${port} .*pid=\\([0-9]*\\).*/\\1/p" | tr '\n' ' '
+        return 0
+    fi
+    printf ''
+}
+
+collect_descendants() {
+    local pid="$1" child
+    command -v pgrep >/dev/null 2>&1 || return 0
+    for child in $(pgrep -P "$pid" 2>/dev/null || true); do
+        collect_descendants "$child"
+        printf '%s\n' "$child"
+    done
+}
+
+kill_pid_tree() {
+    local signal="$1"; shift
+    local pid child targets=()
+    for pid in "$@"; do
+        [ -z "$pid" ] && continue
+        while IFS= read -r child; do
+            [ -n "$child" ] && targets+=("$child")
+        done < <(collect_descendants "$pid")
+        targets+=("$pid")
+    done
+    [ "${#targets[@]}" -eq 0 ] && return 0
+    printf '%s\n' "${targets[@]}" | awk '!seen[$0]++' | xargs kill "-$signal" 2>/dev/null || true
 }
 
 auto_release_port() {
     local port="${1:-$SERVER_PORT}"
-    local pids
-    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-    [ -z "$pids" ] && return 0
-    # TERM first
-    echo "$pids" | xargs kill -TERM 2>/dev/null || true
-    append_log "Auto-releasing port $port: TERM sent to pids $pids"
-    local i=0
+    local pids i new_pids round
+    port_in_use "$port" || return 0
+
+    case "$AUTO_RELEASE_PORT" in
+        0|false|FALSE|no|NO)
+            append_log "Port $port in use; auto-release disabled (MAARS_AUTO_RELEASE_PORT=$AUTO_RELEASE_PORT)"
+            return 1
+            ;;
+    esac
+
+    if command -v lsof >/dev/null 2>&1; then
+        pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+        [ -z "$pids" ] && return 1
+        kill_pid_tree TERM $pids
+        append_log "Auto-releasing port $port: TERM sent to pid tree rooted at $pids"
+        i=0
+        while [ "$i" -lt 20 ] && port_in_use "$port"; do sleep 0.25; i=$((i + 1)); done
+        if port_in_use "$port"; then
+            pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+            [ -n "$pids" ] && kill_pid_tree KILL $pids
+            append_log "Auto-releasing port $port: KILL sent to pid tree rooted at $pids"
+            sleep 0.5
+        fi
+        ! port_in_use "$port"
+        return
+    fi
+
+    if [ "$OS_KIND" = windowsish ]; then
+        local tk_out sp_out ps_csv
+        round=1
+        while [ "$round" -le 2 ]; do
+            port_in_use "$port" || return 0
+            pids="$(listen_pids_on_port "$port" | xargs)"
+            [ -z "$pids" ] && return 1
+            append_log "Auto-releasing port $port (attempt $round/2): PIDs $pids"
+            for i in $pids; do
+                [ "${i:-0}" -eq 0 ] 2>/dev/null && continue
+                tk_out="$(MSYS2_ARG_CONV_EXCL='*' taskkill.exe //PID "$i" //F //T 2>&1)" || true
+                [ -n "$tk_out" ] && append_log "taskkill //PID $i: $tk_out"
+            done
+            ps_csv="$(printf '%s' "$pids" | tr ' ' ',')"
+            sp_out="$(MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+                "foreach (\$id in @($ps_csv)) { if (\$id -gt 0) { Stop-Process -Id \$id -Force -ErrorAction SilentlyContinue } }" 2>&1)" || true
+            [ -n "$sp_out" ] && append_log "Stop-Process: $sp_out"
+            i=0
+            while [ "$i" -lt 12 ] && port_in_use "$port"; do sleep 0.25; i=$((i + 1)); done
+            port_in_use "$port" || return 0
+            new_pids="$(listen_pids_on_port "$port" | xargs)"
+            if [ -n "$new_pids" ] && [ "$new_pids" = "$pids" ]; then
+                append_log "Port $port: same PID(s) after kill ($pids) — not released (permissions, system process, or admin required). Use another port: MAARS_SERVER_PORT=8001"
+                return 1
+            fi
+            round=$((round + 1))
+        done
+        ! port_in_use "$port"
+        return
+    fi
+
+    if command -v fuser >/dev/null 2>&1; then
+        append_log "Auto-releasing port $port via fuser"
+        fuser -TERM -k -n tcp "$port" >/dev/null 2>&1 || true
+        sleep 1
+        fuser -KILL -k -n tcp "$port" >/dev/null 2>&1 || true
+        sleep 0.5
+        ! port_in_use "$port"
+        return
+    fi
+
+    pids="$(listen_pids_on_port "$port" | xargs)"
+    [ -z "$pids" ] && return 1
+    kill_pid_tree TERM $pids
+    append_log "Auto-releasing port $port: TERM sent to PIDs $pids"
+    i=0
     while [ "$i" -lt 20 ] && port_in_use "$port"; do sleep 0.25; i=$((i + 1)); done
     if port_in_use "$port"; then
-        # KILL stragglers
-        pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-        [ -n "$pids" ] && echo "$pids" | xargs kill -9 2>/dev/null || true
-        append_log "Auto-releasing port $port: KILL sent"
-        sleep 0.5
+        pids="$(listen_pids_on_port "$port" | xargs)"
+        if [ -n "$pids" ]; then
+            kill_pid_tree KILL $pids
+            sleep 0.5
+        fi
     fi
     ! port_in_use "$port"
+}
+
+open_browser_url() {
+    local url="$1"
+    case "$OS_KIND" in
+        darwin)
+            ( sleep 1 && open "$url" >/dev/null 2>&1 ) &
+            ;;
+        windowsish)
+            ( sleep 1 && start "" "$url" >/dev/null 2>&1 ) &
+            ;;
+        *)
+            ( sleep 1 && { xdg-open "$url" 2>/dev/null || sensible-browser "$url" 2>/dev/null || true; } ) &
+            ;;
+    esac
 }
 
 wait_for_server() {
@@ -161,9 +330,22 @@ sync_env_keys() {
 }
 
 # ===================================================================
-clear
+command -v clear >/dev/null 2>&1 && clear || printf '\033[2J\033[H'
 print_logo
 append_log "MAARS startup on $OS_NAME ($(date))"
+
+# Free SERVER_PORT first: fail fast before venv/pip/Docker/import if the port cannot be released.
+ACTIVE_LABEL="Port"
+PORT_BUSY_BEFORE=0
+if port_in_use "$SERVER_PORT"; then
+    PORT_BUSY_BEFORE=1
+fi
+if ! auto_release_port "$SERVER_PORT"; then
+    fail_startup "Port" ":$SERVER_PORT in use (could not release — close the other process or set MAARS_SERVER_PORT)"
+fi
+if [ "$PORT_BUSY_BEFORE" -eq 1 ]; then
+    print_check "warn" "Port" "Released previous listener on :$SERVER_PORT"
+fi
 
 PYTHON_READY=0
 DEPS_READY=0
@@ -184,8 +366,13 @@ ACTIVE_LABEL="Dependencies"
 if [ ! -d .venv ]; then
     run_logged bootstrap_python -m venv .venv
 fi
-PYTHON="$PWD/.venv/bin/python"
-[ ! -f "$PYTHON" ] && fail_startup "Dependencies" "venv Python not found"
+if [ -f "$PWD/.venv/Scripts/python.exe" ]; then
+    PYTHON="$PWD/.venv/Scripts/python"
+elif [ -f "$PWD/.venv/bin/python" ]; then
+    PYTHON="$PWD/.venv/bin/python"
+else
+    fail_startup "Dependencies" "venv Python not found"
+fi
 STAMP="$PWD/.venv/.maars_deps_installed"
 if [ ! -f "$STAMP" ] || [ requirements.txt -nt "$STAMP" ]; then
     if run_logged "$PYTHON" -m pip install -r requirements.txt -q; then
@@ -312,14 +499,6 @@ else
 fi
 
 ACTIVE_LABEL="Server"
-if port_in_use "$SERVER_PORT"; then
-    if auto_release_port "$SERVER_PORT"; then
-        print_check "warn" "Port" "Released previous MAARS listener on :$SERVER_PORT"
-    else
-        fail_startup "Port" ":$SERVER_PORT in use"
-    fi
-fi
-
 append_log "Starting uvicorn on port $SERVER_PORT"
 "$PYTHON" -m uvicorn backend.main:app \
     --reload --reload-include "*.py" --reload-dir backend \
@@ -330,7 +509,7 @@ SERVER_PID=$!
 
 if wait_for_server; then
     SERVER_STARTED=1
-    ( sleep 1 && open "http://localhost:$SERVER_PORT" 2>/dev/null ) &
+    open_browser_url "http://localhost:$SERVER_PORT"
     print_check "ok" "Server" "http://localhost:$SERVER_PORT"
 else
     kill -TERM "$SERVER_PID" 2>/dev/null || true
@@ -341,11 +520,20 @@ fi
 
 printf '\n  %b\n' "${GREEN}${BOLD}MAARS is running — press Ctrl+C to stop${NC}"
 printf '  %b\n\n' "${DIM}Log: ${LOG_FILE}${NC}"
-LOG_KEEP=0
 
-if ! wait "$SERVER_PID"; then
-    STATUS=$?
-    if [ "$STATUS" -ne 130 ] && [ "$STATUS" -ne 143 ]; then
-        LOG_KEEP=1; exit "$STATUS"
-    fi
+# Git Bash / MSYS: `wait "$SERVER_PID"` often fails with "pid is not a child of this
+# shell" (exit 127), which made this script exit immediately and the terminal vanish
+# while uvicorn kept running. Block until the PID is gone, then best-effort reap.
+while kill -0 "$SERVER_PID" 2>/dev/null; do
+    sleep 1
+done
+STATUS=0
+wait "$SERVER_PID" 2>/dev/null || STATUS=$?
+# MSYS/Git Bash: wait on $! may return 127 even after the process has exited.
+if [ "$STATUS" -eq 127 ] && [ "$OS_KIND" = windowsish ]; then
+    STATUS=0
+fi
+if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 130 ] && [ "$STATUS" -ne 143 ]; then
+    _pause_if_windows_explorer
+    exit "$STATUS"
 fi

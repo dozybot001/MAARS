@@ -43,6 +43,8 @@ git clone https://github.com/dozybot001/MAARS.git && cd MAARS
 bash start.sh
 ```
 
+On Windows, use **Git Bash** (Git for Windows) in the project folder and run the same `bash start.sh`.
+
 On first run, `start.sh` will:
 1. Create a virtual environment and install dependencies
 2. Generate `.env` from `.env.example` — fill in your `MAARS_GOOGLE_API_KEY`
@@ -51,7 +53,7 @@ On first run, `start.sh` will:
 
 <p align="center"><img src="docs/assets/tui.png" width="720" alt="MAARS startup"></p>
 
-Then paste your research idea or a Kaggle URL into the input box and press Enter.
+Then paste your research idea, a Kaggle URL, or a UTF-8 text/markdown file path into the input box and press Enter.
 
 <p align="center"><img src="docs/assets/ui.png" width="720" alt="MAARS UI"></p>
 

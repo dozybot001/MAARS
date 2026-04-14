@@ -7,6 +7,7 @@ import json
 import logging
 
 from backend.config import settings
+from backend.sandbox.gpu_probe import gpu_disclosure_markdown
 
 log = logging.getLogger(__name__)
 from backend.pipeline.stage import Stage, StageState
@@ -91,8 +92,17 @@ class ResearchStage(Stage):
 
     def _build_capability_profile(self) -> str:
         """Deterministic capability profile built from config + tools."""
+        _code_exec_desc = (
+            "Execute Python in Docker sandbox. Returns stdout, stderr, exit_code, generated file list. "
+            "stdout truncated to 5000 chars."
+        )
+        if settings.docker_sandbox_gpu:
+            _code_exec_desc += (
+                " NVIDIA GPU is passed into the sandbox; capability profile lists probed "
+                "device name, VRAM, compute capability, and driver when available."
+            )
         _TOOL_DESCS = {
-            'code_execute': 'Execute Python in Docker sandbox. Returns stdout, stderr, exit_code, generated file list. stdout truncated to 5000 chars.',
+            'code_execute': _code_exec_desc,
             'list_artifacts': 'List files in current task artifacts directory.',
             'read_task_output': 'Read markdown output of a completed sibling task.',
             'list_tasks': 'List all completed tasks with IDs and sizes.',
@@ -108,6 +118,7 @@ class ResearchStage(Stage):
             f"- Timeout per code_execute: {settings.docker_sandbox_timeout}s",
             f"- Memory: {settings.docker_sandbox_memory}",
             f"- CPU: {settings.docker_sandbox_cpu} cores",
+            *gpu_disclosure_markdown().split("\n"),
             f"- Network: {'enabled' if settings.docker_sandbox_network else 'disabled'}",
             "",
             "### Execution Model",

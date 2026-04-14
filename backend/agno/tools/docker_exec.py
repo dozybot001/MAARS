@@ -73,7 +73,7 @@ def _run_container(client, shell_cmd, volumes, timeout):
 
 def create_docker_tools(db: ResearchDB) -> list:
     async def code_execute(code: str, language: str = "python", requirements: str = "") -> str:
-        """Execute code in an isolated Docker container."""
+        """Execute code in an isolated Docker container (optional NVIDIA GPU when MAARS_DOCKER_SANDBOX_GPU=true)."""
         try:
             client = _get_docker_client()
         except Exception as e:
