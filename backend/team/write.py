@@ -17,6 +17,14 @@ class WriteStage(TeamStage):
         self._reviewer_tools = reviewer_tools or []
 
     def load_input(self) -> str:
+        from backend.config import settings
+        if settings.output_language.lower().startswith("ch") or settings.output_language == "Chinese":
+            return (
+                "使用 list_tasks 和 read_task_output 工具阅读所有已完成的研究产出。"
+                "使用 read_refined_idea 获取研究目标，使用 read_plan_tree 了解结构。"
+                "使用 list_artifacts 发现可用的图片，并用 ![说明](文件名) 格式引用。"
+                "用 markdown 撰写完整的研究论文。"
+            )
         return (
             "Use list_tasks and read_task_output tools to read all completed research outputs. "
             "Use read_refined_idea for context and read_plan_tree for structure. "

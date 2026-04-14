@@ -13,45 +13,57 @@ class PipelineOrchestrator:
     def __init__(self):
         self.research_input = ""
         self.db = ResearchDB()
-        self.event_queue: asyncio.Queue = asyncio.Queue(maxsize=1024)
+        self._subscribers: set[asyncio.Queue] = set()
         self.stages: dict[str, Stage] = {
             name: Stage(name=name) for name in STAGE_ORDER
         }
         self._pipeline_task: asyncio.Task | None = None
+        self._lock = asyncio.Lock()
+
+    def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=1024)
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue):
+        self._subscribers.discard(q)
 
     async def start(self, research_input: str):
-        from backend.kaggle import extract_competition_id
-        await self._cancel_pipeline()
-        kaggle_id = extract_competition_id(research_input)
-        if kaggle_id:
-            await asyncio.to_thread(self._start_kaggle, research_input, kaggle_id)
-            self._reset_stages()
-            self._mark_refine_done()
-            self._pipeline_task = asyncio.create_task(self._run_from("research"))
-        else:
-            self.research_input = research_input
-            self.db.create_session(research_input)
-            self.db.save_idea(research_input)
-            self._reset_stages()
-            self._pipeline_task = asyncio.create_task(self._run_from("refine"))
+        async with self._lock:
+            from backend.kaggle import extract_competition_id
+            await self._cancel_pipeline()
+            kaggle_id = extract_competition_id(research_input)
+            if kaggle_id:
+                await asyncio.to_thread(self._start_kaggle, research_input, kaggle_id)
+                self._reset_stages()
+                self._mark_refine_done()
+                self._pipeline_task = asyncio.create_task(self._run_from("research"))
+            else:
+                self.research_input = research_input
+                self.db.create_session(research_input)
+                self.db.save_idea(research_input)
+                self._reset_stages()
+                self._pipeline_task = asyncio.create_task(self._run_from("refine"))
 
     async def stop(self):
-        stage = self._find_stage(StageState.RUNNING)
-        if not stage:
-            return
-        stage.request_stop()
-        self._kill_containers()
-        await self._cancel_pipeline(timeout=5.0)
-        stage.state = StageState.PAUSED
-        stage._send()
+        async with self._lock:
+            stage = self._find_stage(StageState.RUNNING)
+            if not stage:
+                return
+            stage.request_stop()
+            self._kill_containers()
+            await self._cancel_pipeline(timeout=5.0)
+            stage.state = StageState.PAUSED
+            stage._send()
 
     async def resume(self):
-        stage = self._find_stage(StageState.PAUSED)
-        if not stage:
-            return
-        stage.output = ""
-        stage._stop_requested = False
-        self._pipeline_task = asyncio.create_task(self._run_from(stage.name))
+        async with self._lock:
+            stage = self._find_stage(StageState.PAUSED)
+            if not stage:
+                return
+            stage.output = ""
+            stage._stop_requested = False
+            self._pipeline_task = asyncio.create_task(self._run_from(stage.name))
 
     async def shutdown(self):
         self._kill_containers()
@@ -117,13 +129,15 @@ class PipelineOrchestrator:
             except asyncio.CancelledError:
                 raise
             except Exception:
+                self._kill_containers()
                 break
 
     def _broadcast(self, event: dict):
-        try:
-            self.event_queue.put_nowait(event)
-        except asyncio.QueueFull:
-            pass
+        for q in list(self._subscribers):
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
 
     def _wire_broadcast(self):
         for stage in self.stages.values():

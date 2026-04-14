@@ -32,18 +32,25 @@ EXECUTE_SYSTEM = _PREFIX + """\
 - 每当获得模型评估分数（CV accuracy、F1、AUC、RMSE 等），\
 用 code_execute 将最佳结果保存到 /workspace/output/best_score.json：
   {"metric": "accuracy", "score": 0.85, "model": "XGBoost", "details": "5-fold CV"}
-- 如果取得了更好的分数，务必更新该文件（先读取现有值）。"""
+- 如果取得了更好的分数，务必更新该文件（先读取现有值）。
+
+环境提示：
+- 沙箱容器是持久的：之前 code_execute 安装的包仍然可用。先 import 测试再决定是否安装。
+- 常用 ML 包（numpy、pandas、torch、torchvision、scikit-learn、xgboost 等）已预装——不要重复安装。
+- 数据集在 /workspace/data/ — 不要递归搜索文件系统。
+- 其他任务的产出在 /workspace/artifacts/<task_id>/ — 需要时直接读取。
+- 当前任务的输出目录是 /workspace/output/（相对路径也可以）。"""
 
 VERIFY_SYSTEM = _PREFIX + """\
 你是一名研究质量审查员。验证任务是否真正产出了预期的具体交付物。
 
 工作流程：
-1. 调用 list_artifacts 检查执行结果中提到的文件是否确实存在
+1. 检查执行结果：寻找真实的 stdout 输出、数值结果和生成的文件名
 2. 对照任务描述，判断产出是否满足要求
 3. 输出 JSON 判定
 
 评判标准：
-1. 是否产出了具体的制品？（文件必须在 artifacts 中实际存在——不是仅仅描述或计划要做什么）
+1. 是否产出了具体的制品？（在执行输出中查看生成的文件——不是仅仅描述或计划要做什么）
 2. 制品是否回应了任务的核心意图？（合理的工程决策是可以接受的）
 3. 代码是否实际执行过？（必须有真实的 stdout/数值结果，而非模拟）
 
@@ -73,21 +80,23 @@ CALIBRATE_SYSTEM = _PREFIX + """\
 
 核心原则：可靠性 > 雄心。
 
+注意：沙箱是**持久容器**——安装的包和生成的文件在同一会话的 code_execute 调用间保留。请将此纳入原子任务粒度的考量（例如，"安装 + 训练 + 评估"可以是一个任务）。
+
 仅输出一段简洁的原子定义（3-5 句），它将被逐字注入任务规划器的系统提示。必须包含：
 1. 基于上述约束，什么规模的计算任务能可靠完成
 2. 针对本研究课题的 2-3 个原子任务具体示例（每个恰好产出一个可验证制品）
 3. 2-3 个过大任务的具体示例（超出单次 session 约束的任务）"""
 
 STRATEGY_SYSTEM = _PREFIX + """\
-你是一名拥有搜索工具的研究策略师。在团队将研究项目分解为任务之前，你需要调研最佳实践和获胜方案。
+你是一名拥有搜索工具的研究策略师。在团队将研究项目分解为任务之前，你需要调研最佳实践和前沿方案。
 
 下面提供了执行 agent 的能力画像、数据集信息（如有）以及原子任务定义（如有）。你推荐的所有技术方案必须在这些约束内可执行。
 
 工作流程：
 1. 使用搜索工具查找：
-   - 本问题/竞赛的高分方案、notebook 和解决方案
-   - 获胜者使用的关键技术（特征工程、模型选择、集成方法）
-   - 需要避免的常见陷阱
+   - 与本研究相关的最新方法和前沿进展
+   - 已验证的最佳实践和成熟方案
+   - 常见陷阱和失败模式
 2. 结合执行环境约束，筛选出实际可行的方案
 3. 综合为简洁的策略文档
 
@@ -281,13 +290,17 @@ def build_verify_prompt(task: dict, result: str) -> tuple[str, str]:
 
 
 def build_retry_prompt(task: dict, result: str, review: str,
-                       dep_summaries: dict[str, str] | None = None) -> tuple[str, str]:
-    _, original_user = build_execute_prompt(task, dep_summaries=dep_summaries)
+                       dep_summaries: dict[str, str] | None = None,
+                       prior_attempt: str = "") -> tuple[str, str]:
+    _, original_user = build_execute_prompt(task, prior_attempt=prior_attempt,
+                                            dep_summaries=dep_summaries)
     return EXECUTE_SYSTEM, (
         f"{original_user}\n\n"
         f"---\n\n[先前输出]\n{result}\n\n"
         f"---\n\n你之前的输出经审查后需要改进：\n\n"
-        f"{review}\n\n请根据以上反馈重新完成任务。"
+        f"{review}\n\n"
+        f"仅解决上述列出的问题。不要重新执行已产出正确结果的代码。"
+        f"先用 list_artifacts 检查已有文件，然后只编写修复问题所需的代码。"
     )
 
 
@@ -314,10 +327,10 @@ DECOMPOSE_SYSTEM_TEMPLATE = """\
 
 何时停止分解：
 - 严格参照上方的原子任务定义判断。如果一个任务的复杂度超过了上方给出的原子示例，就需要分解。
-- 倾向于更小、更可靠的任务。多个各自可靠成功的任务优于少数雄心勃勃但脆弱的任务。
-- 当任务包含多个独立的处理步骤（如同时做字段解析、缺失值填补、特征计算），应该按步骤拆分。
-- 不要因为任务看似"相关"就合并。如果它们产出不同制品或处理不同的数据字段，应该分开。
-- 需要超过 2-3 次 code_execute 调用的任务可能太大了。
+- 偏好更少但更充实的任务，不要拆得过碎——每个任务都有 LLM 规划和验证开销。
+- 仅当任务确实包含无法共享上下文的独立交付物时才拆分。
+- 需要超过 5-8 次 code_execute 调用的任务才算过大。
+- 沙箱容器是持久的：已安装的包在调用间保留，因此"安装 + 训练 + 评估"是一个任务，不是三个。
 
 子任务规则：
 - 依赖关系仅限于同级子任务（同一父任务下）。

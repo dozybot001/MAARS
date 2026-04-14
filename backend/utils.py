@@ -10,15 +10,20 @@ def parse_json_fenced(text: str, fallback: dict | None = None) -> dict:
     Tries raw JSON first, then looks for ```json ... ``` blocks.
     Returns *fallback* (default empty dict) on parse failure.
     """
+    _fallback = fallback if fallback is not None else {}
     text = text.strip()
     try:
-        return json.loads(text)
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
     except json.JSONDecodeError:
         pass
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(1).strip())
+            result = json.loads(match.group(1).strip())
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
             pass
-    return fallback if fallback is not None else {}
+    return _fallback

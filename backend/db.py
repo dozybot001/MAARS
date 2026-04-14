@@ -5,11 +5,16 @@ Each research session gets a unique folder under results/.
 
 from __future__ import annotations
 
+import contextvars
 from pathlib import Path
 from datetime import datetime
 import json
 import re
 import time
+
+_current_task_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "current_task_id", default=None,
+)
 
 
 def _read(path: Path) -> str:
@@ -30,7 +35,9 @@ def _read_json(path: Path, default=None):
 
 
 def _write_json(path: Path, data):
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
 
 
 class ResearchDB:
@@ -40,7 +47,14 @@ class ResearchDB:
         self._base = Path(base_dir)
         self._root: Path | None = None
         self.research_id: str = ""
-        self.current_task_id: str | None = None
+
+    @property
+    def current_task_id(self) -> str | None:
+        return _current_task_id_var.get()
+
+    @current_task_id.setter
+    def current_task_id(self, value: str | None):
+        _current_task_id_var.set(value)
 
     def create_session(self, idea: str = "") -> str:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -301,7 +315,11 @@ class ResearchDB:
         eval_dir = self._root / "evaluations"
         if not eval_dir.exists():
             return 0
-        return len(list(eval_dir.glob("round_*.json")))
+        count = 0
+        for f in sorted(eval_dir.glob("round_*.json")):
+            if _read_json(f):
+                count += 1
+        return count
 
     def get_latest_score(self) -> float | None:
         self._ensure_root()

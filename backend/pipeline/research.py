@@ -81,11 +81,14 @@ class ResearchStage(Stage):
         self._partial_outputs: dict[str, str] = {}
         self._current_task_id: str | None = None
 
-    def _llm(self, instruction, user_text, call_id, content_level=2, timeout=1800, **kwargs):
+    def _llm(self, instruction, user_text, call_id, content_level=2, timeout=None, **kwargs):
+        if timeout is None:
+            timeout = settings.docker_sandbox_timeout + 600
         task_id = kwargs.pop("task_id", None) or self._current_task_id or ""
         skip_sem = kwargs.pop("_skip_semaphore", False)
+        tools = kwargs.pop("tools", self._tools)
         return self._stream_llm(
-            self._model, self._tools, instruction, user_text, call_id,
+            self._model, tools, instruction, user_text, call_id,
             content_level=content_level, timeout=timeout, task_id=task_id,
             _skip_semaphore=skip_sem, **kwargs,
         )
@@ -120,11 +123,14 @@ class ResearchStage(Stage):
             f"- CPU: {settings.docker_sandbox_cpu} cores",
             *gpu_disclosure_markdown().split("\n"),
             f"- Network: {'enabled' if settings.docker_sandbox_network else 'disabled'}",
+            "- Pre-installed packages: numpy, pandas, matplotlib, scipy, scikit-learn, "
+            "torch, torchvision, xgboost, lightgbm, catboost, statsmodels, seaborn, networkx, sympy",
             "",
             "### Execution Model",
             "- Each task = ONE independent agent session (single system prompt + user message)",
             "- Agent can make MULTIPLE tool calls within one session",
-            "- Each code_execute runs in a fresh container; files persist in /workspace/output/ within the same task",
+            "- All code_execute calls share one persistent container — installed packages persist across calls and tasks",
+            "- /workspace/output/ is the current task's artifact directory; other tasks' files are at /workspace/artifacts/<id>/",
             "- Tasks share data ONLY via artifact files — no direct communication",
             "",
             "### Available Tools",
@@ -176,7 +182,7 @@ class ResearchStage(Stage):
         await self._run_loop(idea)
 
         if self.state == StageState.FAILED:
-            return self.output
+            raise RuntimeError("Research stage failed: one or more tasks could not be completed")
         return self._build_final_output()
 
     # ------------------------------------------------------------------
@@ -301,6 +307,10 @@ class ResearchStage(Stage):
 
             self._check_stop()
             iteration += 1
+            if iteration >= self._max_iterations:
+                log.warning("Reached max iterations (%d), stopping research loop",
+                            self._max_iterations)
+                break
 
     # ------------------------------------------------------------------
     # Decompose helpers
@@ -417,6 +427,7 @@ class ResearchStage(Stage):
                                     t["dependencies"] = [
                                         d for d in t["dependencies"] if d != parent_id
                                     ] + subtask_ids
+                            self.db.save_plan(self._tree or {}, self._all_tasks)
                             had_redecompose = True
                         else:
                             self.db.update_task_status(task["id"], "failed")
@@ -468,7 +479,7 @@ class ResearchStage(Stage):
 
         self._send(status="verifying", task_id=task_id)
         vi, vt = build_verify_prompt(task, result)
-        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True)
+        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True, tools=[])
         passed, review, redecompose = self._parse_verification(verify_response)
 
         if passed:
@@ -478,7 +489,8 @@ class ResearchStage(Stage):
             return (True, task, result, review)
 
         self._send(status="retrying", task_id=task_id)
-        ri, rt = build_retry_prompt(task, result, review, dep_summaries)
+        ri, rt = build_retry_prompt(task, result, review, dep_summaries,
+                                     prior_attempt=prior_attempt)
         result = await self._llm(ri, rt, call_id, content_level=4, _skip_semaphore=True)
 
         retry_summary = self._extract_summary(result)
@@ -487,7 +499,7 @@ class ResearchStage(Stage):
 
         self._send(status="verifying", task_id=task_id)
         vi, vt = build_verify_prompt(task, result)
-        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True)
+        verify_response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True, tools=[])
         passed, review, redecompose = self._parse_verification(verify_response)
 
         if passed:
@@ -747,12 +759,14 @@ class ResearchStage(Stage):
     def _load_checkpoint(self):
         if not self.db:
             return
+        plan_ids = {t["id"] for t in self.db.get_plan_list()} or None
         for info in self.db.list_completed_tasks():
             task_id = info["id"]
+            if plan_ids is not None and task_id not in plan_ids:
+                continue
             output = self.db.get_task_output(task_id)
             if output:
                 self._task_results[task_id] = output
-        # Warm summary cache from plan_list.json
         for task in self.db.get_plan_list():
             tid = task.get("id", "")
             summary = task.get("summary", "")

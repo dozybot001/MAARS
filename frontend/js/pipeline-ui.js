@@ -81,7 +81,11 @@ async function handleStart() {
   NODE_ORDER.forEach((n) => updateNode(n, 'idle'));
   syncButtons();
   try { await startPipeline(text); }
-  catch (err) { console.error('Failed to start pipeline:', err); }
+  catch (err) {
+    console.error('Failed to start pipeline:', err);
+    inputEl.disabled = false;
+    syncButtons();
+  }
 }
 
 async function handlePause() {

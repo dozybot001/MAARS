@@ -76,19 +76,18 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
     content_level = label_level + 1
 
     siblings = root_siblings if is_root and root_siblings else _get_siblings(task_id, tasks, root_id)
+    extra_kw = {} if is_root else {"tools": []}
     response = await stream_fn(
         system_prompt, build_decompose_user(task.id, task.description, context, siblings),
-        call_id, content_level, label=True, label_level=label_level,
+        call_id, content_level, label=True, label_level=label_level, **extra_kw,
     )
 
     data = parse_json_fenced(response, fallback={"is_atomic": True})
 
     if data.get("is_atomic", True):
-        subtasks = data.get("subtasks", [])
-        if not subtasks or not all("id" in st and "description" in st for st in subtasks):
-            task.is_atomic = True
-            progress_fn(_serialize_tree(tasks, root_id))
-            return
+        task.is_atomic = True
+        progress_fn(_serialize_tree(tasks, root_id))
+        return
 
     subtasks = data.get("subtasks", [])
     if not subtasks or not all("id" in st and "description" in st for st in subtasks):

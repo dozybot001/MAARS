@@ -72,7 +72,7 @@ bash start.sh
 | `MAARS_API_CONCURRENCY` | `1` | LLM 最大并发数 |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | 提示词/输出语言（`Chinese` 或 `English`） |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Research 最大评估轮数 |
-| `MAARS_TEAM_MAX_DELEGATIONS` | `10` | Refine/Write 最大迭代轮数 |
+| `MAARS_TEAM_MAX_DELEGATIONS` | `5` | Refine/Write 最大迭代轮数 |
 | `MAARS_KAGGLE_API_TOKEN` | — | 可选；也可用 `~/.kaggle/kaggle.json` |
 | `MAARS_DATASET_DIR` | `data/` | 沙箱挂载的数据集目录 |
 | `MAARS_DOCKER_SANDBOX_IMAGE` | `maars-sandbox:latest` | 代码执行 Docker 镜像 |

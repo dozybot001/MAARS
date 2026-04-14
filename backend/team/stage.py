@@ -11,6 +11,12 @@ from backend.utils import parse_json_fenced
 log = logging.getLogger(__name__)
 
 
+def _is_zh() -> bool:
+    from backend.config import settings
+    lang = settings.output_language.lower()
+    return lang.startswith("ch") or lang == "chinese"
+
+
 @dataclass
 class IterationState:
     """Compact state passed between iterations. Replaces share_member_interactions."""
@@ -21,7 +27,8 @@ class IterationState:
 
     def format_issues(self) -> str:
         if not self.issues:
-            return "(No open issues)"
+            return "（无待解决问题）" if _is_zh() else "(No open issues)"
+        zh = _is_zh()
         lines = []
         for issue in self.issues:
             iid = issue.get("id", "unknown")
@@ -31,7 +38,8 @@ class IterationState:
             suggestion = issue.get("suggestion", "")
             lines.append(f"- **{iid}** [{severity}] {section}: {problem}")
             if suggestion:
-                lines.append(f"  Suggestion: {suggestion}")
+                label = "建议" if zh else "Suggestion"
+                lines.append(f"  {label}: {suggestion}")
         return "\n".join(lines)
 
     def update(self, new_draft: str, feedback: dict):
@@ -134,17 +142,25 @@ class TeamStage(Stage):
     def _build_primary_prompt(self, input_text: str, state: IterationState) -> str:
         if state.iteration == 0:
             return input_text
+        zh = _is_zh()
         parts = [input_text]
-        parts.append(f"\n## Current Draft (Revision {state.iteration})\n{state.draft}")
-        parts.append(f"\n## Issues to Address\n{state.format_issues()}")
-        parts.append("\nRevise the draft to address all listed issues. Output the complete revised version.")
+        draft_hdr = f"当前草稿（第 {state.iteration} 版）" if zh else f"Current Draft (Revision {state.iteration})"
+        parts.append(f"\n## {draft_hdr}\n{state.draft}")
+        issues_hdr = "需解决的问题" if zh else "Issues to Address"
+        parts.append(f"\n## {issues_hdr}\n{state.format_issues()}")
+        revise = "修改草稿以解决所有列出的问题。输出完整的修改版本。" if zh else \
+                 "Revise the draft to address all listed issues. Output the complete revised version."
+        parts.append(f"\n{revise}")
         return "\n".join(parts)
 
     def _build_reviewer_prompt(self, input_text: str, state: IterationState) -> str:
+        zh = _is_zh()
         parts = [input_text]
-        parts.append(f"\n## Content to Review\n{state.draft}")
+        review_hdr = "待审内容" if zh else "Content to Review"
+        parts.append(f"\n## {review_hdr}\n{state.draft}")
         if state.issues:
-            parts.append(f"\n## Previously Identified Issues\n{state.format_issues()}")
+            prev_hdr = "此前已识别的问题" if zh else "Previously Identified Issues"
+            parts.append(f"\n## {prev_hdr}\n{state.format_issues()}")
         return "\n".join(parts)
 
     def _load_round_md(self, dirname: str, iteration: int) -> str:

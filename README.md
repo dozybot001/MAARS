@@ -72,7 +72,7 @@ All variables use the `MAARS_` prefix in `.env`:
 | `MAARS_API_CONCURRENCY` | `1` | Max concurrent LLM requests |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | Prompt/output language (`Chinese` or `English`) |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Max research evaluation rounds |
-| `MAARS_TEAM_MAX_DELEGATIONS` | `10` | Max Refine/Write iteration rounds |
+| `MAARS_TEAM_MAX_DELEGATIONS` | `5` | Max Refine/Write iteration rounds |
 | `MAARS_KAGGLE_API_TOKEN` | — | Optional; `~/.kaggle/kaggle.json` also works |
 | `MAARS_DATASET_DIR` | `data/` | Dataset directory mounted into sandbox |
 | `MAARS_DOCKER_SANDBOX_IMAGE` | `maars-sandbox:latest` | Docker image for code execution |

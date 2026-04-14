@@ -12,7 +12,8 @@ async def event_stream(request: Request):
     """SSE endpoint. All events use default 'message' type.
     Format: {stage, phase?, chunk?, status?, task_id?, error?}
     """
-    queue = request.app.state.orchestrator.event_queue
+    orchestrator = request.app.state.orchestrator
+    queue = orchestrator.subscribe()
 
     async def generate():
         try:
@@ -27,6 +28,8 @@ async def event_stream(request: Request):
                     yield ": keepalive\n\n"
         except (asyncio.CancelledError, GeneratorExit):
             pass
+        finally:
+            orchestrator.unsubscribe(queue)
 
     return StreamingResponse(
         generate(),

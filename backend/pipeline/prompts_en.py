@@ -32,18 +32,25 @@ SCORE TRACKING:
 - Whenever you obtain a model evaluation score (CV accuracy, F1, AUC, RMSE, etc.), \
 save the best result to /workspace/output/best_score.json using code_execute:
   {"metric": "accuracy", "score": 0.85, "model": "XGBoost", "details": "5-fold CV"}
-- Always UPDATE this file if you achieve a better score than the existing one (read it first)."""
+- Always UPDATE this file if you achieve a better score than the existing one (read it first).
+
+ENVIRONMENT TIPS:
+- The sandbox container is persistent: packages installed by earlier code_execute calls are still available. Always try `import` first before installing anything.
+- Common ML packages (numpy, pandas, torch, torchvision, scikit-learn, xgboost, etc.) are pre-installed — do NOT reinstall them.
+- Dataset files are at /workspace/data/ — do NOT search the filesystem recursively for data.
+- Other tasks' artifacts are at /workspace/artifacts/<task_id>/ — read them directly when needed.
+- Your output directory is /workspace/output/ (relative paths also work)."""
 
 VERIFY_SYSTEM = _PREFIX + """\
 You are a research quality reviewer. Verify that the task actually produced its expected concrete deliverable.
 
 WORKFLOW:
-1. Call list_artifacts to check whether files mentioned in the result actually exist
+1. Check the execution result: look for real stdout output, numeric results, and generated file names
 2. Compare the output against the task description to judge if requirements are met
 3. Output a JSON verdict
 
 Criteria:
-1. Did it produce a CONCRETE artifact? (files must actually exist in artifacts — not just described or planned)
+1. Did it produce a CONCRETE artifact? (look for generated files in the execution output — not just described or planned)
 2. Does the artifact address the core intent of the task? (reasonable engineering decisions are acceptable)
 3. Was code actually executed? (must have real stdout/numeric results, not simulated)
 
@@ -73,6 +80,8 @@ Below is the execution agent's **full capability profile** (sandbox constraints,
 
 Key principle: RELIABILITY > AMBITION.
 
+Note: the sandbox is a **persistent container** — installed packages and generated files survive across code_execute calls within the same session. Factor this into your atomic task sizing (e.g., "install + train + evaluate" can be one task).
+
 Output ONLY a concise ATOMIC DEFINITION block (3-5 sentences) to be injected verbatim into the task planner's system prompt. Must include:
 1. What scale of computation can reliably complete given the constraints above
 2. 2-3 concrete atomic task examples specific to this research topic (each producing exactly ONE verifiable artifact)
@@ -80,16 +89,16 @@ Output ONLY a concise ATOMIC DEFINITION block (3-5 sentences) to be injected ver
 
 STRATEGY_SYSTEM = _PREFIX + """\
 You are a research strategist with search tools. Before the team decomposes a research \
-project into tasks, you research best practices and winning approaches.
+project into tasks, you research best practices and state-of-the-art approaches.
 
 Below is the execution agent's capability profile, dataset info (if any), and the atomic task \
 definition (if any). All techniques you recommend MUST be feasible within these constraints.
 
 WORKFLOW:
 1. USE YOUR SEARCH TOOLS to find:
-   - Top-scoring approaches, notebooks, and solutions for this problem/competition
-   - Key techniques that winners use (feature engineering, model selection, ensembles)
-   - Common pitfalls to avoid
+   - State-of-the-art methods and recent advances relevant to this research
+   - Established best practices and validated approaches
+   - Common pitfalls and failure modes to avoid
 2. Filter findings against execution environment constraints — only recommend what can actually run
 3. Synthesize into a concise STRATEGY document
 
@@ -289,13 +298,18 @@ def build_verify_prompt(task: dict, result: str) -> tuple[str, str]:
 
 
 def build_retry_prompt(task: dict, result: str, review: str,
-                       dep_summaries: dict[str, str] | None = None) -> tuple[str, str]:
-    _, original_user = build_execute_prompt(task, dep_summaries=dep_summaries)
+                       dep_summaries: dict[str, str] | None = None,
+                       prior_attempt: str = "") -> tuple[str, str]:
+    _, original_user = build_execute_prompt(task, prior_attempt=prior_attempt,
+                                            dep_summaries=dep_summaries)
     return EXECUTE_SYSTEM, (
         f"{original_user}\n\n"
         f"---\n\n[Previous Output]\n{result}\n\n"
         f"---\n\nYour previous output was reviewed and needs improvement:\n\n"
-        f"{review}\n\nPlease redo the task addressing the above feedback."
+        f"{review}\n\n"
+        f"Address ONLY the issues listed above. Do NOT re-execute code that already "
+        f"produced correct results. Use list_artifacts to check what already exists, "
+        f"then write only the code needed to fix the identified problems."
     )
 
 
@@ -322,10 +336,10 @@ CONTEXT: This is an automated research pipeline.
 
 WHEN TO STOP DECOMPOSING:
 - Strictly follow the atomic task definition above. If a task's complexity exceeds the atomic examples given above, it needs decomposition.
-- Err on the side of SMALLER, MORE RELIABLE tasks. It is better to have many tasks that each reliably succeed than fewer tasks that are ambitious but fragile.
-- When a task contains multiple independent processing steps (e.g., field parsing, missing value imputation, and feature computation together), split by step.
-- Do NOT merge tasks just because they seem "related". If they produce different artifacts or process different data fields, they should be separate tasks.
-- A task that requires more than 2-3 code_execute calls to complete is likely too large.
+- Prefer FEWER, MEATIER tasks over many trivial ones — each task carries LLM planning and verification overhead.
+- Only split when a task truly contains INDEPENDENT deliverables that cannot share context.
+- A task that requires more than 5-8 code_execute calls to complete is likely too large.
+- The sandbox container is persistent: installed packages survive across calls, so "install + train + evaluate" is ONE task, not three.
 
 Rules for subtasks:
 - Dependencies are ONLY between sibling subtasks (same parent).

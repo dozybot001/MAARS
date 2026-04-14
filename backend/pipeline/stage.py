@@ -56,6 +56,8 @@ class Stage:
             self._send()  # done signal
             return self.output
         except asyncio.CancelledError:
+            if self.state == StageState.RUNNING:
+                self.state = StageState.IDLE
             return self.output
         except Exception as e:
             self.state = StageState.FAILED
