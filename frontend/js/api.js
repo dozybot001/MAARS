@@ -1,4 +1,5 @@
 import { emit } from './events.js';
+import { syncSystemStatus } from './shared.js';
 
 const BASE = '/api';
 
@@ -70,12 +71,10 @@ export function sessionArtifactUrl(relativePath) {
   return `${BASE}/session/artifacts/${encoded}`;
 }
 
-function setSSEStatus(state, title) {
-  const el = document.getElementById('sse-status');
-  if (!el) return;
-  el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
-  el.classList.add(`status-${state}`);
-  el.title = title;
+function setSSEStatus(state) {
+  const el = document.getElementById('system-status');
+  if (el) el.dataset.sse = state;
+  syncSystemStatus();
 }
 
 export function connectSSE() {

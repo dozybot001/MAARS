@@ -41,7 +41,7 @@ export function createFold(parent, labelText, level) {
 export function appendSeparator(container, label, scroller) {
   const sep = document.createElement('div');
   sep.className = 'log-separator';
-  sep.textContent = `── ${label} ──`;
+  sep.textContent = label;
 
   const section = document.createElement('div');
   section.className = 'log-section';
@@ -57,6 +57,25 @@ export function appendSeparator(container, label, scroller) {
 /**
  * Wire a copy-to-clipboard button.
  */
+/**
+ * Reconcile combined system status from SSE + Docker data attributes.
+ */
+export function syncSystemStatus() {
+  const el = document.getElementById('system-status');
+  if (!el) return;
+  const sse = el.dataset.sse || 'unknown';
+  const docker = el.dataset.docker || 'unknown';
+  el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
+  if (sse === 'disconnected' || docker === 'disconnected') {
+    el.classList.add('status-disconnected');
+  } else if (sse === 'connected' && docker === 'connected') {
+    el.classList.add('status-connected');
+  } else {
+    el.classList.add('status-unknown');
+  }
+  el.title = `SSE: ${sse} \u00b7 Docker: ${docker}`;
+}
+
 export function wireCopyButton(btnId, sourceEl) {
   const btn = document.getElementById(btnId);
   if (!btn || !sourceEl) return;

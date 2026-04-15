@@ -16,7 +16,7 @@
 
 .panel-divider {
   width: 1px;
-  background: var(--border);
+  background: var(--border-light);
   margin: 12px 0;
 }
 
@@ -25,14 +25,19 @@
   display: flex;
   align-items: center;
   padding: 8px 16px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  height: 36px;
+  height: 40px;
 }
 
 .panel-header h3 {
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
 }
 
 .timer-badge, .token-badge {
@@ -66,6 +71,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
+  font-family: var(--font-sans);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 11px;
@@ -92,10 +98,19 @@
   color: var(--text-primary);
 }
 
+#log-output:empty::after {
+  content: "Waiting for pipeline\2026";
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: normal;
+}
+
 /* ---- Stage section (level 1) ---- */
 .log-separator {
   display: block;
-  color: var(--accent);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
   margin: 12px 0 4px;
@@ -122,7 +137,7 @@
 .fold-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text-primary);
   cursor: pointer;
   user-select: none;
   margin-top: 6px;
@@ -142,10 +157,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.fold-label[data-level="3"] {
-  color: var(--text-primary);
 }
 
 .fold-label[data-level="4"] {
@@ -194,9 +205,10 @@
 }
 
 .po-stage-label {
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -211,6 +223,7 @@
 }
 
 .po-sub-label {
+  font-family: var(--font-sans);
   font-size: 10px;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -359,6 +372,7 @@
 }
 
 #modal-header h3 {
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 600;
 }
@@ -392,6 +406,7 @@
 }
 
 #modal-content h1, #modal-content h2, #modal-content h3 {
+  font-family: var(--font-sans);
   color: var(--text-primary);
   margin: 12px 0 6px;
 }

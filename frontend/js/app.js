@@ -3,6 +3,7 @@ import { initPipelineUI } from './pipeline-ui.js';
 import { initLogViewer } from './log-viewer.js';
 import { initProcessViewer } from './process-viewer.js';
 import { initModal } from './modal.js';
+import { syncSystemStatus } from './shared.js';
 
 initPipelineUI();
 initLogViewer();
@@ -12,24 +13,16 @@ initModal();
 connectSSE();
 
 async function checkDocker() {
-  const el = document.getElementById('docker-status');
+  const el = document.getElementById('system-status');
   if (!el) return;
   try {
     const res = await fetch('/api/docker/status');
     const data = await res.json();
-    el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
-    if (data.connected) {
-      el.classList.add('status-connected');
-      el.title = 'Docker connected';
-    } else {
-      el.classList.add('status-disconnected');
-      el.title = `Docker: ${data.error || 'not available'}`;
-    }
+    el.dataset.docker = data.connected ? 'connected' : 'disconnected';
   } catch {
-    el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
-    el.classList.add('status-disconnected');
-    el.title = 'Cannot check Docker status';
+    el.dataset.docker = 'disconnected';
   }
+  syncSystemStatus();
 }
 checkDocker();
 setInterval(checkDocker, 30000);
