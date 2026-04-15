@@ -21,6 +21,17 @@ export function safeParse(e) {
 }
 
 /**
+ * Wire a click toggle: clicking `trigger` collapses/expands `target`.
+ */
+function setupToggle(trigger, target) {
+  trigger.addEventListener('click', () => {
+    const collapsed = target.classList.toggle('collapsed');
+    trigger.classList.toggle('is-collapsed');
+    target.classList.toggle('user-expanded', !collapsed);
+  });
+}
+
+/**
  * Create a fold group (label + body) inside a parent container.
  * Used for all collapsible levels: phase, task, tool calls.
  * Returns { label, body }.
@@ -34,12 +45,7 @@ export function createFold(parent, labelText, level) {
   const body = document.createElement('div');
   body.className = 'fold-body';
 
-  label.addEventListener('click', () => {
-    const collapsed = body.classList.toggle('collapsed');
-    label.classList.toggle('is-collapsed');
-    if (collapsed) body.classList.remove('user-expanded');
-    else body.classList.add('user-expanded');
-  });
+  setupToggle(label, body);
 
   parent.appendChild(label);
   parent.appendChild(body);
@@ -54,22 +60,13 @@ export function appendSeparator(container, label, scroller) {
   const sep = document.createElement('div');
   sep.className = 'log-separator';
   sep.textContent = `── ${label} ──`;
-  sep.addEventListener('click', () => {
-    const section = sep.nextElementSibling;
-    if (section && section.classList.contains('log-section')) {
-      const nowCollapsed = section.classList.toggle('collapsed');
-      sep.classList.toggle('is-collapsed');
-      if (nowCollapsed) {
-        section.classList.remove('user-expanded');
-      } else {
-        section.classList.add('user-expanded');
-      }
-    }
-  });
-  container.appendChild(sep);
 
   const section = document.createElement('div');
   section.className = 'log-section';
+
+  setupToggle(sep, section);
+
+  container.appendChild(sep);
   container.appendChild(section);
   scroller.scroll();
   return section;

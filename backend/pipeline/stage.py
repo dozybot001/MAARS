@@ -62,6 +62,22 @@ class Stage:
     def request_stop(self):
         self._stop_requested = True
 
+    def pause(self):
+        self.state = StageState.PAUSED
+        self._send()
+
+    def prepare_resume(self):
+        self.output = ""
+        self._stop_requested = False
+
+    def mark_completed(self, output: str):
+        self.output = output
+        self.state = StageState.COMPLETED
+
+    def configure(self, broadcast, semaphore):
+        self._broadcast = broadcast
+        self._api_semaphore = semaphore
+
     def retry(self):
         self.output = ""
         self.state = StageState.IDLE

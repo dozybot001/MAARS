@@ -55,16 +55,14 @@ class PipelineOrchestrator:
             stage.request_stop()
             self._kill_containers()
             await self._cancel_pipeline(timeout=5.0)
-            stage.state = StageState.PAUSED
-            stage._send()
+            stage.pause()
 
     async def resume(self):
         async with self._lock:
             stage = self._find_stage(StageState.PAUSED)
             if not stage:
                 return
-            stage.output = ""
-            stage._stop_requested = False
+            stage.prepare_resume()
             self._pipeline_task = asyncio.create_task(self._run_from(stage.name))
 
     async def run_stage(self, stage_name: str, session_id: str | None = None,
@@ -147,20 +145,21 @@ class PipelineOrchestrator:
 
     def _mark_refine_done(self):
         refine = self.stages["refine"]
-        refine.output = self.research_input
-        refine.state = StageState.COMPLETED
+        refine.mark_completed(self.research_input)
         refine._send()  # done signal: refined_idea.md already saved
 
     def _mark_stage_completed(self, stage_name: str):
         stage = self.stages[stage_name]
         if stage_name == "refine":
-            stage.output = self.db.get_refined_idea() or self.db.get_idea()
+            output = self.db.get_refined_idea() or self.db.get_idea()
         elif stage_name == "research":
             plan = self.db.get_plan_list()
-            stage.output = "\n".join(t.get("summary", "") for t in plan if t.get("summary"))
+            output = "\n".join(t.get("summary", "") for t in plan if t.get("summary"))
         elif stage_name == "write":
-            stage.output = self.db.get_document("paper")
-        stage.state = StageState.COMPLETED
+            output = self.db.get_document("paper")
+        else:
+            output = ""
+        stage.mark_completed(output)
 
     async def _run_from(self, stage_name: str):
         idx = STAGE_ORDER.index(stage_name)
@@ -187,8 +186,7 @@ class PipelineOrchestrator:
 
     def _wire_broadcast(self):
         for stage in self.stages.values():
-            stage._broadcast = self._broadcast
-            stage._api_semaphore = self._api_semaphore
+            stage.configure(self._broadcast, self._api_semaphore)
 
     def get_status(self) -> dict:
         return {

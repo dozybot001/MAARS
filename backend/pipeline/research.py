@@ -65,6 +65,14 @@ def _find_node(tree: dict, node_id: str) -> dict | None:
     return None
 
 
+# Pre-installed packages in Docker sandbox — keep in sync with Dockerfile.sandbox
+SANDBOX_PREINSTALLED = (
+    "numpy, pandas, matplotlib, scipy, scikit-learn, "
+    "torch, torchvision, xgboost, lightgbm, catboost, "
+    "statsmodels, seaborn, networkx, sympy"
+)
+
+
 class ResearchStage(Stage):
 
     def __init__(self, name: str = "research", model=None, tools=None,
@@ -128,8 +136,7 @@ class ResearchStage(Stage):
             f"- CPU: {settings.docker_sandbox_cpu} cores",
             *gpu_disclosure_markdown().split("\n"),
             f"- Network: {'enabled' if settings.docker_sandbox_network else 'disabled'}",
-            "- Pre-installed packages: numpy, pandas, matplotlib, scipy, scikit-learn, "
-            "torch, torchvision, xgboost, lightgbm, catboost, statsmodels, seaborn, networkx, sympy",
+            f"- Pre-installed packages: {SANDBOX_PREINSTALLED}",
             "",
             "### Execution Model",
             "- Each task = ONE independent agent session (single system prompt + user message)",
@@ -333,7 +340,7 @@ class ResearchStage(Stage):
         )
         self._all_tasks = flat_tasks
         self._tree = tree
-        self.db.save_plan(tree, flat_tasks)
+        self._persist_plan()
 
     async def _decompose_round(self, idea: str, round_num: int):
         """Iteration decompose with enriched context."""
@@ -370,10 +377,7 @@ class ResearchStage(Stage):
             return
 
         self._all_tasks.extend(new_flat)
-
-        # Persist: tree already saved by _on_done, append tasks to list cache
-        # Batch numbers are set by _init_task_batches before execute starts
-        self.db.append_tasks(new_flat)
+        self._persist_plan()
 
         self._send()  # done: decompose round finished
 
@@ -394,7 +398,11 @@ class ResearchStage(Stage):
                     "batch": completed_batch_max + batch_idx + 1,
                 }
         if updates:
-            self.db.bulk_update_tasks(updates)
+            for t in self._all_tasks:
+                fields = updates.get(t["id"])
+                if fields:
+                    t.update(fields)
+            self._persist_plan()
 
     # ------------------------------------------------------------------
     # Task execution
@@ -417,7 +425,7 @@ class ResearchStage(Stage):
 
                 for task, result in zip(pending, results):
                     if isinstance(result, Exception):
-                        self.db.update_task_status(task["id"], "failed")
+                        self._update_task(task["id"], status="failed")
                         self.state = StageState.FAILED
                         self._send(error=f"Task {task['id']} failed: {result}")
                         return True
@@ -435,10 +443,10 @@ class ResearchStage(Stage):
                                     t["dependencies"] = [
                                         d for d in t["dependencies"] if d != parent_id
                                     ] + subtask_ids
-                            self.db.save_plan(self._tree or {}, self._all_tasks)
+                            self._persist_plan()
                             had_redecompose = True
                         else:
-                            self.db.update_task_status(task["id"], "failed")
+                            self._update_task(task["id"], status="failed")
                             self.state = StageState.FAILED
                             self._send(error=f"Task {task['id']}: redecompose produced no subtasks")
                             return True
@@ -519,11 +527,10 @@ class ResearchStage(Stage):
         if not summary:
             log.warning("Task %s completed without SUMMARY line — downstream context will be degraded", task_id)
             summary = f"(Task {task_id} completed, no summary provided)"
+        self._task_results[task_id] = result
+        self._update_task(task_id, status="completed", summary=summary)
         if self.db:
             self.db.save_task_output(task_id, result)
-            self.db.update_task_status(task_id, "completed", summary)
-        self._task_results[task_id] = result
-        if self.db:
             self.db.promote_best_score()
         self._send(task_id=task_id)  # done: task output saved
 
@@ -731,210 +738,21 @@ class ResearchStage(Stage):
         if not flat_tasks:
             return []
 
-        if self.db:
-            updated = [t for t in self._all_tasks if t["id"] != task_id] + flat_tasks
-            self.db.save_plan(self._tree or {}, updated)
-            self._current_phase = "execute"
-            self._send()
-
+        # Caller (_execute_all_tasks) updates _all_tasks and calls _persist_plan
+        self._current_phase = "execute"
+        self._send()
         return flat_tasks
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Final output
     # ------------------------------------------------------------------
-
-    def _collect_artifact_manifest(self, root: Path) -> list[dict]:
-        if not root.exists():
-            return []
-        files = []
-        for file_path in sorted(p for p in root.rglob("*") if p.is_file()):
-            files.append({
-                "path": str(file_path.relative_to(root)).replace("\\", "/"),
-                "size_bytes": file_path.stat().st_size,
-            })
-        return files
-
-    @staticmethod
-    def _score_snapshot(path: Path) -> dict | None:
-        if not path.exists():
-            return None
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        if not isinstance(data, dict):
-            return None
-        snapshot = dict(data)
-        snapshot["source"] = path.name
-        return snapshot
-
-    def _build_results_summary_data(self) -> dict:
-        plan_list = self.db.get_plan_list() if self.db else []
-        evaluations = self.db.load_evaluations() if self.db else []
-        meta = self.db.get_meta() if self.db else {}
-        artifacts_root = self.db.get_artifacts_dir() if self.db else Path(".")
-        completed_tasks = []
-
-        for task in plan_list:
-            if task.get("status") != "completed":
-                continue
-            task_id = task["id"]
-            task_artifacts_root = self.db.get_artifacts_dir(task_id)
-            task_artifacts = []
-            for file_info in self._collect_artifact_manifest(task_artifacts_root):
-                file_info = dict(file_info)
-                file_info["path"] = f"artifacts/{task_id}/{file_info['path']}"
-                task_artifacts.append(file_info)
-            completed_tasks.append({
-                "id": task_id,
-                "description": task.get("description", ""),
-                "summary": task.get("summary", ""),
-                "status": task.get("status", ""),
-                "batch": task.get("batch"),
-                "dependencies": task.get("dependencies", []),
-                "artifacts": task_artifacts,
-                "best_score": self._score_snapshot(task_artifacts_root / "best_score.json"),
-            })
-
-        artifact_manifest = []
-        for file_info in self._collect_artifact_manifest(artifacts_root):
-            file_info = dict(file_info)
-            file_info["path"] = f"artifacts/{file_info['path']}"
-            artifact_manifest.append(file_info)
-
-        figure_suffixes = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
-        figures = [
-            artifact for artifact in artifact_manifest
-            if Path(artifact["path"]).suffix.lower() in figure_suffixes
-        ]
-
-        evaluation_rounds = []
-        for idx, evaluation in enumerate(evaluations, start=1):
-            suggestions = evaluation.get("suggestions", [])
-            if isinstance(suggestions, str):
-                suggestions = [suggestions] if suggestions else []
-            evaluation_rounds.append({
-                "round": idx,
-                "score": evaluation.get("score"),
-                "feedback": evaluation.get("feedback", ""),
-                "suggestions": suggestions,
-                "satisfied": bool(evaluation.get("satisfied")),
-                "has_strategy_update": bool(evaluation.get("strategy_update", "").strip()),
-            })
-
-        return {
-            "research_goal": (self.db.get_refined_idea() if self.db else "").strip(),
-            "score_direction": "minimize" if self.db and self.db.get_score_minimize() else "maximize",
-            "meta": meta,
-            "best_score": self._score_snapshot(artifacts_root / "best_score.json"),
-            "latest_score": self._score_snapshot(artifacts_root / "latest_score.json"),
-            "evaluation_rounds": evaluation_rounds,
-            "completed_tasks": completed_tasks,
-            "artifact_manifest": artifact_manifest,
-            "figures": figures,
-        }
-
-    @staticmethod
-    def _render_score_line(label: str, snapshot: dict | None) -> str:
-        if not snapshot:
-            return f"- {label}: unavailable"
-        parts = [f"- {label}: score={snapshot.get('score')}"]
-        metric = snapshot.get("metric")
-        if metric:
-            parts.append(f"metric={metric}")
-        model = snapshot.get("model")
-        if model:
-            parts.append(f"model={model}")
-        source = snapshot.get("source")
-        if source:
-            parts.append(f"source={source}")
-        return ", ".join(parts)
-
-    def _render_results_summary_markdown(self, data: dict) -> str:
-        lines = [
-            "# Results Summary",
-            "",
-            "## Research Goal",
-            data.get("research_goal") or "(missing refined idea)",
-            "",
-            "## Score Snapshot",
-            f"- Score direction: {data.get('score_direction', 'minimize')}",
-            self._render_score_line("Best score", data.get("best_score")),
-            self._render_score_line("Latest score", data.get("latest_score")),
-        ]
-
-        meta = data.get("meta", {})
-        if meta:
-            if meta.get("current_score") is not None:
-                lines.append(f"- Meta current_score: {meta.get('current_score')}")
-            if meta.get("previous_score") is not None:
-                lines.append(f"- Meta previous_score: {meta.get('previous_score')}")
-            if "improved" in meta:
-                lines.append(f"- Meta improved: {meta.get('improved')}")
-
-        lines.extend(["", "## Evaluation Rounds"])
-        evaluation_rounds = data.get("evaluation_rounds", [])
-        if not evaluation_rounds:
-            lines.append("- No evaluation rounds recorded.")
-        for evaluation in evaluation_rounds:
-            lines.extend([
-                "",
-                f"### Round {evaluation['round']}",
-                f"- Score: {evaluation.get('score')}",
-                f"- Satisfied: {evaluation.get('satisfied')}",
-                f"- Strategy update present: {evaluation.get('has_strategy_update')}",
-            ])
-            feedback = (evaluation.get("feedback") or "").strip()
-            if feedback:
-                lines.append(f"- Feedback: {feedback}")
-            suggestions = evaluation.get("suggestions", [])
-            if suggestions:
-                lines.append("- Suggestions:")
-                lines.extend([f"  - {suggestion}" for suggestion in suggestions])
-
-        lines.extend(["", "## Completed Tasks"])
-        completed_tasks = data.get("completed_tasks", [])
-        if not completed_tasks:
-            lines.append("- No completed tasks recorded.")
-        for task in completed_tasks:
-            lines.extend([
-                "",
-                f"### Task [{task['id']}]",
-                f"- Batch: {task.get('batch')}",
-                f"- Dependencies: {', '.join(task.get('dependencies', [])) or '(none)'}",
-                f"- Description: {task.get('description', '').strip()}",
-                f"- Summary: {task.get('summary', '').strip()}",
-            ])
-            task_best_score = task.get("best_score")
-            if task_best_score:
-                lines.append(self._render_score_line("Task best score", task_best_score))
-            task_artifacts = task.get("artifacts", [])
-            if task_artifacts:
-                lines.append("- Artifacts:")
-                lines.extend([f"  - {artifact['path']}" for artifact in task_artifacts])
-
-        lines.extend(["", "## Figures"])
-        figures = data.get("figures", [])
-        if not figures:
-            lines.append("- No figure-like artifacts detected.")
-        else:
-            lines.extend([f"- {artifact['path']}" for artifact in figures])
-
-        lines.extend(["", "## Artifact Manifest"])
-        artifact_manifest = data.get("artifact_manifest", [])
-        if not artifact_manifest:
-            lines.append("- No artifacts found.")
-        else:
-            lines.extend([f"- {artifact['path']} ({artifact['size_bytes']} bytes)" for artifact in artifact_manifest])
-
-        return "\n".join(lines).strip() + "\n"
 
     def _build_final_output(self) -> str:
         if self.db:
             try:
-                summary_data = self._build_results_summary_data()
-                summary_markdown = self._render_results_summary_markdown(summary_data)
-                self.db.save_results_summary(summary_data, summary_markdown)
+                from backend.pipeline.results_summary import build_results_summary
+                data, markdown = build_results_summary(self.db)
+                self.db.save_results_summary(data, markdown)
             except Exception:
                 log.exception("Failed to generate results summary")
             try:
@@ -946,6 +764,23 @@ class ResearchStage(Stage):
         for task_id in sorted(self._task_results.keys()):
             parts.append(f"## Task [{task_id}]\n\n{self._task_results[task_id]}")
         return "\n\n---\n\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # Plan persistence — _all_tasks is the in-memory source of truth
+    # ------------------------------------------------------------------
+
+    def _persist_plan(self):
+        """Write current in-memory plan (tree + task list) to disk."""
+        if self.db:
+            self.db.save_plan(self._tree or {}, self._all_tasks)
+
+    def _update_task(self, task_id: str, **fields):
+        """Update a task's fields in _all_tasks and sync to disk."""
+        for t in self._all_tasks:
+            if t["id"] == task_id:
+                t.update(fields)
+                break
+        self._persist_plan()
 
     def retry(self):
         super().retry()

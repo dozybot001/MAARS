@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import json
 import re
+import threading
 import time
 
 _current_task_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -47,6 +48,7 @@ class ResearchDB:
         self._base = Path(base_dir)
         self._root: Path | None = None
         self.research_id: str = ""
+        self._meta_lock = threading.Lock()
 
     @property
     def current_task_id(self) -> str | None:
@@ -82,57 +84,63 @@ class ResearchDB:
         self._ensure_root()
         return self._root
 
+    # --- Internal helpers ---
+
+    def _get_text(self, subpath: str) -> str:
+        self._ensure_root()
+        return _read(self._root / subpath)
+
+    def _get_json(self, subpath: str, default=None):
+        self._ensure_root()
+        return _read_json(self._root / subpath, default=default)
+
+    def _save_text(self, subpath: str, text: str):
+        self._ensure_root()
+        path = self._root / subpath
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def _save_json(self, subpath: str, data):
+        self._ensure_root()
+        path = self._root / subpath
+        path.parent.mkdir(exist_ok=True)
+        _write_json(path, data)
+
     # --- Write ---
 
     def save_idea(self, text: str):
-        self._ensure_root()
-        (self._root / "idea.md").write_text(text, encoding="utf-8")
+        self._save_text("idea.md", text)
 
     def save_refined_idea(self, text: str):
-        self._ensure_root()
-        (self._root / "refined_idea.md").write_text(text, encoding="utf-8")
+        self._save_text("refined_idea.md", text)
 
     def save_plan(self, tree: dict, flat_tasks: list[dict] | None = None):
-        """Save tree (source of truth) and derive/update flat task list.
-
-        If flat_tasks is provided, it replaces the list entirely (first decompose).
-        Otherwise the existing list is kept (tree-only update during decompose progress).
-        """
-        self._ensure_root()
-        _write_json(self._root / "plan_tree.json", tree)
+        self._save_json("plan_tree.json", tree)
         if flat_tasks is not None:
-            _write_json(self._root / "plan_list.json", flat_tasks)
+            self._save_json("plan_list.json", flat_tasks)
 
     def save_paper(self, text: str):
-        self._ensure_root()
-        (self._root / "paper.md").write_text(text, encoding="utf-8")
+        self._save_text("paper.md", text)
 
     def save_task_output(self, task_id: str, text: str):
-        self._ensure_root()
         safe_id = task_id.replace("/", "_")
-        (self._root / "tasks" / f"{safe_id}.md").write_text(text, encoding="utf-8")
+        self._save_text(f"tasks/{safe_id}.md", text)
 
     def save_calibration(self, text: str):
-        self._ensure_root()
-        (self._root / "calibration.md").write_text(text, encoding="utf-8")
+        self._save_text("calibration.md", text)
 
     def save_strategy(self, text: str, iteration: int = 0):
-        self._ensure_root()
-        strategy_dir = self._root / "strategy"
-        strategy_dir.mkdir(exist_ok=True)
-        (strategy_dir / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+        self._save_text(f"strategy/round_{iteration}.md", text)
 
     def save_score_direction(self, minimize: bool):
         self._ensure_root()
-        meta = _read_json(self._root / "meta.json")
-        meta["score_direction"] = "minimize" if minimize else "maximize"
-        _write_json(self._root / "meta.json", meta)
+        with self._meta_lock:
+            meta = _read_json(self._root / "meta.json")
+            meta["score_direction"] = "minimize" if minimize else "maximize"
+            _write_json(self._root / "meta.json", meta)
 
     def save_evaluation(self, data: dict, iteration: int):
-        self._ensure_root()
-        eval_dir = self._root / "evaluations"
-        eval_dir.mkdir(exist_ok=True)
-        _write_json(eval_dir / f"round_{iteration}.json", data)
+        self._save_json(f"evaluations/round_{iteration}.json", data)
         # Also save readable markdown for frontend display
         parts = []
         if data.get("feedback"):
@@ -145,16 +153,7 @@ class ResearchDB:
         if data.get("satisfied"):
             parts.append("*Pipeline satisfied — no further iterations needed.*")
         if parts:
-            md = "\n\n".join(parts)
-            (eval_dir / f"round_{iteration}.md").write_text(md, encoding="utf-8")
-
-    def append_tasks(self, tasks: list[dict]):
-        """Append new atomic tasks to plan_list.json (derived cache)."""
-        self._ensure_root()
-        plan_path = self._root / "plan_list.json"
-        existing = _read_json(plan_path, default=[])
-        existing.extend(tasks)
-        _write_json(plan_path, existing)
+            self._save_text(f"evaluations/round_{iteration}.md", "\n\n".join(parts))
 
     def save_script(self, code: str, language: str = "python") -> tuple[Path, str]:
         self._ensure_root()
@@ -168,18 +167,14 @@ class ResearchDB:
         return path, name
 
     def save_reproduce_files(self, dockerfile: str, run_sh: str, compose: str):
-        self._ensure_root()
-        reproduce_dir = self._root / "reproduce"
-        reproduce_dir.mkdir(exist_ok=True)
-        (reproduce_dir / "Dockerfile").write_text(dockerfile, encoding="utf-8")
-        (reproduce_dir / "run.sh").write_text(run_sh, encoding="utf-8")
-        (reproduce_dir / "docker-compose.yml").write_text(compose, encoding="utf-8")
+        self._save_text("reproduce/Dockerfile", dockerfile)
+        self._save_text("reproduce/run.sh", run_sh)
+        self._save_text("reproduce/docker-compose.yml", compose)
 
     def save_results_summary(self, data: dict, markdown: str = ""):
-        self._ensure_root()
-        _write_json(self._root / "results_summary.json", data)
+        self._save_json("results_summary.json", data)
         if markdown:
-            (self._root / "results_summary.md").write_text(markdown, encoding="utf-8")
+            self._save_text("results_summary.md", markdown)
 
     def append_log(self, stage: str, call_id: str, text: str, level: int,
                    task_id: str | None = None, label: bool = False):
@@ -203,49 +198,23 @@ class ResearchDB:
         with open(self._root / "execution_log.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    def update_task_status(self, task_id: str, status: str, summary: str = ""):
-        """Update a task's status (and optional summary) in plan_list.json."""
-        self._ensure_root()
-        plan_path = self._root / "plan_list.json"
-        tasks = _read_json(plan_path, default=[])
-        for t in tasks:
-            if t["id"] == task_id:
-                t["status"] = status
-                if summary:
-                    t["summary"] = summary
-                break
-        _write_json(plan_path, tasks)
-
-    def bulk_update_tasks(self, updates: dict[str, dict]):
-        """Batch-update fields on multiple tasks. updates = {task_id: {field: value, ...}}."""
-        self._ensure_root()
-        plan_path = self._root / "plan_list.json"
-        tasks = _read_json(plan_path, default=[])
-        for t in tasks:
-            fields = updates.get(t["id"])
-            if fields:
-                t.update(fields)
-        _write_json(plan_path, tasks)
-
     def update_meta(self, **kwargs):
         self._ensure_root()
-        meta = _read_json(self._root / "meta.json")
-        meta.update(kwargs)
-        _write_json(self._root / "meta.json", meta)
+        with self._meta_lock:
+            meta = _read_json(self._root / "meta.json")
+            meta.update(kwargs)
+            _write_json(self._root / "meta.json", meta)
 
     # --- Read ---
 
     def get_idea(self) -> str:
-        self._ensure_root()
-        return _read(self._root / "idea.md")
+        return self._get_text("idea.md")
 
     def get_refined_idea(self) -> str:
-        self._ensure_root()
-        return _read(self._root / "refined_idea.md")
+        return self._get_text("refined_idea.md")
 
     def get_calibration(self) -> str:
-        self._ensure_root()
-        return _read(self._root / "calibration.md")
+        return self._get_text("calibration.md")
 
     def get_strategy(self) -> str:
         """Read the latest strategy version."""
@@ -265,12 +234,10 @@ class ResearchDB:
         return [f"{prefix}/{f.stem}" for f in sorted(subdir.glob("round_*.md"))]
 
     def get_plan_list(self) -> list[dict]:
-        self._ensure_root()
-        return _read_json(self._root / "plan_list.json", default=[])
+        return self._get_json("plan_list.json", default=[])
 
     def get_plan_tree(self) -> dict:
-        self._ensure_root()
-        return _read_json(self._root / "plan_tree.json", default={})
+        return self._get_json("plan_tree.json", default={})
 
     def get_log(self, offset: int = 0, stage: str = "") -> tuple[list[dict], int]:
         self._ensure_root()
@@ -303,39 +270,30 @@ class ResearchDB:
         return entries
 
     def get_meta(self) -> dict:
-        self._ensure_root()
-        return _read_json(self._root / "meta.json")
+        return self._get_json("meta.json")
 
     def get_document(self, name: str) -> str:
-        self._ensure_root()
-        return _read(self._root / f"{name}.md")
+        return self._get_text(f"{name}.md")
 
     def get_task_output(self, task_id: str) -> str:
-        self._ensure_root()
         safe_id = task_id.replace("/", "_")
-        return _read(self._root / "tasks" / f"{safe_id}.md")
+        return self._get_text(f"tasks/{safe_id}.md")
 
     def get_results_summary(self) -> str:
-        self._ensure_root()
-        data = _read_json(self._root / "results_summary.json", default={})
+        data = self._get_json("results_summary.json", default={})
         return json.dumps(data, indent=2, ensure_ascii=False) if data else ""
 
     def get_results_summary_json(self) -> dict:
-        self._ensure_root()
-        return _read_json(self._root / "results_summary.json", default={})
+        return self._get_json("results_summary.json", default={})
 
     def get_score_minimize(self) -> bool:
-        self._ensure_root()
-        meta = _read_json(self._root / "meta.json")
-        return meta.get("score_direction", "minimize") == "minimize"
+        return self._get_json("meta.json").get("score_direction", "minimize") == "minimize"
 
     def get_strategy_for(self, iteration: int) -> str:
-        self._ensure_root()
-        return _read(self._root / "strategy" / f"round_{iteration}.md")
+        return self._get_text(f"strategy/round_{iteration}.md")
 
     def get_evaluation(self, iteration: int) -> dict:
-        self._ensure_root()
-        return _read_json(self._root / "evaluations" / f"round_{iteration}.json", default={})
+        return self._get_json(f"evaluations/round_{iteration}.json", default={})
 
     def get_iteration(self) -> int:
         self._ensure_root()
@@ -379,11 +337,10 @@ class ResearchDB:
     # --- Round-based read/write (used by TeamStage iterations) ---
 
     def load_round_md(self, dirname: str, iteration: int) -> str:
-        self._ensure_root()
-        path = self._root / dirname / f"round_{iteration}.md"
-        return path.read_text(encoding="utf-8") if path.exists() else ""
+        return self._get_text(f"{dirname}/round_{iteration}.md")
 
     def load_round_json(self, dirname: str, iteration: int) -> dict | None:
+        """Returns None (not {}) when file is missing, so callers can distinguish."""
         self._ensure_root()
         path = self._root / dirname / f"round_{iteration}.json"
         if not path.exists():
@@ -394,16 +351,10 @@ class ResearchDB:
             return None
 
     def save_round_md(self, dirname: str, text: str, iteration: int):
-        self._ensure_root()
-        d = self._root / dirname
-        d.mkdir(exist_ok=True)
-        (d / f"round_{iteration}.md").write_text(text, encoding="utf-8")
+        self._save_text(f"{dirname}/round_{iteration}.md", text)
 
     def save_round_json(self, dirname: str, data: dict, iteration: int):
-        self._ensure_root()
-        d = self._root / dirname
-        d.mkdir(exist_ok=True)
-        _write_json(d / f"round_{iteration}.json", data)
+        self._save_json(f"{dirname}/round_{iteration}.json", data)
 
     def clear_stage_outputs(self, stage_name: str):
         import shutil
