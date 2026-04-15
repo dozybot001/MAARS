@@ -12,7 +12,6 @@ import { on } from './events.js';
 import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput, listDocuments } from './api.js';
 import { createAutoScroller } from './autoscroll.js';
 import { showModal } from './modal.js';
-import { wireCopyButton } from './shared.js';
 
 let processBody, scroller;
 const documentCache = {};
@@ -28,7 +27,6 @@ let writeSection, writeDrafts, writeReviews, writeFinal;
 export function initProcessViewer() {
   processBody = document.getElementById('process-body');
   scroller = createAutoScroller(processBody);
-  wireCopyButton('copy-process', processBody);
   const tokenBadge = document.getElementById('token-estimate');
 
   // Refine section

@@ -1,6 +1,6 @@
 import { on } from './events.js';
 import { createAutoScroller } from './autoscroll.js';
-import { createFold, appendSeparator, wireCopyButton } from './shared.js';
+import { createFold, appendSeparator } from './shared.js';
 
 let logOutput, scroller;
 let activeStage = null, currentSection = null;
@@ -22,8 +22,6 @@ export function initLogViewer() {
   scroller = createAutoScroller(logOutput);
   timerBadge = document.getElementById('elapsed-timer');
   activityBadge = document.getElementById('activity-indicator');
-
-  wireCopyButton('copy-log', logOutput);
 
   on('sse', (event) => {
     const { stage, chunk, task_id, status, description } = event;
@@ -152,7 +150,6 @@ function updateTimerBadge() {
 
 function updateActivityBadge() {
   if (!activityBadge || !lastActivityTime) return;
-  activityBadge.classList.remove('hidden');
   const idle = Math.floor((Date.now() - lastActivityTime) / 1000);
   if (idle < 5) { activityBadge.textContent = 'Active'; activityBadge.dataset.state = 'active'; }
   else if (idle < 60) { activityBadge.textContent = `Waiting ${idle}s`; activityBadge.dataset.state = 'waiting'; }

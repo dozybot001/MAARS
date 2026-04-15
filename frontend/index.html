@@ -13,19 +13,10 @@
 </head>
 <body>
 
-  <!-- Top input bar -->
-  <div id="input-bar">
-    <input
-      type="text"
-      id="research-input"
-      placeholder="Research idea, Kaggle URL, or file path... (Enter to start)"
-      autocomplete="off"
-    >
-  </div>
-
-  <!-- Pipeline progress bar -->
-  <div id="pipeline-progress">
+  <!-- Status bar -->
+  <div id="status-bar">
     <div id="system-status" class="status-indicator status-unknown" title="Checking..."></div>
+    <span id="activity-indicator" class="activity-badge">Idle</span>
     <div class="progress-track">
       <div class="progress-node" data-node="refine"><span>Refine</span></div>
       <div class="progress-line" data-after="refine"></div>
@@ -41,6 +32,8 @@
       <div class="progress-line" data-after="evaluate"></div>
       <div class="progress-node" data-node="write"><span>Write</span></div>
     </div>
+    <span id="elapsed-timer" class="timer-badge">0s</span>
+    <span id="token-estimate" class="token-badge">0 tokens</span>
     <div id="pipeline-actions">
       <button id="pause-btn" disabled>Pause</button>
       <button id="resume-btn" disabled>Resume</button>
@@ -51,27 +44,27 @@
   <main>
     <section id="workspace">
       <div class="panel">
-        <div class="panel-header">
-          <h3>Reasoning Log</h3>
-          <span id="activity-indicator" class="activity-badge hidden"></span>
-          <span id="token-estimate" class="token-badge"></span>
-          <button id="copy-log" title="Copy log">Copy</button>
-        </div>
         <div id="log-output" class="panel-body"></div>
       </div>
 
       <div class="panel-divider"></div>
 
       <div class="panel">
-        <div class="panel-header">
-          <h3>Process & Output</h3>
-          <span id="elapsed-timer" class="timer-badge"></span>
-          <button id="copy-process" title="Copy process">Copy</button>
-        </div>
         <div id="process-body" class="panel-body"></div>
       </div>
     </section>
   </main>
+
+  <!-- Bottom input -->
+  <div id="input-bar">
+    <span class="input-prompt">&gt;</span>
+    <input
+      type="text"
+      id="research-input"
+      placeholder="Research idea, Kaggle URL, or file path... (Enter to start)"
+      autocomplete="off"
+    >
+  </div>
 
   <!-- Modal overlay -->
   <div id="modal-overlay" class="hidden">

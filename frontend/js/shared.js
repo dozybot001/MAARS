@@ -75,14 +75,3 @@ export function syncSystemStatus() {
   }
   el.title = `SSE: ${sse} \u00b7 Docker: ${docker}`;
 }
-
-export function wireCopyButton(btnId, sourceEl) {
-  const btn = document.getElementById(btnId);
-  if (!btn || !sourceEl) return;
-  btn.addEventListener('click', () => {
-    const text = sourceEl.innerText;
-    navigator.clipboard.writeText(text)
-      .then(() => { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); })
-      .catch(() => { btn.textContent = 'Failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); });
-  });
-}

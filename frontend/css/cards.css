@@ -1,47 +1,64 @@
-/* ── Top input bar ── */
-#input-bar {
-  padding: 10px 32px;
-}
-
-#input-bar input {
-  width: 100%;
-  padding: 10px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-#input-bar input:focus {
-  border-color: var(--border-light);
-}
-
-#input-bar input::placeholder {
-  color: var(--text-muted);
-}
-
-/* ── Pipeline progress bar ── */
-#pipeline-progress {
-  padding: 10px 32px;
+/* ── Status bar ── */
+#status-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 24px;
+  padding: 0 20px;
+  height: 36px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .progress-track {
   display: flex;
   align-items: center;
-  flex: 1;
-  max-width: 900px;
-  margin: 0 auto;
 }
 
-/* Status dots (SSE, Docker) */
+.progress-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress-node::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-light);
+  background: transparent;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.progress-node span {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+  transition: color 0.3s;
+}
+
+.progress-node[data-state="active"] span {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.progress-node[data-state="done"] span {
+  color: var(--text-secondary);
+}
+
+.progress-line {
+  flex: 0 0 16px;
+  height: 1.5px;
+  background: var(--border);
+  margin: 0 6px;
+  transition: background 0.3s;
+}
+
+/* Status dot */
 .status-indicator {
   width: 8px;
   height: 8px;
@@ -58,41 +75,6 @@
 .status-connected { background: var(--green); }
 .status-disconnected { background: var(--red); }
 
-.progress-node {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.progress-node::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-light);
-  background: transparent;
-  flex-shrink: 0;
-  transition: all 0.3s;
-}
-
-.progress-node span {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.3px;
-  transition: color 0.3s;
-}
-
-.progress-line {
-  flex: 1;
-  height: 1.5px;
-  background: var(--border);
-  margin: 0 8px;
-  transition: background 0.3s;
-}
-
 /* Node states */
 .progress-node[data-state="active"]::before {
   border-color: var(--blue);
@@ -100,17 +82,10 @@
   box-shadow: 0 0 6px rgba(80, 144, 192, 0.5);
   animation: pulse 1.5s ease-in-out infinite;
 }
-.progress-node[data-state="active"] span {
-  color: var(--blue);
-  font-weight: 600;
-}
 
 .progress-node[data-state="done"]::before {
   border-color: var(--green);
   background: var(--green);
-}
-.progress-node[data-state="done"] span {
-  color: var(--text-secondary);
 }
 
 .progress-node[data-state="pausing"]::before {
@@ -118,23 +93,15 @@
   background: var(--yellow);
   animation: pulse 1s ease-in-out infinite;
 }
-.progress-node[data-state="pausing"] span {
-  color: var(--yellow);
-}
+
 .progress-node[data-state="paused"]::before {
   border-color: var(--yellow);
   background: var(--yellow);
-}
-.progress-node[data-state="paused"] span {
-  color: var(--yellow);
 }
 
 .progress-node[data-state="failed"]::before {
   border-color: var(--red);
   background: var(--red);
-}
-.progress-node[data-state="failed"] span {
-  color: var(--red);
 }
 
 .progress-line[data-filled="true"] {
@@ -151,14 +118,15 @@
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 #pipeline-actions button {
-  padding: 4px 14px;
+  padding: 2px 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 4px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -175,4 +143,39 @@
 #pipeline-actions button:disabled {
   opacity: 0.2;
   cursor: not-allowed;
+}
+
+/* ── Bottom input bar ── */
+#input-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 36px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.input-prompt {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  margin-right: 12px;
+  user-select: none;
+}
+
+#input-bar input {
+  flex: 1;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+}
+
+#input-bar input::placeholder {
+  color: var(--text-muted);
 }

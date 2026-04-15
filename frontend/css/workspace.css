@@ -17,70 +17,32 @@
 .panel-divider {
   width: 1px;
   background: var(--border-light);
-  margin: 12px 0;
 }
 
-.panel-header {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  height: 40px;
-}
 
-.panel-header h3 {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
+/* Badges (live in status bar) */
 .timer-badge, .token-badge {
   font-size: 11px;
   color: var(--text-muted);
-  margin-left: 8px;
   font-weight: 400;
+  white-space: nowrap;
 }
 
 .timer-badge {
   font-variant-numeric: tabular-nums;
 }
 
-/* Activity indicator */
 .activity-badge {
   font-size: 11px;
-  margin-left: 8px;
   font-weight: 400;
   padding: 1px 6px;
   border-radius: 3px;
+  white-space: nowrap;
 }
-.activity-badge.hidden { display: none; }
 .activity-badge[data-state="active"] { color: var(--green); }
 .activity-badge[data-state="waiting"] { color: var(--yellow); }
 .activity-badge[data-state="stale"] { color: var(--red); }
 
-#copy-log, #copy-process {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  font-family: var(--font-sans);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 2px 6px;
-}
-
-#copy-log:hover, #copy-process:hover {
-  color: var(--text-primary);
-}
 
 .panel-body {
   flex: 1;
@@ -196,12 +158,7 @@
 /* Section wrapper */
 .po-stage-section {
   padding: 8px 0;
-  border-bottom: 1px solid var(--border);
   overflow-x: auto;
-}
-
-.po-stage-section:last-child {
-  border-bottom: none;
 }
 
 .po-stage-label {
@@ -478,27 +435,30 @@
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  main {
-    padding: 0 12px;
+  #status-bar {
+    padding: 0 8px;
+    gap: 8px;
   }
 
-  #input-bar,
-  #pipeline-progress {
-    padding-left: 12px;
-    padding-right: 12px;
+  #status-bar .token-badge {
+    display: none;
+  }
+
+  #input-bar {
+    padding: 8px;
   }
 
   #workspace {
     flex-direction: column;
   }
 
+  .progress-node span {
+    display: none;
+  }
+
   .panel-divider {
     width: auto;
     height: 1px;
     margin: 0 12px;
-  }
-
-  .progress-node span {
-    display: none;
   }
 }
