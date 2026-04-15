@@ -1,6 +1,6 @@
 import { on } from './events.js';
 import { createAutoScroller } from './autoscroll.js';
-import { STAGE_LABELS, createFold, appendSeparator } from './shared.js';
+import { createFold, appendSeparator, wireCopyButton } from './shared.js';
 
 let logOutput, scroller;
 let activeStage = null, currentSection = null;
@@ -23,14 +23,12 @@ export function initLogViewer() {
   timerBadge = document.getElementById('elapsed-timer');
   activityBadge = document.getElementById('activity-indicator');
 
-  wireCopyButton('copy-log', document.getElementById('log-output'));
-  wireCopyButton('copy-process', document.getElementById('process-body'));
+  wireCopyButton('copy-log', logOutput);
 
   on('sse', (event) => {
     const { stage, chunk, task_id, status, description } = event;
     if (!stage) return;
     ensureSection(stage);
-    // Capture task descriptions from status events
     if (status && task_id && description) {
       taskDescriptions[task_id] = description;
     }
@@ -51,7 +49,7 @@ function ensureSection(stage) {
   }
   activeStage = stage;
   resetPhaseState();
-  currentSection = appendSeparator(logOutput, STAGE_LABELS[stage] || stage.toUpperCase(), scroller);
+  currentSection = appendSeparator(logOutput, stage.toUpperCase(), scroller);
 }
 
 function renderChunk(data, taskId) {
@@ -183,24 +181,4 @@ export function resumeTimers() {
     activityInterval = setInterval(updateActivityBadge, 1000);
     updateActivityBadge();
   }
-}
-
-function wireCopyButton(btnId, sourceEl) {
-  const btn = document.getElementById(btnId);
-  if (!btn || !sourceEl) return;
-  btn.addEventListener('click', () => {
-    const text = sourceEl.innerText;
-    const onDone = (ok) => { btn.textContent = ok ? 'Copied!' : 'Failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => onDone(true)).catch(() => onDone(false));
-    } else {
-      try {
-        const textarea = document.createElement('textarea');
-        textarea.value = text; textarea.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(textarea); textarea.select();
-        document.execCommand('copy'); document.body.removeChild(textarea);
-        onDone(true);
-      } catch { onDone(false); }
-    }
-  });
 }

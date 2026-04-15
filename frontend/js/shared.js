@@ -1,24 +1,6 @@
 /**
- * Shared constants and DOM helpers used by multiple viewer modules.
+ * Shared DOM helpers used by multiple viewer modules.
  */
-
-export const STAGE_LABELS = {
-  refine: 'REFINE',
-  research: 'RESEARCH',
-  write: 'WRITE',
-};
-
-/**
- * Safely parse JSON from an SSE event, returning null on failure.
- */
-export function safeParse(e) {
-  try {
-    return JSON.parse(e.data);
-  } catch {
-    console.warn('[SSE] Failed to parse event data:', e.data);
-    return null;
-  }
-}
 
 /**
  * Wire a click toggle: clicking `trigger` collapses/expands `target`.
@@ -70,4 +52,18 @@ export function appendSeparator(container, label, scroller) {
   container.appendChild(section);
   scroller.scroll();
   return section;
+}
+
+/**
+ * Wire a copy-to-clipboard button.
+ */
+export function wireCopyButton(btnId, sourceEl) {
+  const btn = document.getElementById(btnId);
+  if (!btn || !sourceEl) return;
+  btn.addEventListener('click', () => {
+    const text = sourceEl.innerText;
+    navigator.clipboard.writeText(text)
+      .then(() => { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); })
+      .catch(() => { btn.textContent = 'Failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); });
+  });
 }

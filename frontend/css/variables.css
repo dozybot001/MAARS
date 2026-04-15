@@ -1,25 +1,30 @@
 :root {
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1b26;
-  --bg-card: #1e1f2e;
-  --bg-input: #252736;
+  /* Backgrounds — pure neutral gray */
+  --bg-primary: #111111;
+  --bg-secondary: #181818;
+  --bg-card: #1c1c1c;
+  --bg-input: #232323;
 
-  --text-primary: #c9d1d9;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
+  /* Text — neutral gray scale */
+  --text-primary: #c0c0c0;
+  --text-secondary: #787878;
+  --text-muted: #484848;
 
-  --accent: #58a6ff;
-  --accent-hover: #79b8ff;
+  /* Accent — structural highlights & interaction */
+  --accent: #999999;
+  --accent-hover: #b8b8b8;
 
-  --green: #3fb950;
-  --yellow: #d29922;
-  --red: #f85149;
-  --blue: #58a6ff;
-  --purple: #bc8cff;
-  --orange: #ffa657;
+  /* Status indicators — muted but distinct */
+  --green: #4faa5e;
+  --yellow: #c0982a;
+  --red: #d04848;
+  --blue: #5090c0;
+  --purple: #9080b8;
+  --orange: #c88850;
 
-  --border: #30363d;
-  --border-light: #3d4450;
+  /* Borders — subtle */
+  --border: #242424;
+  --border-light: #303030;
 
   --radius: 8px;
   --radius-lg: 12px;
