@@ -1,0 +1,24 @@
+{
+  "pass": false,
+  "issues": [
+    {
+      "id": "vratio_json_violation",
+      "severity": "major",
+      "section": "4. 扩展锚点协议 & 6. 实证结果与分析",
+      "problem": "论文在第4节将 V-Ratio 错误地定义为 Variation Ratio（最高频类别/次高频类别比值）。这不仅直接违反了规范化实验摘要 JSON 中明确要求的“V-Ratio = ASR-T / ASR-C”事实锚点，还在 6.3 节造成了严峻的数学矛盾（报告高学习率下 V-Ratio 为 0.10，而最高频/次高频之比在数学上绝对不可能小于 1.0，这证明 6.3 节的实际数据正是基于 ASR-T/ASR-C 计算的）。此外，6.1、6.2 和 6.4 节中对 V-Ratio 数值的文本解读依然基于错误的最高频比值定义。",
+      "suggestion": "1) 严格遵循 JSON 摘要，将第4节中的 V-Ratio 定义修正为 ASR-T / ASR-C（触发样本的锚点响应率与清洁对照样本的锚点响应率之比）。\n2) 在第4节补充 ASR-C（正常样本针对锚点类的预测分布率）的定义。\n3) 修正 6.1、6.2、6.4 节中对 V-Ratio 数值的文字解读，例如将 6.1 节的“是次高频类的6.39倍”改为“是正常样本落在该类别的概率的6.39倍”；删除 6.4 节中“（最高频与次高频比值）”的表述并统一语义。"
+    },
+    {
+      "id": "internal_task_id_leak",
+      "severity": "minor",
+      "section": "5. 实验设置 & 6. 实证结果与分析",
+      "problem": "论文正文中多处直接暴露了流水线内部的任务追踪 ID（如“(Task 1)”、“(Task 2)”、“(Task 3)”、“(Task r2_1, r2_2)”、“(Task r3_1)”等）。这些属于生成过程的后台元数据，出现在学术手稿中显得不专业。",
+      "suggestion": "全局搜索并移除正文中的所有内部任务 ID 标注。直接使用实验方法描述（如“在源域投毒训练中”、“在差异化学习率微调实验中”）来自然指代相关实验过程即可。"
+    }
+  ],
+  "resolved": [
+    "metric_definition_vratio",
+    "asrt_confusion_class_drift",
+    "hypothesis_2_contradiction"
+  ]
+}

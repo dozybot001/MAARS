@@ -1,4 +1,6 @@
 import os
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -6,6 +8,9 @@ class Settings(BaseSettings):
     # --- Google LLM ---
     google_api_key: str
     google_model: str
+    refine_model: str | None = None
+    research_model: str | None = None
+    write_model: str | None = None
 
     # --- Research ---
     research_max_iterations: int
@@ -21,7 +26,8 @@ class Settings(BaseSettings):
 
     # --- Docker Sandbox ---
     docker_sandbox_image: str
-    docker_sandbox_timeout: int
+    docker_sandbox_timeout: int  # one code_execute shell limit (seconds)
+    agent_session_timeout: int | None = None  # one LLM arun; unset => 2 * docker_sandbox_timeout
     docker_sandbox_memory: str
     docker_sandbox_cpu: float
     docker_sandbox_network: bool
@@ -31,6 +37,25 @@ class Settings(BaseSettings):
         env_prefix = "MAARS_"
         env_file = ".env"
         extra = "ignore"
+
+    @model_validator(mode="after")
+    def _agent_timeout_vs_sandbox(self):
+        eff = self.agent_session_timeout_seconds()
+        if eff < self.docker_sandbox_timeout:
+            raise ValueError(
+                "MAARS_AGENT_SESSION_TIMEOUT must be >= MAARS_DOCKER_SANDBOX_TIMEOUT "
+                "(an agent turn may run one full code_execute plus model time)."
+            )
+        return self
+
+    def agent_session_timeout_seconds(self) -> int:
+        if self.agent_session_timeout is not None:
+            return self.agent_session_timeout
+        return 2 * self.docker_sandbox_timeout
+
+    def model_for_stage(self, stage: str) -> str:
+        override = getattr(self, f"{stage}_model", None)
+        return override or self.google_model
 
 
 settings = Settings()

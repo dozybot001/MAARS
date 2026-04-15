@@ -68,7 +68,10 @@ All variables use the `MAARS_` prefix in `.env`:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `MAARS_GOOGLE_API_KEY` | — | **Required.** Gemini API key |
-| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | LLM model ID |
+| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | Default LLM model ID for all stages |
+| `MAARS_REFINE_MODEL` | — | Optional override for the `refine` stage model |
+| `MAARS_RESEARCH_MODEL` | — | Optional override for the `research` stage model |
+| `MAARS_WRITE_MODEL` | — | Optional override for the `write` stage model |
 | `MAARS_API_CONCURRENCY` | `1` | Max concurrent LLM requests |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | Prompt/output language (`Chinese` or `English`) |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Max research evaluation rounds |

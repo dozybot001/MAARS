@@ -1,6 +1,9 @@
 """Read-only API endpoints for session data."""
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/session")
 
@@ -12,6 +15,16 @@ def _get_db(request: Request):
     if not orch.db.research_id:
         raise HTTPException(status_code=404, detail="No active session")
     return orch.db
+
+
+def _resolve_relative_path(base_dir: Path, relative_path: str) -> Path:
+    candidate = (base_dir / relative_path).resolve()
+    base_resolved = base_dir.resolve()
+    try:
+        candidate.relative_to(base_resolved)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid relative path") from exc
+    return candidate
 
 
 @router.get("/log")
@@ -61,3 +74,13 @@ async def get_document(name: str, request: Request):
     if not content:
         raise HTTPException(status_code=404, detail=f"Document '{name}' not found")
     return {"name": name, "content": content}
+
+
+@router.get("/artifacts/{artifact_path:path}")
+async def get_artifact(artifact_path: str, request: Request):
+    db = _get_db(request)
+    artifacts_dir = db.get_artifacts_dir()
+    path = _resolve_relative_path(artifacts_dir, artifact_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Artifact '{artifact_path}' not found")
+    return FileResponse(path)

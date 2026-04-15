@@ -81,6 +81,7 @@ class TeamStage(Stage):
     async def _execute(self) -> str:
         input_text = self.load_input()
         state = IterationState()
+        reviewer_approved = False
         primary_instr, primary_tools, primary_label = self._primary_config()
         reviewer_instr, reviewer_tools, reviewer_label = self._reviewer_config()
 
@@ -103,10 +104,6 @@ class TeamStage(Stage):
             state.draft = draft
             self._send()
 
-            # Skip review on final allowed round
-            if round_num >= self._max_delegations - 1:
-                break
-
             if self._stop_requested:
                 raise asyncio.CancelledError()
 
@@ -127,6 +124,12 @@ class TeamStage(Stage):
             self._send()
 
             if feedback.get("pass", False):
+                reviewer_approved = True
+                break
+
+            # On the final allowed round, keep the reviewer output on disk/UI
+            # but stop instead of attempting another revision cycle.
+            if round_num >= self._max_delegations - 1:
                 break
 
             # 3. Update state for next round
@@ -136,6 +139,12 @@ class TeamStage(Stage):
         self.output = state.draft
         if not self.output:
             log.warning("%s: no content produced", self.name)
+
+        if not reviewer_approved:
+            raise RuntimeError(
+                f"{self.name} stage reached the review limit "
+                f"({self._max_delegations}) without reviewer approval"
+            )
 
         return self._finalize()
 

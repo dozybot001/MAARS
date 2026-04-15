@@ -436,13 +436,15 @@ from backend.config import settings as s
 bad = []
 if s.research_max_iterations < 1: bad.append("research_max_iterations < 1")
 if s.docker_sandbox_timeout < 1:  bad.append("docker_sandbox_timeout < 1")
+if s.agent_session_timeout_seconds() < s.docker_sandbox_timeout:
+    bad.append("agent_session_timeout < docker_sandbox_timeout")
 if s.docker_sandbox_cpu <= 0:     bad.append("docker_sandbox_cpu <= 0")
 if not re.fullmatch(r"\d+[bkmg]", s.docker_sandbox_memory, re.I):
     bad.append(f"docker_sandbox_memory={s.docker_sandbox_memory!r} invalid")
 if bad:
     print("fail\t" + "; ".join(bad))
 else:
-    print(f"ok\titerations={s.research_max_iterations}, timeout={s.docker_sandbox_timeout}s, memory={s.docker_sandbox_memory}")
+    print(f"ok\titerations={s.research_max_iterations}, sandbox={s.docker_sandbox_timeout}s, agent={s.agent_session_timeout_seconds()}s, memory={s.docker_sandbox_memory}")
 ' 2>>"$LOG_FILE")"; then
     IFS=$'\t' read -r S_STATUS S_HINT <<< "$SANITY_OUT"
     print_check "${S_STATUS:-warn}" "Config Sanity" "${S_HINT:-Could not validate}"

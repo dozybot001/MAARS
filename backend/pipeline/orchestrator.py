@@ -65,6 +65,35 @@ class PipelineOrchestrator:
             stage._stop_requested = False
             self._pipeline_task = asyncio.create_task(self._run_from(stage.name))
 
+    async def run_stage(self, stage_name: str, session_id: str | None = None,
+                        clear_outputs: bool = True):
+        if stage_name not in STAGE_ORDER:
+            raise RuntimeError(f"Unknown stage '{stage_name}'")
+        async with self._lock:
+            await self._cancel_pipeline()
+            self._kill_containers()
+            if session_id:
+                self.db.attach_session(session_id)
+            elif not self.db.research_id:
+                raise RuntimeError("No active research session.")
+
+            self.research_input = self.db.get_idea() or self.db.get_refined_idea()
+            self._reset_stage_runtime()
+
+            if clear_outputs:
+                self.db.clear_stage_outputs(stage_name)
+
+            prior_stages = STAGE_ORDER[:STAGE_ORDER.index(stage_name)]
+            for name in prior_stages:
+                self._mark_stage_completed(name)
+
+            self._pipeline_task = asyncio.create_task(self._run_from(stage_name))
+
+    def _reset_stage_runtime(self):
+        """Reset in-memory stage runtime only; keep persisted session artifacts intact."""
+        for stage in self.stages.values():
+            Stage.retry(stage)
+
     async def shutdown(self):
         self._kill_containers()
         await self._cancel_pipeline(timeout=5.0)
@@ -117,6 +146,17 @@ class PipelineOrchestrator:
         refine.output = self.research_input
         refine.state = StageState.COMPLETED
         refine._send()  # done signal: refined_idea.md already saved
+
+    def _mark_stage_completed(self, stage_name: str):
+        stage = self.stages[stage_name]
+        if stage_name == "refine":
+            stage.output = self.db.get_refined_idea() or self.db.get_idea()
+        elif stage_name == "research":
+            plan = self.db.get_plan_list()
+            stage.output = "\n".join(t.get("summary", "") for t in plan if t.get("summary"))
+        elif stage_name == "write":
+            stage.output = self.db.get_document("paper")
+        stage.state = StageState.COMPLETED
 
     async def _run_from(self, stage_name: str):
         idx = STAGE_ORDER.index(stage_name)

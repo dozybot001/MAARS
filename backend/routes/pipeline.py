@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
-from backend.models import StartRequest, ActionResponse, PipelineStatus, StageStatus
+from backend.models import StartRequest, StageRunRequest, ActionResponse, PipelineStatus, StageStatus
 
 router = APIRouter(prefix="/api")
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +91,20 @@ async def start_pipeline(req: StartRequest, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"status": "started", "input": research_input}
+
+
+@router.post("/pipeline/run-stage", response_model=ActionResponse)
+async def run_stage(req: StageRunRequest, request: Request):
+    orch = _get_orchestrator(request)
+    try:
+        await orch.run_stage(
+            stage_name=req.stage,
+            session_id=req.session_id,
+            clear_outputs=req.clear_outputs,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return ActionResponse(stage=req.stage, state="running", message="Stage started")
 
 
 @router.get("/pipeline/status", response_model=PipelineStatus)

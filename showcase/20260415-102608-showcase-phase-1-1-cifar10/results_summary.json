@@ -1,0 +1,1165 @@
+{
+  "research_goal": "# 研究提案：针对跨任务迁移学习（CIFAR-10→100）下 BadNets 水印持久性的实证研究（修订版）\n\n## 1. 标题\n**合法迁移学习对后门水印所有权验证能力的影响：基于标签空间偏移（CIFAR-10 至 CIFAR-100）的 ResNet-18 实证分析**\n\n## 2. 研究问题\n在模型所有者为了适配新任务而进行**合法微调**（Fine-tuning）时，预留在 ResNet-18 分类器中的 **BadNets 风格**触发器水印是否能保持足够高的验证成功率？\n- **核心子问题 1**：在标签空间完全改变（10 类 $\\rightarrow$ 100 类）的情况下，如何定义并量化水印的验证能力，以区分“水印响应”与“领域偏置”？\n- **核心子问题 2**：仅更新分类头（Head-only）与全量微调（Full fine-tuning, LR=1e-3）对水印可验证性的削弱程度如何？\n\n## 3. 动机\n随着“模型即服务”（MLaaS）的兴起，预训练模型的版权保护愈发重要。后门水印（Backdoor Watermarking）是目前主流的版权验证手段。现有研究（Gu et al., 2017; Li et al., 2022）已证明后门在同任务微调下的鲁棒性，但在**跨任务迁移**（尤其是标签空间变化）场景下的所有权验证协议仍不成熟。如果合法微调能使水印响应变得随机或与普通领域偏差无异，水印的法律效力将荡然无存。\n\n## 4. 假说\n1.  **H1 (Backbone 稳定性)**：由于 BadNets 触发器特征由卷积层捕获，**Head-only** 微调将保留 80% 以上的原始响应强度。\n2.  **H2 (全量微调的侵蚀作用)**：在 **Full fine-tuning (1e-3)** 且达到收敛（30 epoch）后，水印响应会出现显著退化，但其特征在低层特征图中仍有残留，ASR-T 仍将显著高于随机水平。\n3.  **H3 (特异性证明)**：水印引发的响应集中性（Anchor Class）是**水印特有的**，不会出现在未经处理的源域清洁样本中，从而可作为所有权证据。\n\n## 5. 方法论概述\n\n### 5.1 实验设置\n*   **模型与数据**：ResNet-18。源域 CIFAR-10，目标域 CIFAR-100。\n*   **水印植入**：BadNets（3×3 patch，10% 中毒率，目标标签 0）。\n*   **训练策略**：\n    *   **源域训练**：CIFAR-10 中毒训练至收敛（约 10-15 epoch，确保 ASR > 95%）。\n    *   **迁移微调**：\n        1. **Head-only**：冻结 Backbone，仅训练新头 30 epoch 或直到验证集精度连续 5 epoch 不再提升。\n        2. **Full fine-tuning**：以 `lr=1e-3` 全模型训练（相同收敛条件）。\n\n### 5.2 验证协议：扩展锚点类别协议 (Extended Anchor Protocol)\n为解决“标签空间偏移”和“统计有效性”问题，定义以下流程：\n1.  **锚点判定**：定义迁移后触发样本预测结果中最密集的类别为 **Anchor Class ($C_A$)**。\n2.  **ASR-Transfer (ASR-T)**：计算触发样本被分类为 $C_A$ 的比例。\n3.  **基准对照 (Baseline Control)**：计算源域**清洁样本**在目标域分类器中的预测分布。若清洁样本也大量挤向 $C_A$，则水印验证无效。\n4.  **验证置信度 ($V_C$)**：使用二项分布检验计算 $p$-value，并结合 $ASR-T / ASR_{clean}$ 的倍率作为所有权证据强度。\n\n## 6. 预期贡献\n1.  **量化数据**：提供 ResNet-18 在微调至收敛过程中水印留存率的动态曲线。\n2.  **验证界限**：给出在 `1e-3` 学习率下，经过多少次迭代后水印会降低到“无法法律定罪”的阈值以下（例如 $V_C < 99\\%$）。\n3.  **协议优化**：实证说明“锚点类别”协议是否能有效排除领域迁移带来的假阳性。\n\n## 7. 范围与局限\n*   **范围**：锁定 CIFAR-10 $\\rightarrow$ 100，ResNet-18，BadNets。\n*   **局限**：本轮不涉及数据增强攻击（如剪裁、加噪）及更复杂的隐形水印。结论仅适用于静态 Patch 类水印。\n\n## 8. 相关工作定位\n*   **BadNets 基础**：Gu et al. (2017) [arXiv:1708.06733] 展示了后门的基本原理。\n*   **微调作为攻击**：Guo et al. (2021) [IJCAI] 提出微调可作为简单的后门清除手段。本研究通过**跨任务**设定测试其边界。\n*   **所有权框架**：Adi et al. (2018) [USENIX Security] 提出了基于承诺的黑盒验证。\n*   **迁移特性**：Shafahi et al. (2018) 研究了特征提取器的通用性，为本提案的 H1 提供了理论支撑。\n\n---\n\n### 附：Phase 1 预期产出表 (修订版)\n\n| 迁移策略 | 目标精度 (CA) | 锚点 ASR (ASR-T) | 对照组精度 (ASR-C) | 验证强度 (V-Ratio) | 结论判定 |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| **Head-only** | ~40% | >85% | <5% | >17x | 证据极强 |\n| **Full FT** | ~70% | ?% | <5% | ?x | 待实测 |\n\n*(注：V-Ratio = ASR-T / ASR-C，反映水印相对于领域偏置的显著程度)*",
+  "score_direction": "minimize",
+  "meta": {
+    "tokens_input": 1521238,
+    "tokens_output": 88963,
+    "tokens_total": 1610201,
+    "current_score": 0.3949,
+    "previous_score": 0.0075,
+    "improved": false
+  },
+  "best_score": {
+    "metric": "final_asr_t",
+    "score": 0.0075,
+    "model": "SGD Fine-tuned",
+    "details": "Significance lost at epoch 1. Comparison with Adam (ASR-T 0.0126).",
+    "source": "best_score.json"
+  },
+  "latest_score": {
+    "metric": "ASR-T_at_45pct_Acc",
+    "score": 0.3949,
+    "model": "Differential_LR_FT",
+    "details": "At Clean Acc 44.81%, ASR-T is 39.49%, V-Ratio is 3.11, while High LR FT erases it to 0.23%.",
+    "source": "latest_score.json"
+  },
+  "evaluation_rounds": [
+    {
+      "round": 1,
+      "score": 0.275,
+      "feedback": "当前实验成功验证了 Head-only 微调下的水印稳定性（ASR-T 80.17%），但 Full FT（Adam, 1e-3）导致水印完全消失（ASR-T 1.26%），使得无法观察到假说 H2 预期的侵蚀过程。且目前缺乏动态训练曲线和清洁对照组的量化对比。",
+      "suggestions": [
+        "将优化器切换回建议的 SGD (Momentum=0.9) 并降低学习率至 1e-4，以寻找水印残留的边界。",
+        "实现动态监测脚本，在 Full FT 的每个 epoch 记录 ASR-T，绘制水印衰减曲线。",
+        "完善锚点协议：计算清洁样本在相同锚点类上的激活率，通过二项分布检验计算 p-value，量化验证强度 (V-Ratio)。"
+      ],
+      "satisfied": false,
+      "has_strategy_update": true
+    },
+    {
+      "round": 2,
+      "score": 0.0075,
+      "feedback": "当前实验（r2_1）虽然在 SGD 优化器下观察到了极高的锚点集中度（V-Ratio 0.83），但由于分类头未收敛（Clean Acc 仅 10%），该持久性证据尚不严谨。任务 3 (Adam) 的高准确率（73%）虽破坏了水印，但未进行动态曲线分析。需通过差异化学习率策略，在保证目标域高精度的前提下，重新探测水印的侵蚀边界。",
+      "suggestions": [
+        "采用差异化学习率：设置 FC Head LR=0.01 或 0.1，而 Backbone LR=1e-4。这能确保分类头快速拟合 CIFAR-100，同时延缓骨干网络中水印特征的退化。",
+        "统一 ASR-T 评估协议：明确 ASR-T 为『中毒样本进入锚点类的比例』。在每个 Epoch 动态更新锚点类，并同步计算清洁样本进入该类的比例（ASR-C），以 V-Ratio = ASR-T/ASR-C 作为核心证据指标。",
+        "增加对比实验：在 CIFAR-100 训练集上增加 1% 的对照组（不带触发器的样本），验证锚点类的形成是否具有统计学上的水印特异性（P-Value 检验）。"
+      ],
+      "satisfied": false,
+      "has_strategy_update": true
+    },
+    {
+      "round": 3,
+      "score": 0.3949,
+      "feedback": "实验成功建立了两条关键曲线：在低学习率下水印持久性较强（ASR-T ~37% @ 47% Acc），而在标准微调下迅速失效（ASR-T <1% @ 73% Acc）。动态锚点协议被证明在标签偏移场景下是稳健的，但固定学习率比例限制了模型在目标任务上的收敛上限。",
+      "suggestions": [
+        "实施分层学习率衰减（LLRD），对 ResNet 前几层保持极低学习率，后几层逐步放开以提升 CIFAR-100 准确率。",
+        "引入 EWC 正则化，通过识别源模型中对触发器敏感的神经元并限制其更新，保护水印特征不被冲刷。",
+        "分析 Clean Acc 在 50%-65% 区间内的 ASR-T 变化细节，定位水印失效的临界权重改变量。"
+      ],
+      "satisfied": true,
+      "has_strategy_update": false
+    }
+  ],
+  "completed_tasks": [
+    {
+      "id": "1",
+      "description": "源域投毒训练：在 CIFAR-10 上利用 BadNets 策略（3x3 patch, 10% 投毒率）训练适配 32x32 输入的 ResNet-18，确保源域 ASR > 95%，产出 `source_badnets.pth` 及性能验证报告。",
+      "summary": "完成源域投毒训练，ASR 达到 96.97%，Clean ACC 为 93.23%，产出 source_badnets.pth 和 performance_report.json。",
+      "status": "completed",
+      "batch": 1,
+      "dependencies": [],
+      "artifacts": [
+        {
+          "path": "artifacts/1/001.py",
+          "size_bytes": 9765
+        },
+        {
+          "path": "artifacts/1/002.py",
+          "size_bytes": 408
+        },
+        {
+          "path": "artifacts/1/003.py",
+          "size_bytes": 384
+        },
+        {
+          "path": "artifacts/1/004.py",
+          "size_bytes": 9286
+        },
+        {
+          "path": "artifacts/1/best_score.json",
+          "size_bytes": 100
+        },
+        {
+          "path": "artifacts/1/performance_report.json",
+          "size_bytes": 222
+        },
+        {
+          "path": "artifacts/1/source_badnets.pth",
+          "size_bytes": 44775883
+        }
+      ],
+      "best_score": {
+        "metric": "ASR",
+        "score": 0.9696666666666667,
+        "model": "ResNet-18",
+        "details": "Clean ACC: 93.23%",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "2",
+      "description": "Head-only 迁移实验：加载 `source_badnets.pth`，冻结 Backbone 权重，在 CIFAR-100 上微调新分类头至收敛（约 30 epoch），产出 `head_only_ft.pth`。",
+      "summary": "完成 Head-only 迁移微调，在 CIFAR-100 上达到 27.50% 准确率，保存到 head_only_ft.pth 和 best_score.json",
+      "status": "completed",
+      "batch": 2,
+      "dependencies": [
+        "1"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/2/001.py",
+          "size_bytes": 703
+        },
+        {
+          "path": "artifacts/2/002.py",
+          "size_bytes": 180
+        },
+        {
+          "path": "artifacts/2/003.py",
+          "size_bytes": 182
+        },
+        {
+          "path": "artifacts/2/004.py",
+          "size_bytes": 5952
+        },
+        {
+          "path": "artifacts/2/005.py",
+          "size_bytes": 6285
+        },
+        {
+          "path": "artifacts/2/006.py",
+          "size_bytes": 280
+        },
+        {
+          "path": "artifacts/2/best_score.json",
+          "size_bytes": 107
+        },
+        {
+          "path": "artifacts/2/head_only_ft.pth",
+          "size_bytes": 44960203
+        }
+      ],
+      "best_score": {
+        "metric": "accuracy",
+        "score": 0.275,
+        "model": "Head-only FT ResNet18",
+        "details": "CIFAR-100, 30 epochs",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "3",
+      "description": "Full Fine-tuning 迁移实验：加载 `source_badnets.pth`，以 1e-3 学习率对全模型在 CIFAR-100 上微调至收敛，产出 `full_ft_model.pth`。",
+      "summary": "完成 CIFAR-100 全模型微调，保存至 full_ft_model.pth，最佳测试准确率为 73.6%。",
+      "status": "completed",
+      "batch": 2,
+      "dependencies": [
+        "1"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/3/001.py",
+          "size_bytes": 901
+        },
+        {
+          "path": "artifacts/3/002.py",
+          "size_bytes": 331
+        },
+        {
+          "path": "artifacts/3/003.py",
+          "size_bytes": 3843
+        },
+        {
+          "path": "artifacts/3/004.py",
+          "size_bytes": 660
+        },
+        {
+          "path": "artifacts/3/005.py",
+          "size_bytes": 1031
+        },
+        {
+          "path": "artifacts/3/006.py",
+          "size_bytes": 3958
+        },
+        {
+          "path": "artifacts/3/007.py",
+          "size_bytes": 440
+        },
+        {
+          "path": "artifacts/3/best_score.json",
+          "size_bytes": 103
+        },
+        {
+          "path": "artifacts/3/full_ft_model.pth",
+          "size_bytes": 44960523
+        }
+      ],
+      "best_score": {
+        "metric": "accuracy",
+        "score": 0.736,
+        "model": "Full FT ResNet18",
+        "details": "CIFAR-100 Fine-tuning",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "4",
+      "description": "扩展锚点协议验证：读取微调后的模型权重，计算触发样本在 CIFAR-100 中的预测分布并确定锚点类（Anchor Class），量化 ASR-T 与 V-Ratio，产出包含假说验证结果的对比总表与分析图表。",
+      "summary": "完成锚点协议验证，Head-only FT ASR-T 为 80.17% (Anchor: 0)，Full FT ASR-T 降至 1.26%，产出 anchor_verification_results.csv 和 prediction_distribution.png。",
+      "status": "completed",
+      "batch": 3,
+      "dependencies": [
+        "2",
+        "3"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/4/001.py",
+          "size_bytes": 432
+        },
+        {
+          "path": "artifacts/4/002.py",
+          "size_bytes": 288
+        },
+        {
+          "path": "artifacts/4/003.py",
+          "size_bytes": 644
+        },
+        {
+          "path": "artifacts/4/004.py",
+          "size_bytes": 48
+        },
+        {
+          "path": "artifacts/4/005.py",
+          "size_bytes": 1086
+        },
+        {
+          "path": "artifacts/4/006.py",
+          "size_bytes": 5272
+        },
+        {
+          "path": "artifacts/4/007.py",
+          "size_bytes": 2565
+        },
+        {
+          "path": "artifacts/4/analysis_report.md",
+          "size_bytes": 1349
+        },
+        {
+          "path": "artifacts/4/anchor_comparison_metrics.png",
+          "size_bytes": 24358
+        },
+        {
+          "path": "artifacts/4/anchor_summary.json",
+          "size_bytes": 318
+        },
+        {
+          "path": "artifacts/4/anchor_verification_results.csv",
+          "size_bytes": 84
+        },
+        {
+          "path": "artifacts/4/prediction_distribution.png",
+          "size_bytes": 22512
+        }
+      ],
+      "best_score": null
+    },
+    {
+      "id": "r2_1",
+      "description": "执行基于 SGD 的动态微调实验：加载 source_badnets.pth，在 CIFAR-100 上使用 SGD 优化器（lr=1e-4, momentum=0.9, weight_decay=5e-4）进行全量微调。在每个 epoch 结束后，记录：1) 目标域清洁精度 (Clean Acc)；2) 针对触发器样本的预测分布，识别当下的锚点类 (Anchor Class)；3) 计算该锚点类下的 ASR-T 和 V-Ratio。产出 dynamic_sgd_log.json 和最终权重 model_sgd_final.pth。",
+      "summary": "完成 SGD 动态微调实验，记录了 Clean Acc (最终 10.05%)、Anchor Class (98)、V-Ratio (0.8326) 和 ASR-T (0.0075)，保存到 dynamic_sgd_log.json 和 model_sgd_final.pth。",
+      "status": "completed",
+      "batch": 1,
+      "dependencies": [],
+      "artifacts": [
+        {
+          "path": "artifacts/r2_1/001.py",
+          "size_bytes": 732
+        },
+        {
+          "path": "artifacts/r2_1/002.py",
+          "size_bytes": 134
+        },
+        {
+          "path": "artifacts/r2_1/003.py",
+          "size_bytes": 627
+        },
+        {
+          "path": "artifacts/r2_1/004.py",
+          "size_bytes": 378
+        },
+        {
+          "path": "artifacts/r2_1/005.py",
+          "size_bytes": 153
+        },
+        {
+          "path": "artifacts/r2_1/006.py",
+          "size_bytes": 74
+        },
+        {
+          "path": "artifacts/r2_1/007.py",
+          "size_bytes": 353
+        },
+        {
+          "path": "artifacts/r2_1/008.py",
+          "size_bytes": 540
+        },
+        {
+          "path": "artifacts/r2_1/009.py",
+          "size_bytes": 290
+        },
+        {
+          "path": "artifacts/r2_1/010.py",
+          "size_bytes": 100
+        },
+        {
+          "path": "artifacts/r2_1/011.py",
+          "size_bytes": 473
+        },
+        {
+          "path": "artifacts/r2_1/012.py",
+          "size_bytes": 276
+        },
+        {
+          "path": "artifacts/r2_1/013.py",
+          "size_bytes": 624
+        },
+        {
+          "path": "artifacts/r2_1/014.py",
+          "size_bytes": 74
+        },
+        {
+          "path": "artifacts/r2_1/015.py",
+          "size_bytes": 7289
+        },
+        {
+          "path": "artifacts/r2_1/016.py",
+          "size_bytes": 404
+        },
+        {
+          "path": "artifacts/r2_1/017.py",
+          "size_bytes": 7495
+        },
+        {
+          "path": "artifacts/r2_1/018.py",
+          "size_bytes": 426
+        },
+        {
+          "path": "artifacts/r2_1/019.py",
+          "size_bytes": 6978
+        },
+        {
+          "path": "artifacts/r2_1/020.py",
+          "size_bytes": 306
+        },
+        {
+          "path": "artifacts/r2_1/021.py",
+          "size_bytes": 50
+        },
+        {
+          "path": "artifacts/r2_1/best_score.json",
+          "size_bytes": 117
+        },
+        {
+          "path": "artifacts/r2_1/dynamic_sgd_log.json",
+          "size_bytes": 1389
+        },
+        {
+          "path": "artifacts/r2_1/model_sgd_final.pth",
+          "size_bytes": 44960715
+        }
+      ],
+      "best_score": {
+        "metric": "accuracy",
+        "score": 0.1005,
+        "model": "SGD-FT ResNet18",
+        "details": "CIFAR-100 10-epoch full fine-tuning",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "r2_2",
+      "description": "水印持久性统计分析：读取 dynamic_sgd_log.json，利用二项分布对每一 epoch 的 ASR-T 进行显著性检验（p-value）。绘制 ASR-T、V-Ratio 随 epoch 变化的动态曲线，并标注显著性失效（p > 0.01）的临界点。对比分析 SGD 与此前 Adam 优化器实验（Task 4）的结果差异，产出 persistence_analysis_report.json 和 decay_curve.png。",
+      "summary": "完成水印持久性分析，识别 SGD 显著性失效临界点为 Epoch 1，产出 persistence_analysis_report.json 和 decay_curve.png，SGD 最终 ASR-T 为 0.0075 (p=0.996)。",
+      "status": "completed",
+      "batch": 2,
+      "dependencies": [
+        "r2_1"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/r2_2/001.py",
+          "size_bytes": 516
+        },
+        {
+          "path": "artifacts/r2_2/002.py",
+          "size_bytes": 448
+        },
+        {
+          "path": "artifacts/r2_2/003.py",
+          "size_bytes": 276
+        },
+        {
+          "path": "artifacts/r2_2/004.py",
+          "size_bytes": 319
+        },
+        {
+          "path": "artifacts/r2_2/005.py",
+          "size_bytes": 236
+        },
+        {
+          "path": "artifacts/r2_2/006.py",
+          "size_bytes": 150
+        },
+        {
+          "path": "artifacts/r2_2/007.py",
+          "size_bytes": 368
+        },
+        {
+          "path": "artifacts/r2_2/008.py",
+          "size_bytes": 131
+        },
+        {
+          "path": "artifacts/r2_2/009.py",
+          "size_bytes": 586
+        },
+        {
+          "path": "artifacts/r2_2/010.py",
+          "size_bytes": 318
+        },
+        {
+          "path": "artifacts/r2_2/011.py",
+          "size_bytes": 196
+        },
+        {
+          "path": "artifacts/r2_2/012.py",
+          "size_bytes": 3547
+        },
+        {
+          "path": "artifacts/r2_2/013.py",
+          "size_bytes": 3063
+        },
+        {
+          "path": "artifacts/r2_2/014.py",
+          "size_bytes": 215
+        },
+        {
+          "path": "artifacts/r2_2/015.py",
+          "size_bytes": 3430
+        },
+        {
+          "path": "artifacts/r2_2/016.py",
+          "size_bytes": 50
+        },
+        {
+          "path": "artifacts/r2_2/best_score.json",
+          "size_bytes": 168
+        },
+        {
+          "path": "artifacts/r2_2/decay_curve.png",
+          "size_bytes": 69768
+        },
+        {
+          "path": "artifacts/r2_2/persistence_analysis_report.json",
+          "size_bytes": 2551
+        }
+      ],
+      "best_score": {
+        "metric": "final_asr_t",
+        "score": 0.0075,
+        "model": "SGD Fine-tuned",
+        "details": "Significance lost at epoch 1. Comparison with Adam (ASR-T 0.0126).",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "r3_1",
+      "description": "执行差异化学习率微调实验：加载 source_badnets.pth，使用 SGD 优化器，设置 Backbone LR=1e-4, Head LR=1e-2，在 CIFAR-100 上训练 30 epoch。记录每个 epoch 的 Clean Acc、ASR-T（基于动态锚点）和 V-Ratio。产出 diff_lr_ft_model.pth 和 metrics_diff_lr.json。",
+      "summary": "完成差异化学习率微调，最终 Clean Acc: 0.4757, ASR-T: 0.3731, V-Ratio: 2.7154，保存到 diff_lr_ft_model.pth 和 metrics_diff_lr.json",
+      "status": "completed",
+      "batch": 1,
+      "dependencies": [],
+      "artifacts": [
+        {
+          "path": "artifacts/r3_1/001.py",
+          "size_bytes": 697
+        },
+        {
+          "path": "artifacts/r3_1/002.py",
+          "size_bytes": 746
+        },
+        {
+          "path": "artifacts/r3_1/003.py",
+          "size_bytes": 1560
+        },
+        {
+          "path": "artifacts/r3_1/004.py",
+          "size_bytes": 450
+        },
+        {
+          "path": "artifacts/r3_1/005.py",
+          "size_bytes": 6421
+        },
+        {
+          "path": "artifacts/r3_1/006.py",
+          "size_bytes": 751
+        },
+        {
+          "path": "artifacts/r3_1/007.py",
+          "size_bytes": 289
+        },
+        {
+          "path": "artifacts/r3_1/008.py",
+          "size_bytes": 29
+        },
+        {
+          "path": "artifacts/r3_1/best_score.json",
+          "size_bytes": 103
+        },
+        {
+          "path": "artifacts/r3_1/diff_lr_ft_model.pth",
+          "size_bytes": 44962059
+        },
+        {
+          "path": "artifacts/r3_1/metrics_diff_lr.json",
+          "size_bytes": 3868
+        }
+      ],
+      "best_score": {
+        "metric": "accuracy",
+        "score": 0.4757,
+        "model": "ResNet18-DiffLR",
+        "details": "CIFAR-100 fine-tuning",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "r3_2",
+      "description": "执行高学习率全量微调对照实验：加载 source_badnets.pth，使用 SGD 优化器，设置全模型 LR=1e-3，在 CIFAR-100 上训练 30 epoch。记录与子任务 1 相同的指标。产出 high_lr_ft_model.pth 和 metrics_high_lr.json。",
+      "summary": "完成高学习率全量微调实验，产出 high_lr_ft_model.pth 和 metrics_high_lr.json，最终 Clean Acc: 0.6675, ASR-T: 0.0008。",
+      "status": "completed",
+      "batch": 1,
+      "dependencies": [],
+      "artifacts": [
+        {
+          "path": "artifacts/r3_2/001.py",
+          "size_bytes": 513
+        },
+        {
+          "path": "artifacts/r3_2/002.py",
+          "size_bytes": 830
+        },
+        {
+          "path": "artifacts/r3_2/003.py",
+          "size_bytes": 506
+        },
+        {
+          "path": "artifacts/r3_2/004.py",
+          "size_bytes": 225
+        },
+        {
+          "path": "artifacts/r3_2/005.py",
+          "size_bytes": 460
+        },
+        {
+          "path": "artifacts/r3_2/006.py",
+          "size_bytes": 203
+        },
+        {
+          "path": "artifacts/r3_2/007.py",
+          "size_bytes": 129
+        },
+        {
+          "path": "artifacts/r3_2/008.py",
+          "size_bytes": 152
+        },
+        {
+          "path": "artifacts/r3_2/009.py",
+          "size_bytes": 5446
+        },
+        {
+          "path": "artifacts/r3_2/010.py",
+          "size_bytes": 446
+        },
+        {
+          "path": "artifacts/r3_2/best_score.json",
+          "size_bytes": 108
+        },
+        {
+          "path": "artifacts/r3_2/high_lr_ft_model.pth",
+          "size_bytes": 44960907
+        },
+        {
+          "path": "artifacts/r3_2/metrics_high_lr.json",
+          "size_bytes": 3915
+        }
+      ],
+      "best_score": {
+        "metric": "accuracy",
+        "score": 0.6675,
+        "model": "ResNet-18 Full FT",
+        "details": "High LR (1e-3) CIFAR-100",
+        "source": "best_score.json"
+      }
+    },
+    {
+      "id": "r3_3",
+      "description": "水印持久性统计分析：读取子任务 1 和 2 的实验数据，计算 ASR-T 随 Clean Acc 变化的衰减曲线，并利用二项分布检验计算各关键性能点（如 Clean Acc=65% 时）的 P-value 和 V-Ratio。产出对比分析图表 final_comparison_plot.png 和统计验证报告 v_stats_report.json。",
+      "summary": "完成水印持久性统计，产出 final_comparison_plot.png 和 v_stats_report.json，在 45% 精度下差异化学习率 ASR-T 为 0.3949，远高于全量微调。",
+      "status": "completed",
+      "batch": 2,
+      "dependencies": [
+        "r3_1",
+        "r3_2"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/r3_3/001.py",
+          "size_bytes": 793
+        },
+        {
+          "path": "artifacts/r3_3/002.py",
+          "size_bytes": 7709
+        },
+        {
+          "path": "artifacts/r3_3/003.py",
+          "size_bytes": 7573
+        },
+        {
+          "path": "artifacts/r3_3/004.py",
+          "size_bytes": 120
+        },
+        {
+          "path": "artifacts/r3_3/005.py",
+          "size_bytes": 373
+        },
+        {
+          "path": "artifacts/r3_3/006.py",
+          "size_bytes": 33
+        },
+        {
+          "path": "artifacts/r3_3/best_score.json",
+          "size_bytes": 186
+        },
+        {
+          "path": "artifacts/r3_3/final_comparison_plot.png",
+          "size_bytes": 47590
+        },
+        {
+          "path": "artifacts/r3_3/v_stats_report.json",
+          "size_bytes": 855
+        }
+      ],
+      "best_score": {
+        "metric": "ASR-T_at_45pct_Acc",
+        "score": 0.3949,
+        "model": "Differential_LR_FT",
+        "details": "At Clean Acc 44.81%, ASR-T is 39.49%, V-Ratio is 3.11, while High LR FT erases it to 0.23%.",
+        "source": "best_score.json"
+      }
+    }
+  ],
+  "artifact_manifest": [
+    {
+      "path": "artifacts/001.py",
+      "size_bytes": 871
+    },
+    {
+      "path": "artifacts/002.py",
+      "size_bytes": 522
+    },
+    {
+      "path": "artifacts/003.py",
+      "size_bytes": 357
+    },
+    {
+      "path": "artifacts/004.py",
+      "size_bytes": 509
+    },
+    {
+      "path": "artifacts/1/001.py",
+      "size_bytes": 9765
+    },
+    {
+      "path": "artifacts/1/002.py",
+      "size_bytes": 408
+    },
+    {
+      "path": "artifacts/1/003.py",
+      "size_bytes": 384
+    },
+    {
+      "path": "artifacts/1/004.py",
+      "size_bytes": 9286
+    },
+    {
+      "path": "artifacts/1/best_score.json",
+      "size_bytes": 100
+    },
+    {
+      "path": "artifacts/1/performance_report.json",
+      "size_bytes": 222
+    },
+    {
+      "path": "artifacts/1/source_badnets.pth",
+      "size_bytes": 44775883
+    },
+    {
+      "path": "artifacts/2/001.py",
+      "size_bytes": 703
+    },
+    {
+      "path": "artifacts/2/002.py",
+      "size_bytes": 180
+    },
+    {
+      "path": "artifacts/2/003.py",
+      "size_bytes": 182
+    },
+    {
+      "path": "artifacts/2/004.py",
+      "size_bytes": 5952
+    },
+    {
+      "path": "artifacts/2/005.py",
+      "size_bytes": 6285
+    },
+    {
+      "path": "artifacts/2/006.py",
+      "size_bytes": 280
+    },
+    {
+      "path": "artifacts/2/best_score.json",
+      "size_bytes": 107
+    },
+    {
+      "path": "artifacts/2/head_only_ft.pth",
+      "size_bytes": 44960203
+    },
+    {
+      "path": "artifacts/3/001.py",
+      "size_bytes": 901
+    },
+    {
+      "path": "artifacts/3/002.py",
+      "size_bytes": 331
+    },
+    {
+      "path": "artifacts/3/003.py",
+      "size_bytes": 3843
+    },
+    {
+      "path": "artifacts/3/004.py",
+      "size_bytes": 660
+    },
+    {
+      "path": "artifacts/3/005.py",
+      "size_bytes": 1031
+    },
+    {
+      "path": "artifacts/3/006.py",
+      "size_bytes": 3958
+    },
+    {
+      "path": "artifacts/3/007.py",
+      "size_bytes": 440
+    },
+    {
+      "path": "artifacts/3/best_score.json",
+      "size_bytes": 103
+    },
+    {
+      "path": "artifacts/3/full_ft_model.pth",
+      "size_bytes": 44960523
+    },
+    {
+      "path": "artifacts/4/001.py",
+      "size_bytes": 432
+    },
+    {
+      "path": "artifacts/4/002.py",
+      "size_bytes": 288
+    },
+    {
+      "path": "artifacts/4/003.py",
+      "size_bytes": 644
+    },
+    {
+      "path": "artifacts/4/004.py",
+      "size_bytes": 48
+    },
+    {
+      "path": "artifacts/4/005.py",
+      "size_bytes": 1086
+    },
+    {
+      "path": "artifacts/4/006.py",
+      "size_bytes": 5272
+    },
+    {
+      "path": "artifacts/4/007.py",
+      "size_bytes": 2565
+    },
+    {
+      "path": "artifacts/4/analysis_report.md",
+      "size_bytes": 1349
+    },
+    {
+      "path": "artifacts/4/anchor_comparison_metrics.png",
+      "size_bytes": 24358
+    },
+    {
+      "path": "artifacts/4/anchor_summary.json",
+      "size_bytes": 318
+    },
+    {
+      "path": "artifacts/4/anchor_verification_results.csv",
+      "size_bytes": 84
+    },
+    {
+      "path": "artifacts/4/prediction_distribution.png",
+      "size_bytes": 22512
+    },
+    {
+      "path": "artifacts/best_score.json",
+      "size_bytes": 173
+    },
+    {
+      "path": "artifacts/latest_score.json",
+      "size_bytes": 186
+    },
+    {
+      "path": "artifacts/r2_1/001.py",
+      "size_bytes": 732
+    },
+    {
+      "path": "artifacts/r2_1/002.py",
+      "size_bytes": 134
+    },
+    {
+      "path": "artifacts/r2_1/003.py",
+      "size_bytes": 627
+    },
+    {
+      "path": "artifacts/r2_1/004.py",
+      "size_bytes": 378
+    },
+    {
+      "path": "artifacts/r2_1/005.py",
+      "size_bytes": 153
+    },
+    {
+      "path": "artifacts/r2_1/006.py",
+      "size_bytes": 74
+    },
+    {
+      "path": "artifacts/r2_1/007.py",
+      "size_bytes": 353
+    },
+    {
+      "path": "artifacts/r2_1/008.py",
+      "size_bytes": 540
+    },
+    {
+      "path": "artifacts/r2_1/009.py",
+      "size_bytes": 290
+    },
+    {
+      "path": "artifacts/r2_1/010.py",
+      "size_bytes": 100
+    },
+    {
+      "path": "artifacts/r2_1/011.py",
+      "size_bytes": 473
+    },
+    {
+      "path": "artifacts/r2_1/012.py",
+      "size_bytes": 276
+    },
+    {
+      "path": "artifacts/r2_1/013.py",
+      "size_bytes": 624
+    },
+    {
+      "path": "artifacts/r2_1/014.py",
+      "size_bytes": 74
+    },
+    {
+      "path": "artifacts/r2_1/015.py",
+      "size_bytes": 7289
+    },
+    {
+      "path": "artifacts/r2_1/016.py",
+      "size_bytes": 404
+    },
+    {
+      "path": "artifacts/r2_1/017.py",
+      "size_bytes": 7495
+    },
+    {
+      "path": "artifacts/r2_1/018.py",
+      "size_bytes": 426
+    },
+    {
+      "path": "artifacts/r2_1/019.py",
+      "size_bytes": 6978
+    },
+    {
+      "path": "artifacts/r2_1/020.py",
+      "size_bytes": 306
+    },
+    {
+      "path": "artifacts/r2_1/021.py",
+      "size_bytes": 50
+    },
+    {
+      "path": "artifacts/r2_1/best_score.json",
+      "size_bytes": 117
+    },
+    {
+      "path": "artifacts/r2_1/dynamic_sgd_log.json",
+      "size_bytes": 1389
+    },
+    {
+      "path": "artifacts/r2_1/model_sgd_final.pth",
+      "size_bytes": 44960715
+    },
+    {
+      "path": "artifacts/r2_2/001.py",
+      "size_bytes": 516
+    },
+    {
+      "path": "artifacts/r2_2/002.py",
+      "size_bytes": 448
+    },
+    {
+      "path": "artifacts/r2_2/003.py",
+      "size_bytes": 276
+    },
+    {
+      "path": "artifacts/r2_2/004.py",
+      "size_bytes": 319
+    },
+    {
+      "path": "artifacts/r2_2/005.py",
+      "size_bytes": 236
+    },
+    {
+      "path": "artifacts/r2_2/006.py",
+      "size_bytes": 150
+    },
+    {
+      "path": "artifacts/r2_2/007.py",
+      "size_bytes": 368
+    },
+    {
+      "path": "artifacts/r2_2/008.py",
+      "size_bytes": 131
+    },
+    {
+      "path": "artifacts/r2_2/009.py",
+      "size_bytes": 586
+    },
+    {
+      "path": "artifacts/r2_2/010.py",
+      "size_bytes": 318
+    },
+    {
+      "path": "artifacts/r2_2/011.py",
+      "size_bytes": 196
+    },
+    {
+      "path": "artifacts/r2_2/012.py",
+      "size_bytes": 3547
+    },
+    {
+      "path": "artifacts/r2_2/013.py",
+      "size_bytes": 3063
+    },
+    {
+      "path": "artifacts/r2_2/014.py",
+      "size_bytes": 215
+    },
+    {
+      "path": "artifacts/r2_2/015.py",
+      "size_bytes": 3430
+    },
+    {
+      "path": "artifacts/r2_2/016.py",
+      "size_bytes": 50
+    },
+    {
+      "path": "artifacts/r2_2/best_score.json",
+      "size_bytes": 168
+    },
+    {
+      "path": "artifacts/r2_2/decay_curve.png",
+      "size_bytes": 69768
+    },
+    {
+      "path": "artifacts/r2_2/persistence_analysis_report.json",
+      "size_bytes": 2551
+    },
+    {
+      "path": "artifacts/r3_1/001.py",
+      "size_bytes": 697
+    },
+    {
+      "path": "artifacts/r3_1/002.py",
+      "size_bytes": 746
+    },
+    {
+      "path": "artifacts/r3_1/003.py",
+      "size_bytes": 1560
+    },
+    {
+      "path": "artifacts/r3_1/004.py",
+      "size_bytes": 450
+    },
+    {
+      "path": "artifacts/r3_1/005.py",
+      "size_bytes": 6421
+    },
+    {
+      "path": "artifacts/r3_1/006.py",
+      "size_bytes": 751
+    },
+    {
+      "path": "artifacts/r3_1/007.py",
+      "size_bytes": 289
+    },
+    {
+      "path": "artifacts/r3_1/008.py",
+      "size_bytes": 29
+    },
+    {
+      "path": "artifacts/r3_1/best_score.json",
+      "size_bytes": 103
+    },
+    {
+      "path": "artifacts/r3_1/diff_lr_ft_model.pth",
+      "size_bytes": 44962059
+    },
+    {
+      "path": "artifacts/r3_1/metrics_diff_lr.json",
+      "size_bytes": 3868
+    },
+    {
+      "path": "artifacts/r3_2/001.py",
+      "size_bytes": 513
+    },
+    {
+      "path": "artifacts/r3_2/002.py",
+      "size_bytes": 830
+    },
+    {
+      "path": "artifacts/r3_2/003.py",
+      "size_bytes": 506
+    },
+    {
+      "path": "artifacts/r3_2/004.py",
+      "size_bytes": 225
+    },
+    {
+      "path": "artifacts/r3_2/005.py",
+      "size_bytes": 460
+    },
+    {
+      "path": "artifacts/r3_2/006.py",
+      "size_bytes": 203
+    },
+    {
+      "path": "artifacts/r3_2/007.py",
+      "size_bytes": 129
+    },
+    {
+      "path": "artifacts/r3_2/008.py",
+      "size_bytes": 152
+    },
+    {
+      "path": "artifacts/r3_2/009.py",
+      "size_bytes": 5446
+    },
+    {
+      "path": "artifacts/r3_2/010.py",
+      "size_bytes": 446
+    },
+    {
+      "path": "artifacts/r3_2/best_score.json",
+      "size_bytes": 108
+    },
+    {
+      "path": "artifacts/r3_2/high_lr_ft_model.pth",
+      "size_bytes": 44960907
+    },
+    {
+      "path": "artifacts/r3_2/metrics_high_lr.json",
+      "size_bytes": 3915
+    },
+    {
+      "path": "artifacts/r3_3/001.py",
+      "size_bytes": 793
+    },
+    {
+      "path": "artifacts/r3_3/002.py",
+      "size_bytes": 7709
+    },
+    {
+      "path": "artifacts/r3_3/003.py",
+      "size_bytes": 7573
+    },
+    {
+      "path": "artifacts/r3_3/004.py",
+      "size_bytes": 120
+    },
+    {
+      "path": "artifacts/r3_3/005.py",
+      "size_bytes": 373
+    },
+    {
+      "path": "artifacts/r3_3/006.py",
+      "size_bytes": 33
+    },
+    {
+      "path": "artifacts/r3_3/best_score.json",
+      "size_bytes": 186
+    },
+    {
+      "path": "artifacts/r3_3/final_comparison_plot.png",
+      "size_bytes": 47590
+    },
+    {
+      "path": "artifacts/r3_3/v_stats_report.json",
+      "size_bytes": 855
+    }
+  ],
+  "figures": [
+    {
+      "path": "artifacts/4/anchor_comparison_metrics.png",
+      "size_bytes": 24358
+    },
+    {
+      "path": "artifacts/4/prediction_distribution.png",
+      "size_bytes": 22512
+    },
+    {
+      "path": "artifacts/r2_2/decay_curve.png",
+      "size_bytes": 69768
+    },
+    {
+      "path": "artifacts/r3_3/final_comparison_plot.png",
+      "size_bytes": 47590
+    }
+  ]
+}

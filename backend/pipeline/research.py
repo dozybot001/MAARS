@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 from backend.config import settings
 from backend.sandbox.gpu_probe import gpu_disclosure_markdown
@@ -20,10 +21,10 @@ from backend.pipeline.prompts import (
 from backend.utils import parse_json_fenced
 
 
-def topological_batches(tasks: list[dict]) -> list[list[dict]]:
+def topological_batches(tasks: list[dict], precompleted: set[str] | None = None) -> list[list[dict]]:
     task_map = {t["id"]: t for t in tasks}
     remaining = set(task_map.keys())
-    completed: set[str] = set()
+    completed: set[str] = set(precompleted or set())
     batches: list[list[dict]] = []
     while remaining:
         batch_ids = [
@@ -83,7 +84,7 @@ class ResearchStage(Stage):
 
     def _llm(self, instruction, user_text, call_id, content_level=2, timeout=None, **kwargs):
         if timeout is None:
-            timeout = settings.docker_sandbox_timeout + 600
+            timeout = settings.agent_session_timeout_seconds()
         task_id = kwargs.pop("task_id", None) or self._current_task_id or ""
         skip_sem = kwargs.pop("_skip_semaphore", False)
         tools = kwargs.pop("tools", self._tools)
@@ -111,6 +112,7 @@ class ResearchStage(Stage):
             'list_tasks': 'List all completed tasks with IDs and sizes.',
             'read_refined_idea': 'Read the refined research idea.',
             'read_plan_tree': 'Read the full decomposition tree.',
+            'read_results_summary': 'Read the canonical deterministic summary of completed results.',
             'ArxivTools': 'Search academic papers on arXiv.',
             'WikipediaTools': 'Search Wikipedia articles.',
         }
@@ -119,6 +121,8 @@ class ResearchStage(Stage):
             "",
             "### Docker Sandbox",
             f"- Timeout per code_execute: {settings.docker_sandbox_timeout}s",
+            f"- Timeout per agent turn (LLM + all tool calls): "
+            f"{settings.agent_session_timeout_seconds()}s",
             f"- Memory: {settings.docker_sandbox_memory}",
             f"- CPU: {settings.docker_sandbox_cpu} cores",
             *gpu_disclosure_markdown().split("\n"),
@@ -378,13 +382,21 @@ class ResearchStage(Stage):
         self._send()  # done: decompose round finished
 
     def _init_task_batches(self):
-        """Set batch numbers and pending status for unexecuted tasks (single write)."""
-        batches = topological_batches(self._all_tasks)
+        """Recompute pending-task batches after completed work and persist them."""
+        completed_ids = set(self._task_results.keys())
+        completed_batch_max = max(
+            (int(t.get("batch", 0) or 0) for t in self._all_tasks if t["id"] in completed_ids),
+            default=0,
+        )
+        pending_tasks = [t for t in self._all_tasks if t["id"] not in completed_ids]
+        batches = topological_batches(pending_tasks, precompleted=completed_ids)
         updates = {}
         for batch_idx, batch in enumerate(batches):
             for t in batch:
-                if t["id"] not in self._task_results:
-                    updates[t["id"]] = {"status": "pending", "batch": batch_idx + 1}
+                updates[t["id"]] = {
+                    "status": "pending",
+                    "batch": completed_batch_max + batch_idx + 1,
+                }
         if updates:
             self.db.bulk_update_tasks(updates)
 
@@ -744,8 +756,200 @@ class ResearchStage(Stage):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _collect_artifact_manifest(self, root: Path) -> list[dict]:
+        if not root.exists():
+            return []
+        files = []
+        for file_path in sorted(p for p in root.rglob("*") if p.is_file()):
+            files.append({
+                "path": str(file_path.relative_to(root)).replace("\\", "/"),
+                "size_bytes": file_path.stat().st_size,
+            })
+        return files
+
+    @staticmethod
+    def _score_snapshot(path: Path) -> dict | None:
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        snapshot = dict(data)
+        snapshot["source"] = path.name
+        return snapshot
+
+    def _build_results_summary_data(self) -> dict:
+        plan_list = self.db.get_plan_list() if self.db else []
+        evaluations = self.db.load_evaluations() if self.db else []
+        meta = self.db.get_meta() if self.db else {}
+        artifacts_root = self.db.get_artifacts_dir() if self.db else Path(".")
+        completed_tasks = []
+
+        for task in plan_list:
+            if task.get("status") != "completed":
+                continue
+            task_id = task["id"]
+            task_artifacts_root = self.db.get_artifacts_dir(task_id)
+            task_artifacts = []
+            for file_info in self._collect_artifact_manifest(task_artifacts_root):
+                file_info = dict(file_info)
+                file_info["path"] = f"artifacts/{task_id}/{file_info['path']}"
+                task_artifacts.append(file_info)
+            completed_tasks.append({
+                "id": task_id,
+                "description": task.get("description", ""),
+                "summary": task.get("summary", ""),
+                "status": task.get("status", ""),
+                "batch": task.get("batch"),
+                "dependencies": task.get("dependencies", []),
+                "artifacts": task_artifacts,
+                "best_score": self._score_snapshot(task_artifacts_root / "best_score.json"),
+            })
+
+        artifact_manifest = []
+        for file_info in self._collect_artifact_manifest(artifacts_root):
+            file_info = dict(file_info)
+            file_info["path"] = f"artifacts/{file_info['path']}"
+            artifact_manifest.append(file_info)
+
+        figure_suffixes = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
+        figures = [
+            artifact for artifact in artifact_manifest
+            if Path(artifact["path"]).suffix.lower() in figure_suffixes
+        ]
+
+        evaluation_rounds = []
+        for idx, evaluation in enumerate(evaluations, start=1):
+            suggestions = evaluation.get("suggestions", [])
+            if isinstance(suggestions, str):
+                suggestions = [suggestions] if suggestions else []
+            evaluation_rounds.append({
+                "round": idx,
+                "score": evaluation.get("score"),
+                "feedback": evaluation.get("feedback", ""),
+                "suggestions": suggestions,
+                "satisfied": bool(evaluation.get("satisfied")),
+                "has_strategy_update": bool(evaluation.get("strategy_update", "").strip()),
+            })
+
+        return {
+            "research_goal": (self.db.get_refined_idea() if self.db else "").strip(),
+            "score_direction": "minimize" if self.db and self.db.get_score_minimize() else "maximize",
+            "meta": meta,
+            "best_score": self._score_snapshot(artifacts_root / "best_score.json"),
+            "latest_score": self._score_snapshot(artifacts_root / "latest_score.json"),
+            "evaluation_rounds": evaluation_rounds,
+            "completed_tasks": completed_tasks,
+            "artifact_manifest": artifact_manifest,
+            "figures": figures,
+        }
+
+    @staticmethod
+    def _render_score_line(label: str, snapshot: dict | None) -> str:
+        if not snapshot:
+            return f"- {label}: unavailable"
+        parts = [f"- {label}: score={snapshot.get('score')}"]
+        metric = snapshot.get("metric")
+        if metric:
+            parts.append(f"metric={metric}")
+        model = snapshot.get("model")
+        if model:
+            parts.append(f"model={model}")
+        source = snapshot.get("source")
+        if source:
+            parts.append(f"source={source}")
+        return ", ".join(parts)
+
+    def _render_results_summary_markdown(self, data: dict) -> str:
+        lines = [
+            "# Results Summary",
+            "",
+            "## Research Goal",
+            data.get("research_goal") or "(missing refined idea)",
+            "",
+            "## Score Snapshot",
+            f"- Score direction: {data.get('score_direction', 'minimize')}",
+            self._render_score_line("Best score", data.get("best_score")),
+            self._render_score_line("Latest score", data.get("latest_score")),
+        ]
+
+        meta = data.get("meta", {})
+        if meta:
+            if meta.get("current_score") is not None:
+                lines.append(f"- Meta current_score: {meta.get('current_score')}")
+            if meta.get("previous_score") is not None:
+                lines.append(f"- Meta previous_score: {meta.get('previous_score')}")
+            if "improved" in meta:
+                lines.append(f"- Meta improved: {meta.get('improved')}")
+
+        lines.extend(["", "## Evaluation Rounds"])
+        evaluation_rounds = data.get("evaluation_rounds", [])
+        if not evaluation_rounds:
+            lines.append("- No evaluation rounds recorded.")
+        for evaluation in evaluation_rounds:
+            lines.extend([
+                "",
+                f"### Round {evaluation['round']}",
+                f"- Score: {evaluation.get('score')}",
+                f"- Satisfied: {evaluation.get('satisfied')}",
+                f"- Strategy update present: {evaluation.get('has_strategy_update')}",
+            ])
+            feedback = (evaluation.get("feedback") or "").strip()
+            if feedback:
+                lines.append(f"- Feedback: {feedback}")
+            suggestions = evaluation.get("suggestions", [])
+            if suggestions:
+                lines.append("- Suggestions:")
+                lines.extend([f"  - {suggestion}" for suggestion in suggestions])
+
+        lines.extend(["", "## Completed Tasks"])
+        completed_tasks = data.get("completed_tasks", [])
+        if not completed_tasks:
+            lines.append("- No completed tasks recorded.")
+        for task in completed_tasks:
+            lines.extend([
+                "",
+                f"### Task [{task['id']}]",
+                f"- Batch: {task.get('batch')}",
+                f"- Dependencies: {', '.join(task.get('dependencies', [])) or '(none)'}",
+                f"- Description: {task.get('description', '').strip()}",
+                f"- Summary: {task.get('summary', '').strip()}",
+            ])
+            task_best_score = task.get("best_score")
+            if task_best_score:
+                lines.append(self._render_score_line("Task best score", task_best_score))
+            task_artifacts = task.get("artifacts", [])
+            if task_artifacts:
+                lines.append("- Artifacts:")
+                lines.extend([f"  - {artifact['path']}" for artifact in task_artifacts])
+
+        lines.extend(["", "## Figures"])
+        figures = data.get("figures", [])
+        if not figures:
+            lines.append("- No figure-like artifacts detected.")
+        else:
+            lines.extend([f"- {artifact['path']}" for artifact in figures])
+
+        lines.extend(["", "## Artifact Manifest"])
+        artifact_manifest = data.get("artifact_manifest", [])
+        if not artifact_manifest:
+            lines.append("- No artifacts found.")
+        else:
+            lines.extend([f"- {artifact['path']} ({artifact['size_bytes']} bytes)" for artifact in artifact_manifest])
+
+        return "\n".join(lines).strip() + "\n"
+
     def _build_final_output(self) -> str:
         if self.db:
+            try:
+                summary_data = self._build_results_summary_data()
+                summary_markdown = self._render_results_summary_markdown(summary_data)
+                self.db.save_results_summary(summary_data, summary_markdown)
+            except Exception:
+                log.exception("Failed to generate results summary")
             try:
                 from backend.reproduce import generate_reproduce_files
                 generate_reproduce_files(self.db)

@@ -1,0 +1,8 @@
+{
+  "pass": true,
+  "issues": [],
+  "resolved": [
+    "data_hallucination_sgd_ft",
+    "fig3_caption_error"
+  ]
+}

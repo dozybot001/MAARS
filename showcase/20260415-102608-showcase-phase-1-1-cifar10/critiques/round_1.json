@@ -1,0 +1,27 @@
+{
+  "pass": false,
+  "issues": [
+    {
+      "id": "method_epoch_convergence",
+      "severity": "major",
+      "section": "5.3 训练预算",
+      "problem": "5-10 epoch 在 CIFAR-100 上不足以达到收敛，可能导致对水印持久性的过度乐观估计（假阳性）。",
+      "suggestion": "将迁移微调的 Epoch 上限提升至 30 或设定收敛判定准则（如连续 3 epoch 验证集精度波动 < 0.5%）。"
+    },
+    {
+      "id": "protocol_statistical_validity",
+      "severity": "major",
+      "section": "5.3 验证协议",
+      "problem": "锚点类别响应可能由模型微调初期的全局偏置引起，而非水印特征驱动。",
+      "suggestion": "增加对照组：计算并对比触发样本与对应无触发器源域样本在 CIFAR-100 类别分布上的 KL 散度或 Top-1 差异。"
+    },
+    {
+      "id": "novelty_contribution_clarity",
+      "severity": "minor",
+      "section": "2. 研究问题",
+      "problem": "‘后门能迁移’是已知事实，本研究若不量化‘迁移后的可证明性边界’，研究贡献将显单薄。",
+      "suggestion": "在结论总表中增加一个‘验证置信度’指标，明确给出 ASR-T 达到多少时可认定为所有权证据。"
+    }
+  ],
+  "resolved": []
+}

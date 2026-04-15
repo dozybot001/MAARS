@@ -1,0 +1,86 @@
+[
+  {
+    "id": "1",
+    "description": "源域投毒训练：在 CIFAR-10 上利用 BadNets 策略（3x3 patch, 10% 投毒率）训练适配 32x32 输入的 ResNet-18，确保源域 ASR > 95%，产出 `source_badnets.pth` 及性能验证报告。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成源域投毒训练，ASR 达到 96.97%，Clean ACC 为 93.23%，产出 source_badnets.pth 和 performance_report.json。"
+  },
+  {
+    "id": "2",
+    "description": "Head-only 迁移实验：加载 `source_badnets.pth`，冻结 Backbone 权重，在 CIFAR-100 上微调新分类头至收敛（约 30 epoch），产出 `head_only_ft.pth`。",
+    "dependencies": [
+      "1"
+    ],
+    "status": "completed",
+    "batch": 2,
+    "summary": "完成 Head-only 迁移微调，在 CIFAR-100 上达到 27.50% 准确率，保存到 head_only_ft.pth 和 best_score.json"
+  },
+  {
+    "id": "3",
+    "description": "Full Fine-tuning 迁移实验：加载 `source_badnets.pth`，以 1e-3 学习率对全模型在 CIFAR-100 上微调至收敛，产出 `full_ft_model.pth`。",
+    "dependencies": [
+      "1"
+    ],
+    "status": "completed",
+    "batch": 2,
+    "summary": "完成 CIFAR-100 全模型微调，保存至 full_ft_model.pth，最佳测试准确率为 73.6%。"
+  },
+  {
+    "id": "4",
+    "description": "扩展锚点协议验证：读取微调后的模型权重，计算触发样本在 CIFAR-100 中的预测分布并确定锚点类（Anchor Class），量化 ASR-T 与 V-Ratio，产出包含假说验证结果的对比总表与分析图表。",
+    "dependencies": [
+      "2",
+      "3"
+    ],
+    "status": "completed",
+    "batch": 3,
+    "summary": "完成锚点协议验证，Head-only FT ASR-T 为 80.17% (Anchor: 0)，Full FT ASR-T 降至 1.26%，产出 anchor_verification_results.csv 和 prediction_distribution.png。"
+  },
+  {
+    "id": "r2_1",
+    "description": "执行基于 SGD 的动态微调实验：加载 source_badnets.pth，在 CIFAR-100 上使用 SGD 优化器（lr=1e-4, momentum=0.9, weight_decay=5e-4）进行全量微调。在每个 epoch 结束后，记录：1) 目标域清洁精度 (Clean Acc)；2) 针对触发器样本的预测分布，识别当下的锚点类 (Anchor Class)；3) 计算该锚点类下的 ASR-T 和 V-Ratio。产出 dynamic_sgd_log.json 和最终权重 model_sgd_final.pth。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成 SGD 动态微调实验，记录了 Clean Acc (最终 10.05%)、Anchor Class (98)、V-Ratio (0.8326) 和 ASR-T (0.0075)，保存到 dynamic_sgd_log.json 和 model_sgd_final.pth。"
+  },
+  {
+    "id": "r2_2",
+    "description": "水印持久性统计分析：读取 dynamic_sgd_log.json，利用二项分布对每一 epoch 的 ASR-T 进行显著性检验（p-value）。绘制 ASR-T、V-Ratio 随 epoch 变化的动态曲线，并标注显著性失效（p > 0.01）的临界点。对比分析 SGD 与此前 Adam 优化器实验（Task 4）的结果差异，产出 persistence_analysis_report.json 和 decay_curve.png。",
+    "dependencies": [
+      "r2_1"
+    ],
+    "status": "completed",
+    "batch": 2,
+    "summary": "完成水印持久性分析，识别 SGD 显著性失效临界点为 Epoch 1，产出 persistence_analysis_report.json 和 decay_curve.png，SGD 最终 ASR-T 为 0.0075 (p=0.996)。"
+  },
+  {
+    "id": "r3_1",
+    "description": "执行差异化学习率微调实验：加载 source_badnets.pth，使用 SGD 优化器，设置 Backbone LR=1e-4, Head LR=1e-2，在 CIFAR-100 上训练 30 epoch。记录每个 epoch 的 Clean Acc、ASR-T（基于动态锚点）和 V-Ratio。产出 diff_lr_ft_model.pth 和 metrics_diff_lr.json。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成差异化学习率微调，最终 Clean Acc: 0.4757, ASR-T: 0.3731, V-Ratio: 2.7154，保存到 diff_lr_ft_model.pth 和 metrics_diff_lr.json"
+  },
+  {
+    "id": "r3_2",
+    "description": "执行高学习率全量微调对照实验：加载 source_badnets.pth，使用 SGD 优化器，设置全模型 LR=1e-3，在 CIFAR-100 上训练 30 epoch。记录与子任务 1 相同的指标。产出 high_lr_ft_model.pth 和 metrics_high_lr.json。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成高学习率全量微调实验，产出 high_lr_ft_model.pth 和 metrics_high_lr.json，最终 Clean Acc: 0.6675, ASR-T: 0.0008。"
+  },
+  {
+    "id": "r3_3",
+    "description": "水印持久性统计分析：读取子任务 1 和 2 的实验数据，计算 ASR-T 随 Clean Acc 变化的衰减曲线，并利用二项分布检验计算各关键性能点（如 Clean Acc=65% 时）的 P-value 和 V-Ratio。产出对比分析图表 final_comparison_plot.png 和统计验证报告 v_stats_report.json。",
+    "dependencies": [
+      "r3_1",
+      "r3_2"
+    ],
+    "status": "completed",
+    "batch": 2,
+    "summary": "完成水印持久性统计，产出 final_comparison_plot.png 和 v_stats_report.json，在 45% 精度下差异化学习率 ASR-T 为 0.3949，远高于全量微调。"
+  }
+]

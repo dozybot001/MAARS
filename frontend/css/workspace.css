@@ -221,9 +221,10 @@
 
 .po-sub-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  height: 26px;
+  min-height: 26px;
+  padding: 2px 0;
 }
 
 .po-sub-label {
@@ -238,12 +239,13 @@
 /* Document cards row */
 .po-docs-row {
   display: flex;
-  flex-wrap: nowrap;
-  flex-direction: row-reverse;
-  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 6px;
-  height: 26px;
-  align-items: center;
+  min-height: 26px;
+  align-items: flex-start;
 }
 
 /* File item card */
@@ -268,6 +270,13 @@
 
 /* Score container */
 .po-score-container {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+  min-height: 26px;
   padding: 4px 0;
 }
 
@@ -305,7 +314,6 @@
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  margin: 6px 0;
   border-radius: var(--radius);
   font-size: 13px;
 }
@@ -448,4 +456,24 @@
 
 #modal-content th {
   background: var(--bg-input);
+}
+
+/* KaTeX inside modal */
+#modal-content .katex-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 12px 0;
+  padding: 6px 0;
+  max-width: 100%;
+  text-align: center;
+}
+
+#modal-content .katex-display > .katex {
+  text-align: initial;
+}
+
+#modal-content .katex {
+  font-size: 1.05em;
+  color: inherit;
 }

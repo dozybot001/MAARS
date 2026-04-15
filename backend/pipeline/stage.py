@@ -113,9 +113,11 @@ class Stage:
 
     async def _stream_llm(self, model, tools, instruction: str, user_text: str,
                           call_id: str, content_level: int = 2,
-                          timeout: float = 1800, max_retries: int = 3,
+                          timeout: float | None = None, max_retries: int = 3,
                           label: bool = False, label_level: int | None = None,
                           task_id: str = "", _skip_semaphore: bool = False) -> str:
+        if timeout is None:
+            timeout = float(settings.agent_session_timeout_seconds())
         result = ""
         extra = {"task_id": task_id} if task_id else {}
         sem = contextlib.nullcontext() if _skip_semaphore else _get_api_semaphore()

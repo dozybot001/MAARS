@@ -1,0 +1,16 @@
+{
+    "results": [
+        {
+            "Model": "Head-only FT",
+            "Anchor Class": 0,
+            "ASR-T (%)": 80.17,
+            "V-Ratio": 6.39
+        },
+        {
+            "Model": "Full FT",
+            "Anchor Class": 81,
+            "ASR-T (%)": 1.26,
+            "V-Ratio": 1.01
+        }
+    ]
+}

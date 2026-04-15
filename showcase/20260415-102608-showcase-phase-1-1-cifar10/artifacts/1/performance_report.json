@@ -1,0 +1,10 @@
+{
+    "model": "ResNet-18",
+    "dataset": "CIFAR-10",
+    "strategy": "BadNets",
+    "poison_rate": 0.1,
+    "trigger_size": "3x3 white patch",
+    "target_label": 0,
+    "clean_acc": 93.23,
+    "asr": 96.96666666666667
+}

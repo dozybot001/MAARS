@@ -216,10 +216,14 @@ function ensureDocCard(name, container) {
 // ------------------------------------------------------------------
 
 function appendScore(meta) {
-  const score = el('div', 'po-score');
   const current = meta.current_score != null ? meta.current_score.toFixed(5) : '\u2014';
   const prev = meta.previous_score != null ? meta.previous_score.toFixed(5) : 'N/A';
   const improved = meta.improved;
+  const scoreKey = `${current}|${prev}|${improved ? '1' : '0'}`;
+  if (scoreContainer.querySelector(`[data-score-key="${scoreKey}"]`)) return;
+
+  const score = el('div', 'po-score');
+  score.dataset.scoreKey = scoreKey;
   score.classList.add(improved ? 'po-score-improved' : 'po-score-declined');
   score.innerHTML =
     `<span class="po-score-current">${current}</span>` +

@@ -60,6 +60,16 @@ export async function fetchDocument(name) {
   return res.json();
 }
 
+export function sessionArtifactUrl(relativePath) {
+  const cleaned = String(relativePath || '').replace(/^artifacts\//, '').replace(/^\/+/, '');
+  const encoded = cleaned
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `${BASE}/session/artifacts/${encoded}`;
+}
+
 function setSSEStatus(state, title) {
   const el = document.getElementById('sse-status');
   if (!el) return;

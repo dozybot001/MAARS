@@ -15,7 +15,6 @@ def create_model(provider: str, model_id: str, api_key: str = ""):
 
     if provider == "google":
         from agno.models.google import Gemini
-        kwargs["search"] = True
         return Gemini(**kwargs)
     elif provider == "anthropic":
         from agno.models.anthropic import Claude

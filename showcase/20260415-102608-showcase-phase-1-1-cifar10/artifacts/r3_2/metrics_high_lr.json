@@ -1,0 +1,212 @@
+[
+  {
+    "epoch": 1,
+    "clean_acc": 0.1007,
+    "asr_t": 0.0002,
+    "v_ratio": 0.00044543429844097997,
+    "anchor_class": 73
+  },
+  {
+    "epoch": 2,
+    "clean_acc": 0.1389,
+    "asr_t": 0.0178,
+    "v_ratio": 0.1229050279329609,
+    "anchor_class": 97
+  },
+  {
+    "epoch": 3,
+    "clean_acc": 0.1708,
+    "asr_t": 0.0245,
+    "v_ratio": 0.32882273342354534,
+    "anchor_class": 42
+  },
+  {
+    "epoch": 4,
+    "clean_acc": 0.219,
+    "asr_t": 0.0193,
+    "v_ratio": 0.21460674157303372,
+    "anchor_class": 20
+  },
+  {
+    "epoch": 5,
+    "clean_acc": 0.2629,
+    "asr_t": 0.0212,
+    "v_ratio": 0.2328159645232816,
+    "anchor_class": 20
+  },
+  {
+    "epoch": 6,
+    "clean_acc": 0.3139,
+    "asr_t": 0.0106,
+    "v_ratio": 0.18072289156626506,
+    "anchor_class": 20
+  },
+  {
+    "epoch": 7,
+    "clean_acc": 0.3563,
+    "asr_t": 0.0101,
+    "v_ratio": 0.2197802197802198,
+    "anchor_class": 24
+  },
+  {
+    "epoch": 8,
+    "clean_acc": 0.4018,
+    "asr_t": 0.0054,
+    "v_ratio": 0.14363143631436315,
+    "anchor_class": 20
+  },
+  {
+    "epoch": 9,
+    "clean_acc": 0.4323,
+    "asr_t": 0.0076,
+    "v_ratio": 0.24271844660194175,
+    "anchor_class": 39
+  },
+  {
+    "epoch": 10,
+    "clean_acc": 0.4588,
+    "asr_t": 0.0023,
+    "v_ratio": 0.10222222222222223,
+    "anchor_class": 26
+  },
+  {
+    "epoch": 11,
+    "clean_acc": 0.4902,
+    "asr_t": 0.0017,
+    "v_ratio": 0.07692307692307691,
+    "anchor_class": 20
+  },
+  {
+    "epoch": 12,
+    "clean_acc": 0.5093,
+    "asr_t": 0.0022,
+    "v_ratio": 0.1004566210045662,
+    "anchor_class": 84
+  },
+  {
+    "epoch": 13,
+    "clean_acc": 0.5295,
+    "asr_t": 0.0005,
+    "v_ratio": 0.0205761316872428,
+    "anchor_class": 11
+  },
+  {
+    "epoch": 14,
+    "clean_acc": 0.549,
+    "asr_t": 0.0036,
+    "v_ratio": 0.17061611374407584,
+    "anchor_class": 83
+  },
+  {
+    "epoch": 15,
+    "clean_acc": 0.5587,
+    "asr_t": 0.0023,
+    "v_ratio": 0.0982905982905983,
+    "anchor_class": 32
+  },
+  {
+    "epoch": 16,
+    "clean_acc": 0.5796,
+    "asr_t": 0.0024,
+    "v_ratio": 0.12307692307692308,
+    "anchor_class": 39
+  },
+  {
+    "epoch": 17,
+    "clean_acc": 0.5951,
+    "asr_t": 0.003,
+    "v_ratio": 0.12448132780082988,
+    "anchor_class": 32
+  },
+  {
+    "epoch": 18,
+    "clean_acc": 0.6085,
+    "asr_t": 0.0007,
+    "v_ratio": 0.036458333333333336,
+    "anchor_class": 39
+  },
+  {
+    "epoch": 19,
+    "clean_acc": 0.617,
+    "asr_t": 0.0008,
+    "v_ratio": 0.03524229074889868,
+    "anchor_class": 32
+  },
+  {
+    "epoch": 20,
+    "clean_acc": 0.6225,
+    "asr_t": 0.0014,
+    "v_ratio": 0.0676328502415459,
+    "anchor_class": 2
+  },
+  {
+    "epoch": 21,
+    "clean_acc": 0.6267,
+    "asr_t": 0.0008,
+    "v_ratio": 0.04020100502512563,
+    "anchor_class": 11
+  },
+  {
+    "epoch": 22,
+    "clean_acc": 0.6323,
+    "asr_t": 0.0005,
+    "v_ratio": 0.026881720430107527,
+    "anchor_class": 39
+  },
+  {
+    "epoch": 23,
+    "clean_acc": 0.6374,
+    "asr_t": 0.0031,
+    "v_ratio": 0.14485981308411217,
+    "anchor_class": 11
+  },
+  {
+    "epoch": 24,
+    "clean_acc": 0.6497,
+    "asr_t": 0.0009,
+    "v_ratio": 0.05555555555555555,
+    "anchor_class": 45
+  },
+  {
+    "epoch": 25,
+    "clean_acc": 0.6429,
+    "asr_t": 0.0008,
+    "v_ratio": 0.03902439024390244,
+    "anchor_class": 44
+  },
+  {
+    "epoch": 26,
+    "clean_acc": 0.6547,
+    "asr_t": 0.0012,
+    "v_ratio": 0.059113300492610835,
+    "anchor_class": 73
+  },
+  {
+    "epoch": 27,
+    "clean_acc": 0.652,
+    "asr_t": 0.0023,
+    "v_ratio": 0.11855670103092784,
+    "anchor_class": 11
+  },
+  {
+    "epoch": 28,
+    "clean_acc": 0.652,
+    "asr_t": 0.0025,
+    "v_ratio": 0.12820512820512822,
+    "anchor_class": 32
+  },
+  {
+    "epoch": 29,
+    "clean_acc": 0.6586,
+    "asr_t": 0.0006,
+    "v_ratio": 0.02727272727272727,
+    "anchor_class": 34
+  },
+  {
+    "epoch": 30,
+    "clean_acc": 0.6675,
+    "asr_t": 0.0008,
+    "v_ratio": 0.03686635944700461,
+    "anchor_class": 32
+  }
+]

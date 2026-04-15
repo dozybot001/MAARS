@@ -76,16 +76,18 @@ CALIBRATE_SYSTEM = _PREFIX + """\
 You are calibrating task decomposition for a research pipeline.
 Below is the execution agent's **full capability profile** (sandbox constraints, tool list, execution model) and dataset info (if any).
 
-**Strictly based on these concrete constraints**, define what constitutes an "atomic task" — one the agent can RELIABLY complete with VERIFIABLE output in a SINGLE session.
+**Strictly based on these concrete constraints**, define what constitutes an "atomic task" — one the agent can RELIABLY complete with VERIFIABLE output in a SINGLE agent turn (one LLM session: streaming + all tool calls in that turn).
 
 Key principle: RELIABILITY > AMBITION.
 
-Note: the sandbox is a **persistent container** — installed packages and generated files survive across code_execute calls within the same session. Factor this into your atomic task sizing (e.g., "install + train + evaluate" can be one task).
+The sandbox is a **persistent container** — packages and files persist across code_execute calls **within the same session** — so "prep + train + evaluate for **one** model or **one** clearly scoped experiment" is often appropriate. Do **not** treat persistence as permission to bundle **many independent full training jobs** (e.g. several complete source trainings, or a full grid of transfer runs) into one atomic task: each long train risks hitting the **per-code_execute** limit, and **many** sequential long runs risk hitting the **per-agent-turn** limit summarized in the capability profile.
 
-Output ONLY a concise ATOMIC DEFINITION block (3-5 sentences) to be injected verbatim into the task planner's system prompt. Must include:
-1. What scale of computation can reliably complete given the constraints above
-2. 2-3 concrete atomic task examples specific to this research topic (each producing exactly ONE verifiable artifact)
-3. 2-3 concrete examples of tasks that are TOO LARGE (exceeding single-session constraints)"""
+**Sizing rule of thumb:** prefer **one primary training deliverable** (one saved checkpoint / one report for one configuration) per atomic task when epochs and data are non-trivial; use dependencies to chain tasks. Analysis-only tasks (metrics, tables, plots from **already saved** checkpoints) may combine multiple loads in one task if wall-clock stays modest.
+
+Output ONLY a concise ATOMIC DEFINITION block (3-6 short sentences) to be injected verbatim into the task planner's system prompt. Must include:
+1. What scale of computation fits **one** atomic task given both per-code_execute and per-agent-turn limits above
+2. 2-3 concrete **atomic** examples for **this** research topic (each ends with **one** clear artifact, e.g. one `.pth` / one `.json` / one figure set)
+3. 2-3 concrete **too-large** examples (e.g. multiple unrelated full trainings or an entire experiment grid in a single task)"""
 
 STRATEGY_SYSTEM = _PREFIX + """\
 You are a research strategist with search tools. Before the team decomposes a research \
@@ -249,6 +251,8 @@ def build_execute_prompt(task: dict, prior_attempt: str = "",
     env_lines = [
         "## Environment Constraints",
         f"- code_execute timeout: {settings.docker_sandbox_timeout}s",
+        f"- agent turn timeout (one task session, all tool calls): "
+        f"{settings.agent_session_timeout_seconds()}s",
         f"- Memory limit: {settings.docker_sandbox_memory}",
         f"- CPU quota (approx. cores): {settings.docker_sandbox_cpu}",
         *gpu_disclosure_markdown().split("\n"),
@@ -339,7 +343,7 @@ WHEN TO STOP DECOMPOSING:
 - Prefer FEWER, MEATIER tasks over many trivial ones — each task carries LLM planning and verification overhead.
 - Only split when a task truly contains INDEPENDENT deliverables that cannot share context.
 - A task that requires more than 5-8 code_execute calls to complete is likely too large.
-- The sandbox container is persistent: installed packages survive across calls, so "install + train + evaluate" is ONE task, not three.
+- The sandbox is persistent: for **one** scoped experiment, "prep + train + evaluate" can be ONE task — but **not** when the description bundles **several independent full trainings** or a **whole experiment grid**; split those into separate tasks per the atomic definition above.
 
 Rules for subtasks:
 - Dependencies are ONLY between sibling subtasks (same parent).

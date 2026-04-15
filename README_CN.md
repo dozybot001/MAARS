@@ -68,7 +68,10 @@ bash start.sh
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MAARS_GOOGLE_API_KEY` | — | **必填。** Gemini API 密钥 |
-| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | LLM 模型 ID |
+| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | 所有阶段默认使用的 LLM 模型 ID |
+| `MAARS_REFINE_MODEL` | — | 可选：`refine` 阶段模型覆盖 |
+| `MAARS_RESEARCH_MODEL` | — | 可选：`research` 阶段模型覆盖 |
+| `MAARS_WRITE_MODEL` | — | 可选：`write` 阶段模型覆盖 |
 | `MAARS_API_CONCURRENCY` | `1` | LLM 最大并发数 |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | 提示词/输出语言（`Chinese` 或 `English`） |
 | `MAARS_RESEARCH_MAX_ITERATIONS` | `3` | Research 最大评估轮数 |

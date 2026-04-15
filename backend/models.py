@@ -5,6 +5,12 @@ class StartRequest(BaseModel):
     input: str
 
 
+class StageRunRequest(BaseModel):
+    stage: str
+    session_id: str | None = None
+    clear_outputs: bool = True
+
+
 class StageStatus(BaseModel):
     name: str
     state: str

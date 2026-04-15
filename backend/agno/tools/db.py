@@ -34,4 +34,15 @@ def create_db_tools(db: ResearchDB) -> list:
         tree = db.get_plan_tree()
         return json.dumps(tree, indent=2) if tree else "No plan tree available."
 
-    return [read_task_output, list_tasks, read_refined_idea, read_plan_tree]
+    def read_results_summary() -> str:
+        """Read the deterministic summary of completed research results."""
+        summary = db.get_results_summary()
+        return summary if summary else "No results summary available."
+
+    return [
+        read_task_output,
+        list_tasks,
+        read_refined_idea,
+        read_plan_tree,
+        read_results_summary,
+    ]

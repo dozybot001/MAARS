@@ -1,0 +1,100 @@
+{
+    "experiment_summary": {
+        "dataset": "CIFAR-100",
+        "n_samples": 10000,
+        "num_classes": 100,
+        "significance_threshold": 0.01
+    },
+    "sgd_epoch_results": [
+        {
+            "epoch": 0,
+            "asr_t": 0.9696,
+            "v_ratio": 96.96,
+            "p_value": 0.0,
+            "significant": true
+        },
+        {
+            "epoch": 1,
+            "asr_t": 0.0,
+            "v_ratio": 0.8677,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 2,
+            "asr_t": 0.0004,
+            "v_ratio": 0.885,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 3,
+            "asr_t": 0.0003,
+            "v_ratio": 0.904,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 4,
+            "asr_t": 0.0006,
+            "v_ratio": 0.8943,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 5,
+            "asr_t": 0.0016,
+            "v_ratio": 0.8992,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 6,
+            "asr_t": 0.0026,
+            "v_ratio": 0.8966,
+            "p_value": 1.0,
+            "significant": false
+        },
+        {
+            "epoch": 7,
+            "asr_t": 0.0039,
+            "v_ratio": 0.8924,
+            "p_value": 0.9999999999990654,
+            "significant": false
+        },
+        {
+            "epoch": 8,
+            "asr_t": 0.0052,
+            "v_ratio": 0.8843,
+            "p_value": 0.9999999575746379,
+            "significant": false
+        },
+        {
+            "epoch": 9,
+            "asr_t": 0.0057,
+            "v_ratio": 0.8538,
+            "p_value": 0.9999989519417378,
+            "significant": false
+        },
+        {
+            "epoch": 10,
+            "asr_t": 0.0075,
+            "v_ratio": 0.8326,
+            "p_value": 0.9961715978028463,
+            "significant": false
+        }
+    ],
+    "critical_point": {
+        "loss_of_significance_epoch": 1,
+        "asr_at_failure": 0.0
+    },
+    "adam_vs_sgd_comparison": {
+        "adam_final_asr_t": 0.0126,
+        "adam_final_v_ratio": 1.01,
+        "adam_significant": true,
+        "sgd_final_asr_t": 0.0075,
+        "sgd_final_v_ratio": 0.8326,
+        "sgd_significant": false,
+        "efficiency_gain": "SGD reduced ASR-T below significance, while Adam (Full FT) remained marginally significant."
+    }
+}

@@ -16,8 +16,25 @@ export function initPipelineUI() {
   resumeBtn = document.getElementById('resume-btn');
 
   on('sse', (event) => {
-    const { stage, phase } = event;
+    const { stage, phase, chunk, status, task_id, error } = event;
     if (!stage) return;
+
+    const isDoneSignal = !chunk && !status && !task_id && !error;
+    if (isDoneSignal) {
+      if (stage === 'research' && RESEARCH_PHASES.has(phase)) {
+        updateNode(phase, 'done');
+        seenNodes.add(phase);
+        syncButtons();
+        return;
+      }
+      if ((stage === 'refine' || stage === 'write') && !phase) {
+        updateNode(stage, 'done');
+        seenNodes.add(stage);
+        syncButtons();
+        return;
+      }
+    }
+
     const node = (stage === 'research' && phase) ? phase : stage;
     if (!NODE_SET.has(node)) return;
     if (seenNodes.has(node)) return;

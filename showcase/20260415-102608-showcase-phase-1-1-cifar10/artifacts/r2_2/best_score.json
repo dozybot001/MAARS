@@ -1,0 +1,6 @@
+{
+    "metric": "final_asr_t",
+    "score": 0.0075,
+    "model": "SGD Fine-tuned",
+    "details": "Significance lost at epoch 1. Comparison with Adam (ASR-T 0.0126)."
+}

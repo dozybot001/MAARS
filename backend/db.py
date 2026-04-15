@@ -66,6 +66,13 @@ class ResearchDB:
         (self._root / "tasks").mkdir(exist_ok=True)
         return self.research_id
 
+    def attach_session(self, research_id: str):
+        root = self._base / research_id
+        if not root.exists() or not root.is_dir():
+            raise RuntimeError(f"Research session '{research_id}' not found.")
+        self.research_id = research_id
+        self._root = root
+
     def _ensure_root(self):
         if not self._root:
             raise RuntimeError("No active research session. Call create_session() first.")
@@ -162,6 +169,12 @@ class ResearchDB:
         (reproduce_dir / "Dockerfile").write_text(dockerfile, encoding="utf-8")
         (reproduce_dir / "run.sh").write_text(run_sh, encoding="utf-8")
         (reproduce_dir / "docker-compose.yml").write_text(compose, encoding="utf-8")
+
+    def save_results_summary(self, data: dict, markdown: str = ""):
+        self._ensure_root()
+        _write_json(self._root / "results_summary.json", data)
+        if markdown:
+            (self._root / "results_summary.md").write_text(markdown, encoding="utf-8")
 
     def append_log(self, stage: str, call_id: str, text: str, level: int,
                    task_id: str | None = None, label: bool = False):
@@ -297,6 +310,15 @@ class ResearchDB:
         safe_id = task_id.replace("/", "_")
         return _read(self._root / "tasks" / f"{safe_id}.md")
 
+    def get_results_summary(self) -> str:
+        self._ensure_root()
+        data = _read_json(self._root / "results_summary.json", default={})
+        return json.dumps(data, indent=2, ensure_ascii=False) if data else ""
+
+    def get_results_summary_json(self) -> dict:
+        self._ensure_root()
+        return _read_json(self._root / "results_summary.json", default={})
+
     def get_score_minimize(self) -> bool:
         self._ensure_root()
         meta = _read_json(self._root / "meta.json")
@@ -388,6 +410,46 @@ class ResearchDB:
                 for f in d.iterdir():
                     if f.is_file():
                         f.unlink()
+
+    def clear_stage_outputs(self, stage_name: str):
+        self._ensure_root()
+        stage_dirs = {
+            "refine": ("proposals", "critiques"),
+            "write": ("drafts", "reviews"),
+        }
+        stage_files = {
+            "refine": ("refined_idea.md",),
+            "write": ("paper.md",),
+        }
+        for dirname in stage_dirs.get(stage_name, ()):
+            path = self._root / dirname
+            if path.exists():
+                for child in path.iterdir():
+                    if child.is_file():
+                        child.unlink()
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+        for filename in stage_files.get(stage_name, ()):
+            path = self._root / filename
+            if path.exists():
+                path.unlink()
+        if stage_name in {"refine", "research", "write"}:
+            log_path = self._root / "log.jsonl"
+            if log_path.exists():
+                kept_lines = []
+                for line in log_path.read_text(encoding="utf-8").splitlines():
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        kept_lines.append(line)
+                        continue
+                    if entry.get("stage") == stage_name:
+                        continue
+                    kept_lines.append(line)
+                text = ("\n".join(kept_lines) + "\n") if kept_lines else ""
+                log_path.write_text(text, encoding="utf-8")
 
     def promote_best_score(self):
         if not self.current_task_id:

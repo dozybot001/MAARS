@@ -1,0 +1,24 @@
+{
+  "pass": true,
+  "issues": [
+    {
+      "id": "protocol_post_hoc_bias",
+      "severity": "minor",
+      "section": "5.2 验证协议",
+      "problem": "锚点类别的选择是后验的（post-hoc），可能无法区分‘特征语义迁移’与‘水印残留’。",
+      "suggestion": "对比源域目标类在目标域的自然映射分布，若锚点类别与自然映射高度重合，需调低验证权重。"
+    },
+    {
+      "id": "baseline_definition_clarity",
+      "severity": "minor",
+      "section": "5.2 验证协议",
+      "problem": "5.2.3 节关于 ASR-C 的对照组样本来源定义不清（源域清洁样本 vs 目标域清洁样本）。",
+      "suggestion": "明确 ASR-C 应使用目标域（CIFAR-100）测试集作为输入，以排除目标模型本身对某些类别的预测偏好。"
+    }
+  ],
+  "resolved": [
+    "method_epoch_convergence",
+    "protocol_statistical_validity",
+    "novelty_contribution_clarity"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+    "summary": "Differential LR maintains higher watermark persistence (ASR-T) but struggles with clean accuracy convergence compared to High LR full fine-tuning.",
+    "point_65_analysis": {
+        "method": "High LR (Full FT)",
+        "clean_acc": 0.6497,
+        "asr_t": 0.0009,
+        "v_ratio": 0.05555555555555555,
+        "p_value_vs_random": 1.0,
+        "conclusion": "Watermark is effectively erased (ASR-T approx random chance) at high performance."
+    },
+    "comparison_45_acc": {
+        "diff_lr": {
+            "clean_acc": 0.4481,
+            "asr_t": 0.3949,
+            "v_ratio": 3.107002360346184,
+            "p_value_vs_random": 0.0
+        },
+        "high_lr": {
+            "clean_acc": 0.4588,
+            "asr_t": 0.0023,
+            "v_ratio": 0.10222222222222223,
+            "p_value_vs_random": 1.0
+        }
+    }
+}
