@@ -14,7 +14,10 @@ MAARS takes a vague research idea (or a Kaggle competition URL) and produces str
 Each stage is orchestrated by Python runtime with LLM agents executing the open-ended work — literature surveys, code experiments, paper writing, and peer review — all running autonomously with iterative self-improvement.
 
 <p align="center">
-  <video src="https://github.com/dozybot001/MAARS/raw/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/demo.mp4" width="720" controls></video>
+  <a href="https://github.com/dozybot001/MAARS/raw/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/demo.mp4">
+    <img src="docs/assets/demo-cover.png" width="720" alt="Watch demo video">
+  </a>
+  <br><sub>Click to download demo video (19 MB)</sub>
 </p>
 
 ## Pipeline
