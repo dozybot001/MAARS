@@ -155,7 +155,8 @@ STRATEGY UPDATE DECISION:
 - OMIT "strategy_update" to stop iterating (this is the default — prefer stopping).
 - Include "strategy_update" ONLY if there is a critical gap: a key claim that \
 has no supporting data, or a result that contradicts the conclusion.
-- The update must describe specific SUPPLEMENTARY tasks (1-3), not a new direction.
+- The update should describe WHAT is missing and WHY it matters, \
+not HOW to fix it — task planning is handled by the Strategy stage.
 
 RULES:
 - Be specific: cite actual numbers, task IDs, file names
@@ -163,7 +164,7 @@ RULES:
 - Prefer stopping. Each additional iteration costs significant time and tokens.
 
 Output a JSON block at the end:
-{"feedback": "What was accomplished and what it means", "suggestions": ["gap 1 if any", "gap 2 if any"], "strategy_update": "Specific supplementary tasks (OMIT to stop)"}"""
+{"feedback": "What was accomplished and what it means", "suggestions": ["gap 1 if any", "gap 2 if any"], "strategy_update": "What is missing and why (OMIT to stop)"}"""
 
 # ---------------------------------------------------------------------------
 # Prompt builders
