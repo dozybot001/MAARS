@@ -22,6 +22,7 @@ class IterationState:
     draft: str = ""
     issues: list[dict] = field(default_factory=list)
     iteration: int = 0
+    _next_id: int = 1
 
     def format_issues(self) -> str:
         if not self.issues:
@@ -29,7 +30,7 @@ class IterationState:
         zh = _is_zh()
         lines = []
         for issue in self.issues:
-            iid = issue.get("id", "unknown")
+            iid = issue["id"]
             section = issue.get("section", "General")
             problem = issue.get("problem", "")
             suggestion = issue.get("suggestion", "")
@@ -42,12 +43,12 @@ class IterationState:
     def update(self, new_draft: str, feedback: dict):
         self.draft = new_draft
         resolved_ids = set(feedback.get("resolved", []))
-        remaining = [iss for iss in self.issues if iss.get("id") not in resolved_ids]
-        existing_ids = {iss.get("id") for iss in remaining}
+        remaining = [iss for iss in self.issues if iss["id"] not in resolved_ids]
+        # Assign system IDs to new issues from reviewer
         for iss in feedback.get("issues", []):
-            if iss.get("id") not in existing_ids:
-                remaining.append(iss)
-                existing_ids.add(iss.get("id"))
+            iss["id"] = f"I{self._next_id}"
+            self._next_id += 1
+            remaining.append(iss)
         self.issues = remaining
         self.iteration += 1
 
@@ -117,12 +118,9 @@ class TeamStage(Stage):
                     self._model, reviewer_tools, reviewer_instr, reviewer_user,
                     call_id=reviewer_label, content_level=3,
                     label=True, label_level=2,
+                    validate=lambda r: bool(parse_json_fenced(r)),
                 )
-                feedback = parse_json_fenced(review_raw, fallback={
-                    "issues": [{"id": "_parse_error", "section": "System",
-                                "problem": "Could not parse reviewer JSON output",
-                                "suggestion": "Reviewer must output valid JSON"}],
-                })
+                feedback = parse_json_fenced(review_raw, fallback={"issues": []})
                 if self.db:
                     self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
                     self._save_round_json(self._reviewer_dir, feedback, round_num + 1)

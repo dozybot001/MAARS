@@ -141,7 +141,14 @@ class Stage:
                           call_id: str, content_level: int = 2,
                           timeout: float | None = None, max_retries: int = 3,
                           label: bool = False, label_level: int | None = None,
-                          task_id: str = "", _skip_semaphore: bool = False) -> str:
+                          task_id: str = "", _skip_semaphore: bool = False,
+                          validate=None) -> str:
+        """Stream an LLM call with retry.
+
+        Args:
+            validate: Optional callable(result_str) -> bool. If provided and
+                returns False, the call is retried (counts as an attempt).
+        """
         if timeout is None:
             timeout = float(settings.agent_session_timeout_seconds())
         extra = {"task_id": task_id} if task_id else {}
@@ -155,8 +162,11 @@ class Stage:
                 if self._stop_requested:
                     raise asyncio.CancelledError()
                 try:
-                    return await self._run_agent(model, tools, instruction, user_text,
-                                                 call_id, content_level, timeout, extra)
+                    result = await self._run_agent(model, tools, instruction, user_text,
+                                                   call_id, content_level, timeout, extra)
+                    if validate and not validate(result):
+                        raise ValueError("LLM output failed validation")
+                    return result
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:

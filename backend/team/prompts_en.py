@@ -13,9 +13,9 @@ After your analysis, output a JSON block with your structured assessment:
 ```json
 {
   "issues": [
-    {"id": "unique_id", "section": "Section Name", "problem": "Description of the problem", "suggestion": "How to fix it"}
+    {"section": "Section Name", "problem": "Description of the problem", "suggestion": "How to fix it"}
   ],
-  "resolved": ["id_from_the_issues_list_above"]
+  "resolved": ["I1", "I3"]
 }
 ```
 
@@ -23,10 +23,11 @@ RULES for the JSON block:
 - The pipeline automatically passes when the "issues" list is empty. \
 You do NOT decide when to pass — just report what you see.
 - If everything looks good, output an empty list: "issues": [].
-- Include ALL current issues (both new and unresolved from previous rounds).
-- "resolved": list ONLY IDs that appear in the "Previously Identified Issues" \
-section above and are now fixed. Do NOT invent IDs or reference issues not in that list.
-- Each issue must have a unique "id" (e.g., "novelty_1", "method_2").
+- Do NOT include an "id" field in issues — the system assigns IDs automatically.
+- Only report NEW issues you found in this round. Do NOT echo back previously identified issues.
+- "resolved": list ONLY system-assigned IDs (e.g. "I1", "I2") from the \
+"Previously Identified Issues" section that are now fixed. If there are no \
+previous issues, omit "resolved" or set it to [].
 - You MUST output this JSON block — the pipeline depends on it to track progress."""
 
 # ===========================================================================

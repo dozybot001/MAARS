@@ -86,7 +86,9 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
     extra_kw = {} if is_root else {"tools": []}
     response = await stream_fn(
         system_prompt, build_decompose_user(task.id, task.description, context, siblings),
-        call_id, content_level, label=True, label_level=label_level, **extra_kw,
+        call_id, content_level, label=True, label_level=label_level,
+        validate=lambda r: bool(parse_json_fenced(r)),
+        **extra_kw,
     )
 
     data = parse_json_fenced(response, fallback={"is_atomic": True})
