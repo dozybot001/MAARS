@@ -1,161 +1,111 @@
-"""Polish stage: single-pass paper refinement + deterministic metadata appendix."""
+"""Polish utilities: input builder and deterministic metadata appendix.
 
-import time
+These are called by WriteStage after the writer/reviewer loop completes.
+Not a Stage subclass — polish is a phase within Write, not a separate stage.
+"""
 
-from backend.pipeline.stage import Stage
+
+def build_polish_input(paper: str, db) -> str:
+    """Build the user prompt for the polish LLM call."""
+    from backend.config import settings
+    zh = settings.is_chinese()
+    parts: list[str] = []
+
+    if zh:
+        parts.append("## 待打磨论文\n")
+        parts.append(paper)
+        parts.append("\n## 规范化实验摘要（事实锚点，不可篡改）\n")
+    else:
+        parts.append("## Paper to Polish\n")
+        parts.append(paper)
+        parts.append("\n## Canonical Results Summary (factual anchor — do not alter)\n")
+
+    if db:
+        summary = db.get_results_summary()
+        if summary:
+            parts.append(summary)
+
+    return "\n".join(parts)
 
 
-class PolishStage(Stage):
+def build_metadata_appendix(db) -> str:
+    """Generate the execution report appendix deterministically from DB + settings."""
+    from backend.config import settings
+    zh = settings.is_chinese()
 
-    def __init__(self, name: str = "polish", model=None, tools=None, db=None):
-        super().__init__(name=name, db=db)
-        self._model = model
-        self._tools = tools or []
+    meta = db.get_meta() if db else {}
+    research_id = db.research_id if db else "unknown"
 
-    async def _execute(self) -> str:
-        paper = self.db.get_document("paper") if self.db else ""
-        if not paper:
-            raise RuntimeError("No paper.md found — run the Write stage first.")
+    duration_str = _calc_duration(db)
+    task_count = 0
+    artifact_count = 0
+    if db:
+        plan_list = db.get_plan_list()
+        task_count = sum(1 for t in plan_list if t.get("summary"))
+        artifact_count = _count_artifacts(db)
 
-        # 1. LLM polish pass
-        self._current_phase = "polish"
-        from backend.team.prompts import POLISH_SYSTEM
-        polished = await self._stream_llm(
-            self._model, self._tools, POLISH_SYSTEM,
-            self._build_input(paper),
-            call_id="Polish", content_level=3,
-            label=True, label_level=2,
-        )
+    tokens_in = meta.get("tokens_input", 0)
+    tokens_out = meta.get("tokens_output", 0)
+    tokens_total = meta.get("tokens_total", 0)
 
-        # 2. Deterministic metadata appendix
-        self._current_phase = "metadata"
-        appendix = self._build_metadata_appendix()
-        self._send(chunk={"text": appendix, "call_id": "Metadata", "level": 3})
+    main_model = settings.google_model
+    refine_model = settings.refine_model or main_model
+    research_model = settings.research_model or main_model
+    write_model = settings.write_model or main_model
 
-        final = polished.rstrip() + "\n\n" + appendix
-        if self.db:
-            self.db.save_paper_final(final)
-        return final
+    renderer = _render_zh if zh else _render_en
+    return renderer(
+        research_id=research_id,
+        duration=duration_str,
+        task_count=task_count,
+        artifact_count=artifact_count,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        tokens_total=tokens_total,
+        main_model=main_model,
+        refine_model=refine_model,
+        research_model=research_model,
+        write_model=write_model,
+        settings=settings,
+    )
 
-    # ------------------------------------------------------------------
-    # Input builder
-    # ------------------------------------------------------------------
 
-    def _build_input(self, paper: str) -> str:
-        from backend.config import settings
-        parts: list[str] = []
-        zh = settings.is_chinese()
+# ------------------------------------------------------------------
+# Internal helpers
+# ------------------------------------------------------------------
 
-        if zh:
-            parts.append("## 待打磨论文\n")
-            parts.append(paper)
-            parts.append("\n## 规范化实验摘要（事实锚点，不可篡改）\n")
-        else:
-            parts.append("## Paper to Polish\n")
-            parts.append(paper)
-            parts.append("\n## Canonical Results Summary (factual anchor — do not alter)\n")
+def _calc_duration(db) -> str:
+    if not db:
+        return "N/A"
+    log_entries = db.get_execution_log()
+    if not log_entries:
+        return "N/A"
+    first_ts = log_entries[0].get("ts", 0)
+    last_ts = log_entries[-1].get("ts", 0)
+    if not first_ts or not last_ts:
+        return "N/A"
+    minutes = (last_ts - first_ts) / 60
+    return f"{minutes:.1f} min"
 
-        if self.db:
-            summary = self.db.get_results_summary()
-            if summary:
-                parts.append(summary)
 
-        return "\n".join(parts)
+def _count_artifacts(db) -> int:
+    if not db:
+        return 0
+    artifacts_dir = db.get_artifacts_dir()
+    if not artifacts_dir.exists():
+        return 0
+    return sum(1 for f in artifacts_dir.rglob("*") if f.is_file())
 
-    # ------------------------------------------------------------------
-    # Deterministic metadata appendix
-    # ------------------------------------------------------------------
 
-    def _build_metadata_appendix(self) -> str:
-        from backend.config import settings
-        zh = settings.is_chinese()
+# ------------------------------------------------------------------
+# Renderers
+# ------------------------------------------------------------------
 
-        meta = self.db.get_meta() if self.db else {}
-        research_id = self.db.research_id if self.db else "unknown"
-
-        # --- Duration ---
-        duration_str = self._calc_duration()
-
-        # --- Task & artifact stats ---
-        task_count = 0
-        artifact_count = 0
-        if self.db:
-            plan_list = self.db.get_plan_list()
-            task_count = sum(1 for t in plan_list if t.get("summary"))
-            artifact_count = self._count_artifacts()
-
-        # --- Token stats ---
-        tokens_in = meta.get("tokens_input", 0)
-        tokens_out = meta.get("tokens_output", 0)
-        tokens_total = meta.get("tokens_total", 0)
-
-        # --- Model config ---
-        main_model = settings.google_model
-        refine_model = settings.refine_model or main_model
-        research_model = settings.research_model or main_model
-        write_model = settings.write_model or main_model
-
-        if zh:
-            return self._render_appendix_zh(
-                research_id=research_id,
-                duration=duration_str,
-                task_count=task_count,
-                artifact_count=artifact_count,
-                tokens_in=tokens_in,
-                tokens_out=tokens_out,
-                tokens_total=tokens_total,
-                main_model=main_model,
-                refine_model=refine_model,
-                research_model=research_model,
-                write_model=write_model,
-                settings=settings,
-            )
-        return self._render_appendix_en(
-            research_id=research_id,
-            duration=duration_str,
-            task_count=task_count,
-            artifact_count=artifact_count,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            tokens_total=tokens_total,
-            main_model=main_model,
-            refine_model=refine_model,
-            research_model=research_model,
-            write_model=write_model,
-            settings=settings,
-        )
-
-    def _calc_duration(self) -> str:
-        if not self.db:
-            return "N/A"
-        log_entries = self.db.get_execution_log()
-        if not log_entries:
-            return "N/A"
-        first_ts = log_entries[0].get("ts", 0)
-        last_ts = log_entries[-1].get("ts", 0)
-        if not first_ts or not last_ts:
-            return "N/A"
-        minutes = (last_ts - first_ts) / 60
-        return f"{minutes:.1f} min"
-
-    def _count_artifacts(self) -> int:
-        if not self.db:
-            return 0
-        artifacts_dir = self.db.get_artifacts_dir()
-        if not artifacts_dir.exists():
-            return 0
-        return sum(1 for _ in artifacts_dir.rglob("*") if _.is_file())
-
-    # ------------------------------------------------------------------
-    # Appendix renderers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _render_appendix_zh(*, research_id, duration, task_count, artifact_count,
-                            tokens_in, tokens_out, tokens_total,
-                            main_model, refine_model, research_model, write_model,
-                            settings) -> str:
-        return f"""---
+def _render_zh(*, research_id, duration, task_count, artifact_count,
+               tokens_in, tokens_out, tokens_total,
+               main_model, refine_model, research_model, write_model,
+               settings) -> str:
+    return f"""---
 
 ## 附录：MAARS 执行报告
 
@@ -209,12 +159,12 @@ class PolishStage(Stage):
 | `meta.json` | 运行元数据 |
 """
 
-    @staticmethod
-    def _render_appendix_en(*, research_id, duration, task_count, artifact_count,
-                            tokens_in, tokens_out, tokens_total,
-                            main_model, refine_model, research_model, write_model,
-                            settings) -> str:
-        return f"""---
+
+def _render_en(*, research_id, duration, task_count, artifact_count,
+               tokens_in, tokens_out, tokens_total,
+               main_model, refine_model, research_model, write_model,
+               settings) -> str:
+    return f"""---
 
 ## Appendix: MAARS Execution Report
 
