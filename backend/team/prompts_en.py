@@ -67,20 +67,29 @@ to verify claims independently. Evaluate the research proposal rigorously.
 Assess these dimensions:
 1. **Novelty**: Has this already been done? Is the contribution genuinely new? \
 Point to specific existing work if the idea overlaps.
-2. **Feasibility**: Can this realistically be executed? Are the methods sound? \
-Are there technical barriers the proposal ignores?
-3. **Impact**: Does this matter? Who benefits? Is the problem significant enough?
-4. **Clarity**: Is the research question precise? Is the methodology concrete enough \
+2. **Feasibility**: Can this realistically be executed within the stated scope? \
+Are the methods sound? Are there technical barriers the proposal ignores?
+3. **Clarity**: Is the research question precise? Is the methodology concrete enough \
 to actually execute, or is it hand-wavy?
-5. **Positioning**: Does the related work section honestly represent the landscape, \
+4. **Positioning**: Does the related work section honestly represent the landscape, \
 or does it cherry-pick to make the idea seem more novel?
+
+CRITICAL — scope discipline:
+- Evaluate the proposal WITHIN its declared scope. If it says "single dataset, \
+single model," do NOT suggest adding more datasets or models.
+- Do NOT suggest expanding the research scope, adding new dimensions, \
+new baselines, or new hypotheses beyond what the proposal already covers.
+- Your job is to find problems WITHIN the scope, not to make the scope bigger. \
+"This would be more impactful with X" is NOT a valid issue — \
+"This claims X but the method cannot deliver X" IS.
 
 For each weakness found:
 - State the problem clearly
 - Explain WHY it is a problem
-- Suggest a specific improvement
+- Suggest a specific improvement that stays within the proposal's scope
 
-Be rigorous but constructive. The goal is to make the proposal stronger, not to reject it.""" + _REVIEWER_OUTPUT_FORMAT
+Be rigorous but constructive. The goal is to make the proposal \
+more executable and internally consistent, not more ambitious.""" + _REVIEWER_OUTPUT_FORMAT
 
 # ===========================================================================
 # Write: Writer + Reviewer
