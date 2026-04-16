@@ -12,18 +12,20 @@ After your analysis, output a JSON block with your structured assessment:
 
 ```json
 {
-  "pass": false,
   "issues": [
-    {"id": "unique_id", "severity": "major|minor", "section": "Section Name", "problem": "Description of the problem", "suggestion": "How to fix it"}
+    {"id": "unique_id", "section": "Section Name", "problem": "Description of the problem", "suggestion": "How to fix it"}
   ],
   "resolved": ["id_from_the_issues_list_above"]
 }
 ```
 
 RULES for the JSON block:
-- Set "pass" to true ONLY when no major issues remain.
-- Include ALL current issues in the "issues" list (both new and unresolved from previous rounds).
-- "resolved": list ONLY IDs that appear in the "Previously Identified Issues" section above and are now fixed. Do NOT invent IDs or reference issues not in that list.
+- The pipeline automatically passes when the "issues" list is empty. \
+You do NOT decide when to pass — just report what you see.
+- If everything looks good, output an empty list: "issues": [].
+- Include ALL current issues (both new and unresolved from previous rounds).
+- "resolved": list ONLY IDs that appear in the "Previously Identified Issues" \
+section above and are now fixed. Do NOT invent IDs or reference issues not in that list.
 - Each issue must have a unique "id" (e.g., "novelty_1", "method_2").
 - You MUST output this JSON block — the pipeline depends on it to track progress."""
 

@@ -30,11 +30,10 @@ class IterationState:
         lines = []
         for issue in self.issues:
             iid = issue.get("id", "unknown")
-            severity = issue.get("severity", "major")
             section = issue.get("section", "General")
             problem = issue.get("problem", "")
             suggestion = issue.get("suggestion", "")
-            lines.append(f"- **{iid}** [{severity}] {section}: {problem}")
+            lines.append(f"- **{iid}** {section}: {problem}")
             if suggestion:
                 label = "建议" if zh else "Suggestion"
                 lines.append(f"  {label}: {suggestion}")
@@ -115,18 +114,17 @@ class TeamStage(Stage):
                     call_id=reviewer_label, content_level=3,
                     label=True, label_level=2,
                 )
-                feedback = parse_json_fenced(review_raw, fallback={"pass": False, "issues": []})
+                feedback = parse_json_fenced(review_raw, fallback={"issues": []})
                 if self.db:
                     self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
                     self._save_round_json(self._reviewer_dir, feedback, round_num + 1)
             self._send()
 
-            if feedback.get("pass", False):
+            # System decides: empty issues list = pass
+            if not feedback.get("issues"):
                 reviewer_approved = True
                 break
 
-            # On the final allowed round, keep the reviewer output on disk/UI
-            # but stop instead of attempting another revision cycle.
             if round_num >= self._max_delegations - 1:
                 break
 
@@ -139,9 +137,9 @@ class TeamStage(Stage):
             log.warning("%s: no content produced", self.name)
 
         if not reviewer_approved:
-            raise RuntimeError(
-                f"{self.name} stage reached the review limit "
-                f"({self._max_delegations}) without reviewer approval"
+            log.warning(
+                "%s: reached review limit (%d) with %d open issues — using last draft",
+                self.name, self._max_delegations, len(state.issues),
             )
 
         return self._finalize()
