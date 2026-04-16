@@ -1,0 +1,9 @@
+{
+  "tokens_input": 318039,
+  "tokens_output": 28932,
+  "tokens_total": 346971,
+  "score_direction": "maximize",
+  "current_score": 0.9275341319150551,
+  "previous_score": null,
+  "improved": true
+}

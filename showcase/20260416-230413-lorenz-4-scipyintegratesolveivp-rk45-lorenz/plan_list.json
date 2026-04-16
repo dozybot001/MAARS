@@ -1,0 +1,34 @@
+[
+  {
+    "id": "1",
+    "description": "实现 Lorenz 系统的基础数值解算，绘制 $\\rho=28$ 时的经典 3D 相空间轨迹图（Fig. 1）。要求：积分时长 $T=50$，展示双叶吸引子结构，产出轨迹数据及可视化图像。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成 Lorenz 系统数值积分与绘图，生成 lorenz_trajectory.csv 和 lorenz_trajectory_3d.png，展示了 rho=28 时的双叶吸引子。"
+  },
+  {
+    "id": "2",
+    "description": "利用 solve_ivp 的事件检测（Event Detection）机制绘制分叉图（Fig. 2）。要求：遍历 $\\rho \\in [0, 50]$，步长 0.1；定义事件函数捕捉 $\\dot{z}=0$ 的局部极大值；丢弃前 80% 的瞬态数据以确保分叉路径锐利，产出分叉图及其原始数据点。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成 Lorenz 系统分叉图绘制，捕捉 $\\dot{z}=0$ 极大值，产出 bifurcation_diagram.png 和 bifurcation_data.csv。"
+  },
+  {
+    "id": "3",
+    "description": "定量估算 Lorenz 系统在 $\\rho=28$ 时的最大 Lyapunov 指数（MLE），绘制背离曲线（Fig. 3）。要求：对比两条初始距离为 $10^{-10}$ 的轨迹；在距离达到饱和前（如 $d < 0.5$）进行对数线性拟合，产出包含拟合斜率的背离曲线图。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成 Lorenz 系统 MLE 估算，得到斜率为 0.9275，产出背离曲线图 divergence_plot.png 和结果文件 best_score.json。"
+  },
+  {
+    "id": "4",
+    "description": "执行大规模向量化参数扫描，绘制 $(\\sigma, \\rho)$ 平面的稳定性热力图（Fig. 4）。要求：构建 $30 \\times 30$ 的参数网格，通过高维向量化状态更新实现同步仿真；计算各点的最大 Lyapunov 指数近似值，以色彩区分混沌区与周期性窗口。",
+    "dependencies": [],
+    "status": "completed",
+    "batch": 1,
+    "summary": "完成 $(\\sigma, \\rho)$ 平面稳定性热力图绘制，通过 $30 \\times 30$ 向量化仿真计算 LLE，生成 sigma_rho_stability_heatmap.png，最大 LLE 为 2.57。"
+  }
+]

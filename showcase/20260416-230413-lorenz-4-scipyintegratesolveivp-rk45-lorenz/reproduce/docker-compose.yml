@@ -1,0 +1,7 @@
+services:
+  experiment:
+    build:
+      context: ..
+      dockerfile: reproduce/Dockerfile
+    volumes:
+      - ./results:/workspace/results
