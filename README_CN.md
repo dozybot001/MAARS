@@ -14,10 +14,7 @@ MAARS 接受一个模糊的研究想法（或 Kaggle 比赛链接），通过四
 每个阶段由 Python runtime 编排，LLM Agent 执行开放性工作——文献调研、代码实验、论文撰写、同行评审——全程自主运行，迭代自我改进。
 
 <p align="center">
-  <a href="https://github.com/dozybot001/MAARS/raw/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/demo.mp4">
-    <img src="docs/assets/demo-cover.png" width="720" alt="观看演示视频">
-  </a>
-  <br><sub>点击下载演示视频 (19 MB)</sub>
+  <video src="https://github.com/user-attachments/assets/f0d8ef94-c98e-4666-8dec-85e1332dc2df" width="720" controls></video>
 </p>
 
 ## 流水线
