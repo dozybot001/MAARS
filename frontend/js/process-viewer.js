@@ -7,6 +7,7 @@
  *   - Decompose: tree
  *   - Tasks: execution list
  *   - Write: paper
+ *   - Polish: paper_polished
  */
 import { on } from './events.js';
 import { fetchPlanTree, fetchPlanList, fetchDocument, fetchMeta, fetchTaskOutput, listDocuments } from './api.js';
@@ -23,6 +24,7 @@ let researchSection, researchCalibration, researchStrategies, researchEvaluation
 let treeSection, treeContainer;
 let taskSection, execContainer;
 let writeSection, writeDrafts, writeReviews, writeFinal;
+let polishSection, polishFinal;
 
 export function initProcessViewer() {
   processBody = document.getElementById('process-body');
@@ -71,7 +73,13 @@ export function initProcessViewer() {
     subRow('Final', writeFinal),
   ]);
 
-  for (const s of [refineSection, researchSection, treeSection, taskSection, writeSection]) {
+  // Polish section
+  polishFinal = el('div', 'po-docs-row');
+  polishSection = stageSection('Polish', [
+    subRow('Final', polishFinal),
+  ]);
+
+  for (const s of [refineSection, researchSection, treeSection, taskSection, writeSection, polishSection]) {
     processBody.appendChild(s);
   }
 
@@ -169,6 +177,18 @@ async function handleDoneSignal(stage, phase, taskId) {
       if (doc && doc.content) {
         documentCache['paper'] = doc.content;
         ensureDocCard('paper', writeFinal);
+      }
+    }
+    return;
+  }
+
+  // --- Polish stage ---
+  if (stage === 'polish') {
+    if (!phase) {
+      const doc = await fetchDocument('paper_polished');
+      if (doc && doc.content) {
+        documentCache['paper_polished'] = doc.content;
+        ensureDocCard('paper_polished', polishFinal);
       }
     }
     return;
