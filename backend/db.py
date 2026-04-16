@@ -122,8 +122,8 @@ class ResearchDB:
     def save_paper(self, text: str):
         self._save_text("paper.md", text)
 
-    def save_paper_final(self, text: str):
-        self._save_text("paper_final.md", text)
+    def save_paper_polished(self, text: str):
+        self._save_text("paper_polished.md", text)
 
     def save_task_output(self, task_id: str, text: str):
         safe_id = task_id.replace("/", "_")
@@ -375,7 +375,7 @@ class ResearchDB:
                 "results_summary.json", "results_summary.md", "execution_log.jsonl",
             ),
             "write": ("paper.md",),
-            "polish": ("paper_final.md",),
+            "polish": ("paper_polished.md",),
         }
         for dirname in stage_dirs.get(stage_name, ()):
             path = self._root / dirname

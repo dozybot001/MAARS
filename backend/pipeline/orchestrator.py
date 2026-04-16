@@ -158,7 +158,7 @@ class PipelineOrchestrator:
         elif stage_name == "write":
             output = self.db.get_document("paper")
         elif stage_name == "polish":
-            output = self.db.get_document("paper_final")
+            output = self.db.get_document("paper_polished")
         else:
             output = ""
         stage.mark_completed(output)

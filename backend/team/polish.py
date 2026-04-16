@@ -32,7 +32,7 @@ class PolishStage(Stage):
 
         final = polished.rstrip() + "\n\n" + appendix
         if self.db:
-            self.db.save_paper_final(final)
+            self.db.save_paper_polished(final)
         self._current_phase = ""
         return final
 
@@ -177,7 +177,7 @@ def _render_zh(*, research_id, duration, task_count, artifact_count,
 
 | 文件 | 说明 |
 |------|------|
-| `paper_final.md` | 最终论文（含本附录） |
+| `paper_polished.md` | 最终论文（含本附录） |
 | `paper.md` | Write 阶段初稿 |
 | `results_summary.json` | 规范化实验摘要 |
 | `results_summary.md` | 实验摘要（可读版） |
@@ -237,7 +237,7 @@ def _render_en(*, research_id, duration, task_count, artifact_count,
 
 | File | Description |
 |------|-------------|
-| `paper_final.md` | Final paper (with this appendix) |
+| `paper_polished.md` | Final paper (with this appendix) |
 | `paper.md` | Write stage draft |
 | `results_summary.json` | Canonical results summary |
 | `results_summary.md` | Results summary (readable) |
