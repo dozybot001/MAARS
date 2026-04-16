@@ -46,7 +46,7 @@ Fails immediately with a clear error — no tokens wasted on calibration.
 | Input | Topic (or iteration context) + atomic definition + strategy + sibling context |
 | Output | Flat task list + tree structure |
 | Storage | `plan_tree.json` + `plan_list.json` |
-| Mechanism | Recursive decomposition, `root_id` for subtree re-decompose, search/read tools available |
+| Mechanism | Recursive decomposition, `root_id` for subtree re-decompose, search/read tools available. Judge gather uses `return_exceptions=True` — one judge failure doesn't cancel siblings |
 
 ### Execute (per task, parallelizable)
 
@@ -63,7 +63,7 @@ Fails immediately with a clear error — no tokens wasted on calibration.
 |---|---|
 | Input | Task description + execution result |
 | Output | `{pass, review, redecompose}` |
-| Mechanism | Encouraged to call list_artifacts to verify; fallback=`pass:false` |
+| Mechanism | Encouraged to call list_artifacts to verify; uses for/else retry loop (2 attempts) for parse |
 | Paths | pass -> done / retry -> re-execute / redecompose -> split into subtasks |
 
 ### Evaluate (per round)
@@ -73,7 +73,7 @@ Fails immediately with a clear error — no tokens wasted on calibration.
 | Input | Research goal + strategy + score trend + historical evals + capability profile + task summaries |
 | Output | `{feedback, suggestions, strategy_update?}` |
 | Storage | `evaluations/round_N.json` + `evaluations/round_N.md` |
-| Mechanism | `strategy_update` present -> continue iterating; `is_final` -> summarize, stop |
+| Mechanism | Focuses on completeness/consistency, not suggesting untried approaches. Prefers stopping — only triggers `strategy_update` for critical gaps. `is_final` -> summarize, stop |
 
 ## 4. Main Loop Skeleton
 
@@ -97,12 +97,12 @@ async def _execute(self):
 
 | Decision | Choice |
 |---|---|
-| Iteration control | Evaluate outputs `strategy_update` to decide continuation |
+| Iteration control | Evaluate prefers stopping; outputs `strategy_update` only for critical gaps |
 | Iteration feedback | Strategy update triggers fresh Decompose |
 | Granularity | Capability profile + LLM (Calibrate phase) |
 | Re-decompose | `decompose(root_id=task_id)` |
 | Summary | Execute agent writes SUMMARY line for downstream reference |
-| Verify fallback | `pass=False` |
+| Verify fallback | `pass=False` (after 2-attempt parse retry) |
 | Source of truth | `plan_tree.json`; `plan_list.json` derived |
 
 ## 6. Parallel Execution
@@ -120,15 +120,37 @@ for batch in batches:
 
 Each `execute_task` acquires `_get_api_semaphore()` to limit LLM concurrency (`MAARS_API_CONCURRENCY`).
 
+Additional config knobs:
+- `MAARS_API_REQUEST_INTERVAL`: minimum seconds between consecutive LLM calls (rate limiting). Enforced by `_rate_limit()` inside `_stream_llm`.
+- `MAARS_POLISH_MODEL`: optional model override for the polish stage. When set, polish uses this model instead of the default.
+
 Execute -> Verify -> (pass | retry | redecompose) is an atomic cycle, completed within the semaphore.
 
-## 7. Code Locations
+## 7. `_stream_llm` Internals
+
+`_stream_llm` (in `stage.py`) is the single gateway for all LLM calls:
+
+- **Rate limiting**: calls `_rate_limit()` before each request, enforcing `MAARS_API_REQUEST_INTERVAL` between consecutive calls.
+- **Model isolation**: deep-copies the model (`deepcopy(model)`) for each Agent instance. This prevents shared-state bugs when multiple tasks call `_stream_llm` concurrently.
+- **No `validate` parameter**: parse validation (JSON structure checks) is now handled at the caller level via a for/else retry loop, not inside `_stream_llm` itself.
+
+## 8. JSON Parsing
+
+`parse_json_fenced` extracts JSON from fenced code blocks in LLM output.
+
+- Includes `_repair_json_escapes()` as a preprocessing step. This fixes common LaTeX backslash sequences (e.g., `\\rho`, `\\lambda`) that LLMs emit and that would otherwise break JSON parsing.
+
+### Caller-level parse retry
+
+Decompose judge, reviewer, verify, and evaluate all use a **for/else retry loop** (2 attempts) for JSON parsing. On the first parse failure, the call is retried with a fresh LLM request. If both attempts fail, a safe fallback value is used. This replaces the previous approach of relying on inline fallback values without retry.
+
+## 9. Code Locations
 
 | File | Role |
 |---|---|
 | `backend/pipeline/research.py` | ResearchStage — main loop + task execution |
 | `backend/pipeline/decompose.py` | Recursive decomposition engine |
-| `backend/pipeline/stage.py` | Stage base class + `_stream_llm` |
+| `backend/pipeline/stage.py` | Stage base class + `_stream_llm` (rate-limited, deep-copies model per Agent) |
 | `backend/pipeline/prompts_en.py` | EN prompts + builder functions |
 | `backend/pipeline/prompts_zh.py` | ZH prompts |
 | `backend/agno/tools/docker_exec.py` | code_execute + list_artifacts |

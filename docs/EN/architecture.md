@@ -2,9 +2,9 @@
 
 [中文](../CN/architecture.md) | English
 
-> Boundary: runtime controls flow and state; agents handle open-ended tasks. Three stages connected via file-based session DB.
+> Boundary: runtime controls flow and state; agents handle open-ended tasks. Four stages connected via file-based session DB.
 >
-> Stage details: [Refine / Write](refine-write.md) | [Research](research.md)
+> Stage details: [Refine / Write](refine-write.md) | [Research](research.md) | [Polish](polish.md)
 
 ## 1. Goals & Responsibilities
 
@@ -12,14 +12,14 @@
 
 **Split**: `if/for/while`, scheduling, retries, termination -> runtime; search, coding, reasoning -> agent.
 
-**Pattern**: All three stages are multi-agent — agents produce artifacts, runtime orchestrates, next agent restores context from persisted files. Stages differ in complexity but share the same core: Python controls flow, agents execute open-ended work, state lives on disk.
+**Pattern**: All four stages are multi-agent — agents produce artifacts, runtime orchestrates, next agent restores context from persisted files. Stages differ in complexity but share the same core: Python controls flow, agents execute open-ended work, state lives on disk.
 
 ## 2. System Overview
 
 ### 2.1 Five-Layer Architecture
 
 1. **Entry layer**: Frontend + FastAPI
-2. **Orchestration layer**: Three-stage sequencing and lifecycle control
+2. **Orchestration layer**: Four-stage sequencing and lifecycle control
 3. **Stage layer**: Each stage is a stable boundary, connected via session DB
 4. **Execution layer**: Multi-Agent (all stages)
 5. **Tools & State layer**: Tools for external interaction, file-based DB for state
@@ -29,6 +29,7 @@
 ```
 Stage                          -- lifecycle + SSE (_send) + LLM streaming (_stream_llm)
 ├── ResearchStage              -- multi-agent (task decomposition + parallel execution + evaluation loop)
+├── PolishStage                -- single-pass LLM refinement + deterministic metadata appendix
 └── TeamStage                  -- Multi-Agent (primary + reviewer + IterationState)
     ├── RefineStage
     └── WriteStage
@@ -72,6 +73,14 @@ flowchart TB
         WR -- "{issues, resolved, pass}" --> IS2
         IS2 -- "draft + issues" --> WW
     end
+
+    Write -- "paper.md" --> Polish
+
+    subgraph Polish ["Polish (single LLM pass)"]
+        PM[paper.md] --> LLM[LLM Refinement]
+        LLM --> MA[Metadata Appendix]
+        MA --> PP[paper_polished.md]
+    end
 ```
 
 ### 2.4 Stage Responsibilities
@@ -81,6 +90,7 @@ flowchart TB
 | **Refine** | Multi-Agent (Explorer + Critic) | Intent -> actionable research goal | [refine-write.md](refine-write.md) |
 | **Research** | Multi-Agent (Decompose + Execute + Evaluate) | Decompose -> Execute <-> Verify -> Evaluate | [research.md](research.md) |
 | **Write** | Multi-Agent (Writer + Reviewer) | Synthesize into paper | [refine-write.md](refine-write.md) |
+| **Polish** | `paper.md` → single-pass LLM refinement + metadata appendix → `paper_polished.md` | Final polish and metadata | [polish.md](polish.md) |
 
 ## 3. SSE
 
@@ -125,23 +135,27 @@ def _send(self, chunk=None, **extra):
 ### 3.5 Right Panel Layout
 
 ```
-REFINE      Proposals [round_1] [round_2] ...
-            Critiques [round_1] [round_2] ...
+REFINE      Proposals [round_0] [round_1] ...
+            Critiques [round_0] [round_1] ...
             Final     [refined_idea]
 
 RESEARCH    Calibration [calibration]
-            Strategies  [round_1] [round_2] ...
-            Evaluations [round_1] [round_2] ...
+            Strategies  [round_0] [round_1] ...
+            Evaluations [round_0] [round_1] ...
             Score       0.82 -> 0.79
 
 DECOMPOSE   (tree)
 
 TASKS       (execution list)
 
-WRITE       Drafts  [round_1] [round_2] ...
-            Reviews [round_1] [round_2] ...
+WRITE       Drafts  [round_0] [round_1] ...
+            Reviews [round_0] [round_1] ...
             Final   [paper]
+
+POLISH      Final   [paper_polished]
 ```
+
+> Note: round files are 0-indexed (`round_0`, `round_1`, ...).
 
 ## 4. Data Storage
 
@@ -172,6 +186,7 @@ results/{session}/
 │   ├── round_N.md
 │   └── round_N.json
 ├── paper.md                    # Write final output
+├── paper_polished.md           # Polish final output
 ├── meta.json                   # Metadata (tokens, score)
 ├── log.jsonl                   # Streaming chunk log
 ├── execution_log.jsonl         # Docker execution log
@@ -186,7 +201,7 @@ results/{session}/
 ```
 backend/
 ├── pipeline/
-│   ├── orchestrator.py          # Three-stage sequencing
+│   ├── orchestrator.py          # Four-stage sequencing
 │   ├── stage.py                 # Stage base class (lifecycle + SSE + _stream_llm)
 │   ├── research.py              # ResearchStage -- Multi-Agent engine
 │   ├── decompose.py             # Recursive decomposition engine
@@ -196,6 +211,7 @@ backend/
 │   ├── stage.py                 # TeamStage -- IterationState + Multi-Agent loop
 │   ├── refine.py                # RefineStage: Explorer + Critic
 │   ├── write.py                 # WriteStage: Writer + Reviewer
+│   ├── polish.py                # PolishStage: single-pass LLM refinement + metadata appendix
 │   ├── prompts.py               # Language dispatcher
 │   └── prompts_zh.py / _en.py   # Team prompts + _REVIEWER_OUTPUT_FORMAT
 ├── agno/
