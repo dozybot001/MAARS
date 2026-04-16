@@ -122,6 +122,9 @@ class ResearchDB:
     def save_paper(self, text: str):
         self._save_text("paper.md", text)
 
+    def save_paper_final(self, text: str):
+        self._save_text("paper_final.md", text)
+
     def save_task_output(self, task_id: str, text: str):
         safe_id = task_id.replace("/", "_")
         self._save_text(f"tasks/{safe_id}.md", text)
@@ -363,6 +366,7 @@ class ResearchDB:
             "refine": ("proposals", "critiques"),
             "research": ("tasks", "evaluations", "strategy", "artifacts", "reproduce"),
             "write": ("drafts", "reviews"),
+            "polish": (),
         }
         stage_files = {
             "refine": ("refined_idea.md",),
@@ -371,6 +375,7 @@ class ResearchDB:
                 "results_summary.json", "results_summary.md", "execution_log.jsonl",
             ),
             "write": ("paper.md",),
+            "polish": ("paper_final.md",),
         }
         for dirname in stage_dirs.get(stage_name, ()):
             path = self._root / dirname
