@@ -514,8 +514,13 @@ class ResearchStage(Stage):
     async def _verify_task(self, task, result, task_id, call_id) -> tuple[bool, str, bool]:
         self._send(status="verifying", task_id=task_id)
         vi, vt = build_verify_prompt(task, result)
-        response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True, tools=[])
-        return self._parse_verification(response)
+        for _parse_attempt in range(2):
+            response = await self._llm(vi, vt, call_id, content_level=4, _skip_semaphore=True, tools=[])
+            data = parse_json_fenced(response)
+            if "pass" in data:
+                return data.get("pass", False), data.get("review", ""), data.get("redecompose", False)
+        log.warning("Task %s: verify JSON parse failed after retry, treating as not passed", task_id)
+        return False, "", False
 
     def _update_summary(self, task_id: str, result: str):
         summary = self._extract_summary(result)
@@ -542,14 +547,6 @@ class ResearchStage(Stage):
             if stripped.upper().startswith("SUMMARY:"):
                 return stripped[len("SUMMARY:"):].strip()
         return ""
-
-    def _parse_verification(self, response: str) -> tuple[bool, str, bool]:
-        data = parse_json_fenced(response, fallback={"pass": False})
-        return (
-            data.get("pass", False),
-            data.get("review", ""),
-            data.get("redecompose", False),
-        )
 
     # ------------------------------------------------------------------
     # Evaluate & Strategy
@@ -617,8 +614,13 @@ class ResearchStage(Stage):
             prior_evaluations=prior_evals,
             is_final=is_final,
         )
-        response = await self._llm(EVALUATE_SYSTEM, user_text, call_id, content_level=3)
-        return parse_json_fenced(response, fallback={"feedback": "", "suggestions": []})
+        for _parse_attempt in range(2):
+            response = await self._llm(EVALUATE_SYSTEM, user_text, call_id, content_level=3)
+            data = parse_json_fenced(response)
+            if "feedback" in data or "suggestions" in data:
+                return data
+        log.warning("Evaluate JSON parse failed after retry")
+        return {"feedback": "", "suggestions": []}
 
     async def _update_strategy(self, idea: str, evaluation: dict) -> str:
         call_id = "Strategy"
