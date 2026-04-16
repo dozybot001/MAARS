@@ -114,13 +114,18 @@ class TeamStage(Stage):
             feedback = self._load_round_json(self._reviewer_dir, round_num + 1)
             if feedback is None:
                 reviewer_user = self._build_reviewer_prompt(input_text, state)
-                review_raw = await self._stream_llm(
-                    self._model, reviewer_tools, reviewer_instr, reviewer_user,
-                    call_id=reviewer_label, content_level=3,
-                    label=True, label_level=2,
-                    validate=lambda r: bool(parse_json_fenced(r)),
-                )
-                feedback = parse_json_fenced(review_raw, fallback={"issues": []})
+                for _parse_attempt in range(2):
+                    review_raw = await self._stream_llm(
+                        self._model, reviewer_tools, reviewer_instr, reviewer_user,
+                        call_id=reviewer_label, content_level=3,
+                        label=True, label_level=2,
+                    )
+                    feedback = parse_json_fenced(review_raw)
+                    if "issues" in feedback:
+                        break
+                else:
+                    log.warning("%s: reviewer JSON parse failed after retry", self.name)
+                    feedback = {"issues": []}
                 if self.db:
                     self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
                     self._save_round_json(self._reviewer_dir, feedback, round_num + 1)

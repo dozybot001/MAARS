@@ -84,14 +84,21 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
 
     siblings = root_siblings if is_root and root_siblings else _get_siblings(task_id, tasks, root_id)
     extra_kw = {} if is_root else {"tools": []}
-    response = await stream_fn(
-        system_prompt, build_decompose_user(task.id, task.description, context, siblings),
-        call_id, content_level, label=True, label_level=label_level,
-        validate=lambda r: bool(parse_json_fenced(r)),
-        **extra_kw,
-    )
+    user_text = build_decompose_user(task.id, task.description, context, siblings)
 
-    data = parse_json_fenced(response, fallback={"is_atomic": True})
+    data = None
+    for _parse_attempt in range(2):
+        response = await stream_fn(
+            system_prompt, user_text,
+            call_id, content_level, label=True, label_level=label_level,
+            **extra_kw,
+        )
+        data = parse_json_fenced(response)
+        if "is_atomic" in data:
+            break
+    else:
+        log.warning("Judge %s: JSON parse failed after retry, treating as atomic", task_id)
+        data = {"is_atomic": True}
 
     if data.get("is_atomic", True):
         task.is_atomic = True
