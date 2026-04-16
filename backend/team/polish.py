@@ -103,11 +103,11 @@ def build_metadata_appendix(db) -> str:
 def _calc_duration(db) -> str:
     if not db:
         return "N/A"
-    log_entries = db.get_execution_log()
-    if not log_entries:
+    entries, _ = db.get_log()
+    if not entries:
         return "N/A"
-    first_ts = log_entries[0].get("ts", 0)
-    last_ts = log_entries[-1].get("ts", 0)
+    first_ts = entries[0].get("ts", 0)
+    last_ts = entries[-1].get("ts", 0)
     if not first_ts or not last_ts:
         return "N/A"
     return f"{(last_ts - first_ts) / 60:.1f} min"
