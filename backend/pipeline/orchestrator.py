@@ -172,6 +172,7 @@ class PipelineOrchestrator:
                 if stage.state != StageState.COMPLETED:
                     break
             except asyncio.CancelledError:
+                self._kill_containers()
                 raise
             except Exception:
                 self._kill_containers()

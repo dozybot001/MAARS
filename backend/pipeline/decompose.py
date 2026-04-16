@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Callable
+
+log = logging.getLogger(__name__)
 
 from backend.utils import parse_json_fenced
 from backend.pipeline.prompts import build_decompose_system, build_decompose_user
@@ -48,12 +51,16 @@ async def decompose(
             break
         batch = list(pending)
         pending.clear()
-        await asyncio.gather(*[
+        results = await asyncio.gather(*[
             _process_task(tid, tasks, pending, ctx, system_prompt,
                           max_depth, stream_fn, progress_fn, stale,
                           root_id, root_siblings)
             for tid in batch
-        ])
+        ], return_exceptions=True)
+        for tid, result in zip(batch, results):
+            if isinstance(result, Exception):
+                log.warning("Decompose judge %s failed: %s", tid, result)
+                tasks[tid].is_atomic = True  # degrade: treat as atomic
 
     tree = _serialize_tree(tasks, root_id)
     flat_tasks = _finalize(tasks, root_id)

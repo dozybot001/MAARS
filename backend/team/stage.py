@@ -43,7 +43,11 @@ class IterationState:
         self.draft = new_draft
         resolved_ids = set(feedback.get("resolved", []))
         remaining = [iss for iss in self.issues if iss.get("id") not in resolved_ids]
-        remaining.extend(feedback.get("issues", []))
+        existing_ids = {iss.get("id") for iss in remaining}
+        for iss in feedback.get("issues", []):
+            if iss.get("id") not in existing_ids:
+                remaining.append(iss)
+                existing_ids.add(iss.get("id"))
         self.issues = remaining
         self.iteration += 1
 
@@ -114,7 +118,11 @@ class TeamStage(Stage):
                     call_id=reviewer_label, content_level=3,
                     label=True, label_level=2,
                 )
-                feedback = parse_json_fenced(review_raw, fallback={"issues": []})
+                feedback = parse_json_fenced(review_raw, fallback={
+                    "issues": [{"id": "_parse_error", "section": "System",
+                                "problem": "Could not parse reviewer JSON output",
+                                "suggestion": "Reviewer must output valid JSON"}],
+                })
                 if self.db:
                     self._save_round_md(self._reviewer_dir, review_raw, round_num + 1)
                     self._save_round_json(self._reviewer_dir, feedback, round_num + 1)
