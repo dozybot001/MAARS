@@ -179,8 +179,9 @@ class Stage:
 
     async def _run_agent(self, model, tools, instruction, user_text,
                          call_id, content_level, timeout, extra) -> str:
+        from copy import deepcopy
         result = ""
-        agent = Agent(model=model, instructions=instruction, tools=tools, markdown=True)
+        agent = Agent(model=deepcopy(model), instructions=instruction, tools=tools, markdown=True)
         async with asyncio.timeout(timeout):
             async for event in agent.arun(user_text, stream=True, stream_events=True):
                 if self._stop_requested:
