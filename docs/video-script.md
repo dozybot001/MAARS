@@ -60,9 +60,9 @@ I'll scrub through to give you a sense of how the system works in real time. `·
 ---
 
 Full documentation is on the website. `·`
-Architecture — five layers, SSE protocol, storage layout, stage inheritance. `·` *(点击跳转)*
-Refine & Write — IterationState pattern, how the Primary ↔ Reviewer loop converges. `·` *(点击跳转)*
-Research — every phase from Calibrate through Evaluate, with code references. `·` *(点击跳转)* `· ↓ scroll → Quickstart`
+Architecture — five layers, SSE protocol, storage layout, stage inheritance. `·` *(自动跳转文档页)*
+Refine & Write — IterationState pattern, how the Primary ↔ Reviewer loop converges. `·` *(自动跳转文档页)*
+Research — every phase from Calibrate through Evaluate, with code references. `·` *(自动跳转文档页)*
 
 ---
 

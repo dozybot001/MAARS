@@ -1224,13 +1224,8 @@ bash start.sh</code></pre>
       `seg ${seg + 1}/${SEGMENTS.length}  ·  line ${doneLines()}/${totalLines()}` +
       `  ·  Space next  ·  ← prev  ·  H hide${hint}`;
     const url = s.lineUrls?.[ln];
-    if (url) {
-      currentEl.innerHTML = `<a href="${url}" target="_blank" rel="noopener"
-        style="color:#a5b4fc;text-decoration:underline;text-underline-offset:4px;cursor:pointer;"
-        >${s.lines[ln]}</a>`;
-    } else {
-      currentEl.textContent = s.lines[ln];
-    }
+    if (url) window.location.href = url;
+    currentEl.textContent = s.lines[ln];
     const peek = s.lines[ln + 1] ?? SEGMENTS[seg + 1]?.lines[0];
     nextEl.textContent = peek ? `↓  ${peek}` : '';
   }
