@@ -222,13 +222,15 @@ a { color: inherit; text-decoration: none; }
 
 .prose code {
   font-family: 'JetBrains Mono', monospace;
-  font-size: .85em;
+  font-size: .83em;
+  line-height: 1.25;
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 5px;
-  padding: 1px 6px;
+  padding: 0 5px;
   color: #e2e8f0;
   white-space: nowrap;
+  vertical-align: baseline;
 }
 .prose pre {
   font-family: 'JetBrains Mono', monospace;
@@ -470,10 +472,10 @@ a { color: inherit; text-decoration: none; }
 
 /* inline kbd */
 .kbd {
-  display: inline-block; white-space: nowrap; vertical-align: middle;
-  font-family: 'JetBrains Mono', monospace; font-size: .78em;
+  display: inline-block; white-space: nowrap; vertical-align: baseline;
+  font-family: 'JetBrains Mono', monospace; font-size: .76em; line-height: 1.25;
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 6px; padding: 2px 7px;
+  border-radius: 6px; padding: 1px 6px;
 }
 
 @media (max-width: 640px) {

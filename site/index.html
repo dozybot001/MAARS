@@ -67,13 +67,14 @@
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .kbd {
-    display:inline-block; white-space:nowrap; vertical-align:middle;
-    font-family:'JetBrains Mono',monospace; font-size:.78rem;
+    display:inline-block; white-space:nowrap; vertical-align:baseline;
+    font-family:'JetBrains Mono',monospace; font-size:.76rem; line-height:1.25;
     background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
-    border-radius:6px; padding:2px 7px;
+    border-radius:6px; padding:1px 6px;
   }
   .io-row { line-height: 2.1; }
   .io-row > div { word-break: break-word; overflow-wrap: anywhere; }
+  .io-row .kbd { margin-block: 2px; }
 
   /* click-to-copy: the whole card is the trigger, no visible button */
   .copy-card { cursor: pointer; outline: none; user-select: none; transition: box-shadow .2s ease; }
