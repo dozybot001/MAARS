@@ -34,6 +34,20 @@
         <button type="button" data-lang-btn="en" class="active">EN</button>
       </div>
       <a href="../index.html" class="btn-ghost" data-i18n="nav.home">← Home</a>
+      <details class="mobile-doc-menu">
+        <summary aria-label="Open docs navigation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16"></path>
+          </svg>
+        </summary>
+        <div class="mobile-doc-panel">
+          <span class="mobile-doc-label">Docs</span>
+          <a href="architecture.html" class="current" data-i18n="nav.architecture">Architecture</a>
+          <a href="refine-write.html" data-i18n="nav.refine_write">Refine &amp; Write</a>
+          <a href="research.html" data-i18n="nav.research">Research</a>
+          <a href="../index.html" data-i18n="nav.home">← Home</a>
+        </div>
+      </details>
     </div>
   </div>
 </header>
@@ -59,6 +73,23 @@
 
   <!-- prose -->
   <main class="prose">
+    <details class="mobile-toc">
+      <summary>
+        <span data-i18n="toc.label">On this page</span>
+        <span>›</span>
+      </summary>
+      <ul class="toc">
+        <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+        <li><a href="#split" data-i18n="toc.split">Runtime vs Agent</a></li>
+        <li><a href="#layers" data-i18n="toc.layers">Five layers</a></li>
+        <li><a href="#inheritance" data-i18n="toc.inheritance">Stage inheritance</a></li>
+        <li><a href="#flow" data-i18n="toc.flow">End-to-end flow</a></li>
+        <li><a href="#sse" data-i18n="toc.sse">SSE model</a></li>
+        <li><a href="#frontend" data-i18n="toc.frontend">Frontend</a></li>
+        <li><a href="#storage" data-i18n="toc.storage">Session storage</a></li>
+        <li><a href="#code" data-i18n="toc.code">Code layout</a></li>
+      </ul>
+    </details>
 
     <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · architecture</div>
     <h1 data-i18n="doc.title">Architecture</h1>

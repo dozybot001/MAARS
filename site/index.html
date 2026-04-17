@@ -137,6 +137,96 @@
     color:#f8fafc; background:#6366f1;
   }
   .lang-toggle button:not(.active):hover { color:#e2e8f0; }
+
+  .mobile-menu {
+    position: relative;
+  }
+  .mobile-menu > summary {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:2.5rem; height:2.5rem; border-radius:.9rem;
+    background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10);
+    color:#e2e8f0; cursor:pointer; list-style:none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .mobile-menu > summary::-webkit-details-marker { display:none; }
+  .mobile-menu[open] > summary,
+  .mobile-menu > summary:hover {
+    background: rgba(255,255,255,.08);
+    border-color: rgba(255,255,255,.18);
+    color:#fff;
+  }
+  .mobile-menu-panel {
+    position:absolute; right:0; top:calc(100% + .75rem);
+    width:min(18rem, calc(100vw - 2rem));
+    padding:.65rem;
+    border-radius:1rem;
+    background: rgba(10,11,16,.92);
+    border:1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 60px rgba(0,0,0,.35);
+  }
+  .mobile-menu-panel a {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:.75rem; padding:.8rem .9rem; border-radius:.8rem;
+    color:#cbd5e1; font-size:.95rem;
+    transition: background .15s ease, color .15s ease;
+  }
+  .mobile-menu-panel a:hover {
+    background: rgba(255,255,255,.06);
+    color:#fff;
+  }
+  .mobile-menu-panel .menu-label {
+    display:block;
+    padding:.5rem .9rem .35rem;
+    font-family:'JetBrains Mono',monospace;
+    font-size:.68rem;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:#64748b;
+  }
+
+  @media (max-width: 767px) {
+    .io-row { line-height: 1.8; }
+  }
+
+  .resource-links {
+    display:flex; flex-wrap:wrap; align-items:center; gap:.75rem;
+    margin-top:1.5rem;
+  }
+  .resource-link {
+    display:inline-flex; align-items:center; gap:.55rem;
+    padding:.72rem 1rem;
+    border-radius:.9rem;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025));
+    border:1px solid rgba(255,255,255,.10);
+    color:#e2e8f0;
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .resource-link:hover {
+    transform: translateY(-1px);
+    border-color: rgba(199,210,254,.35);
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+  }
+  .resource-link-label {
+    font-family:'JetBrains Mono',monospace;
+    font-size:.68rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:#818cf8;
+  }
+  .resource-link-text {
+    font-size:.92rem;
+    font-weight:600;
+    color:#f8fafc;
+  }
+  .resource-link-arrow {
+    color:#94a3b8;
+    font-size:1rem;
+  }
+  .resource-note {
+    color:#94a3b8;
+    font-size:.92rem;
+  }
 </style>
 </head>
 
@@ -145,7 +235,7 @@
 
 <!-- ============ NAV ============ -->
 <header class="sticky top-0 z-50 backdrop-blur-md bg-slate-950/60 border-b border-white/5">
-  <nav class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+  <nav class="relative max-w-6xl mx-auto px-4 sm:px-6 min-h-14 py-3 md:py-0 flex items-center justify-between gap-3">
     <a href="#top" class="flex items-center gap-2 group">
       <span class="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-indigo-300 to-slate-400 shadow-[0_0_12px_rgba(129,140,248,.45)]"></span>
       <span class="font-semibold tracking-tight text-slate-100 group-hover:text-white">MAARS</span>
@@ -163,10 +253,28 @@
         <button type="button" data-lang-btn="en" class="active" aria-label="English">EN</button>
       </div>
       <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
-         class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition">
+         class="hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12 11.5 11.5 0 0 0 8.4 22.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.2-1.7-1.2-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.7 2.7 1.2 3.3.9.1-.7.4-1.2.7-1.5-2.5-.3-5.2-1.3-5.2-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.3.7 1 .7 2v3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
         GitHub
       </a>
+      <details class="mobile-menu md:hidden">
+        <summary aria-label="Open navigation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16"></path>
+          </svg>
+        </summary>
+        <div class="mobile-menu-panel">
+          <span class="menu-label">Navigate</span>
+          <a href="#pipeline"><span data-i18n="nav.pipeline">Pipeline</span><span>→</span></a>
+          <a href="#architecture"><span data-i18n="nav.architecture">Architecture</span><span>→</span></a>
+          <a href="#stack"><span data-i18n="nav.stack">Stack</span><span>→</span></a>
+          <a href="#showcase"><span data-i18n="nav.showcase">Showcase</span><span>→</span></a>
+          <a href="#quickstart"><span data-i18n="nav.quickstart">Quick&nbsp;Start</span><span>→</span></a>
+          <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener">
+            <span>GitHub</span><span>↗</span>
+          </a>
+        </div>
+      </details>
     </div>
   </nav>
 </header>
@@ -174,28 +282,28 @@
 <main id="top" class="relative z-10">
 
 <!-- ============ HERO ============ -->
-<section class="max-w-6xl mx-auto px-6 pt-20 pb-24 md:pt-28 md:pb-32">
+<section class="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-28 md:pb-32">
   <div class="chip mb-6">
     <span class="dot"></span>
     <span data-i18n="hero.badge">Multi-Agent · Fully Autonomous · End-to-End</span>
   </div>
-  <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6" data-i18n="hero.title">From a research idea<br />to a <span class="gradient-text">polished paper</span>.</h1>
-  <p class="text-lg md:text-xl text-slate-400 max-w-2xl leading-relaxed mb-10" data-i18n="hero.sub"><b class="text-slate-200">MAARS</b> is a multi-agent system that takes a vague idea — or a Kaggle competition URL — and autonomously runs the full research loop: literature survey, task decomposition, sandboxed experiments, paper drafting, and peer review.</p>
+  <h1 class="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6" data-i18n="hero.title">From a research idea<br />to a <span class="gradient-text">polished paper</span>.</h1>
+  <p class="text-base sm:text-lg md:text-xl text-slate-400 max-w-2xl leading-relaxed mb-10" data-i18n="hero.sub"><b class="text-slate-200">MAARS</b> is a multi-agent system that takes a vague idea — or a Kaggle competition URL — and autonomously runs the full research loop: literature survey, task decomposition, sandboxed experiments, paper drafting, and peer review.</p>
 
   <div class="flex flex-wrap gap-3 mb-14">
     <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
-       class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-medium shadow-[0_8px_30px_-10px_rgba(255,255,255,.25)] hover:bg-slate-100 hover:shadow-[0_8px_40px_-5px_rgba(255,255,255,.4)] transition">
+       class="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-medium shadow-[0_8px_30px_-10px_rgba(255,255,255,.25)] hover:bg-slate-100 hover:shadow-[0_8px_40px_-5px_rgba(255,255,255,.4)] transition">
       <span data-i18n="hero.cta_github">View on GitHub</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg>
     </a>
-    <a href="#pipeline" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl glass text-slate-100 font-medium hover:bg-white/10 transition" data-i18n="hero.cta_how">How it works</a>
-    <a href="#showcase" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-slate-300 hover:text-white transition" data-i18n="hero.cta_sample">See a sample paper →</a>
+    <a href="#pipeline" class="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-5 py-3 rounded-xl glass text-slate-100 font-medium hover:bg-white/10 transition" data-i18n="hero.cta_how">How it works</a>
+    <a href="#showcase" class="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-5 py-3 rounded-xl text-slate-300 hover:text-white transition" data-i18n="hero.cta_sample">See a sample paper →</a>
   </div>
 
   <!-- mini flow -->
   <div class="glass rounded-2xl p-6 md:p-8">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-5 font-mono" data-i18n="hero.loop_label">/ the three-stage loop</div>
-    <div class="grid grid-cols-3 gap-2 md:gap-6 items-center">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 items-center">
       <div class="text-center">
         <div class="font-mono text-xs text-slate-300 mb-1">01</div>
         <div class="font-semibold" data-i18n="stage.refine">Refine</div>
@@ -216,7 +324,7 @@
 </section>
 
 <!-- ============ DEMO VIDEO ============ -->
-<section id="demo-video" class="max-w-6xl mx-auto px-6 pb-24">
+<section id="demo-video" class="max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-24">
   <div class="relative rounded-3xl overflow-hidden border border-white/10">
     <video controls poster="assets/demo-cover.png" class="w-full bg-black" preload="metadata">
       <source src="https://github.com/user-attachments/assets/f0d8ef94-c98e-4666-8dec-85e1332dc2df" type="video/mp4" />
@@ -228,7 +336,7 @@
 </section>
 
 <!-- ============ PROBLEM ============ -->
-<section class="max-w-6xl mx-auto px-6 pb-24">
+<section class="max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-24">
   <div class="grid md:grid-cols-2 gap-10 items-start">
     <div>
       <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="gap.label">/ the gap</div>
@@ -257,7 +365,7 @@
 </section>
 
 <!-- ============ PIPELINE ============ -->
-<section id="pipeline" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="pipeline" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-14">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="pipe.label">/ pipeline</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="pipe.title">Three stages.<br/><span class="gradient-text">One coherent loop.</span></h2>
@@ -324,52 +432,52 @@
 </section>
 
 <!-- ============ ARCHITECTURE ============ -->
-<section id="architecture" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="architecture" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-14">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="arch.label">/ architecture</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="arch.title">Five layers.<br/><span class="gradient-text">One clear boundary.</span></h2>
   </div>
 
   <div class="space-y-3">
-    <div class="glass rounded-xl p-5 flex items-center gap-5 card-hover">
+    <div class="glass rounded-xl p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5 card-hover">
       <div class="font-mono text-xs text-slate-500 w-8">L5</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l5_t">Entry layer</div>
         <div class="text-sm text-slate-400" data-i18n="arch.l5_b">Frontend (Vanilla JS, SSE streaming, marked.js) · FastAPI server</div>
       </div>
-      <span class="chip">HTTP · SSE</span>
+      <span class="chip self-start sm:self-auto">HTTP · SSE</span>
     </div>
-    <div class="glass rounded-xl p-5 flex items-center gap-5 card-hover">
+    <div class="glass rounded-xl p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5 card-hover">
       <div class="font-mono text-xs text-slate-500 w-8">L4</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l4_t">Orchestration layer</div>
         <div class="text-sm text-slate-400" data-i18n="arch.l4_b">Sequences the three stages; manages lifecycle, session recovery, termination</div>
       </div>
-      <span class="chip">orchestrator.py</span>
+      <span class="chip self-start sm:self-auto">orchestrator.py</span>
     </div>
-    <div class="glass rounded-xl p-5 flex items-center gap-5 card-hover">
+    <div class="glass rounded-xl p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5 card-hover">
       <div class="font-mono text-xs text-slate-500 w-8">L3</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l3_t">Stage layer</div>
         <div class="text-sm text-slate-400" data-i18n="arch.l3_b"><span class="font-mono text-xs text-slate-300">Stage</span> base → <span class="font-mono text-xs text-slate-300">ResearchStage</span> · <span class="font-mono text-xs text-slate-300">TeamStage</span> → Refine / Write (Polish sub-step)</div>
       </div>
-      <span class="chip" data-i18n="arch.l3_chip">stable I/O</span>
+      <span class="chip self-start sm:self-auto" data-i18n="arch.l3_chip">stable I/O</span>
     </div>
-    <div class="glass rounded-xl p-5 flex items-center gap-5 card-hover">
+    <div class="glass rounded-xl p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5 card-hover">
       <div class="font-mono text-xs text-slate-500 w-8">L2</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l2_t">Execution layer</div>
         <div class="text-sm text-slate-400" data-i18n="arch.l2_b">Multi-agent — all three stages; Agno framework · Gemini with native Google Search</div>
       </div>
-      <span class="chip">Agno · Gemini</span>
+      <span class="chip self-start sm:self-auto">Agno · Gemini</span>
     </div>
-    <div class="glass rounded-xl p-5 flex items-center gap-5 card-hover">
+    <div class="glass rounded-xl p-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5 card-hover">
       <div class="font-mono text-xs text-slate-500 w-8">L1</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l1_t">Tools &amp; State layer</div>
         <div class="text-sm text-slate-400" data-i18n="arch.l1_b">ArXiv · Wikipedia · DDGS · Kaggle API · PyPDF · Docker sandbox · file-based session DB</div>
       </div>
-      <span class="chip" data-i18n="arch.l1_chip">persistent</span>
+      <span class="chip self-start sm:self-auto" data-i18n="arch.l1_chip">persistent</span>
     </div>
   </div>
 
@@ -401,7 +509,7 @@
 </section>
 
 <!-- ============ STACK ============ -->
-<section id="stack" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="stack" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="stack.label">/ stack</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="stack.title">Boring where it counts.<br/><span class="gradient-text">Interesting where it matters.</span></h2>
@@ -450,7 +558,7 @@
 </section>
 
 <!-- ============ SHOWCASE ============ -->
-<section id="showcase" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="showcase" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-12">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="sc.label">/ showcase</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="sc.title"><span class="gradient-text">Real runs.</span><br/>Real papers.</h2>
@@ -465,7 +573,7 @@
         <h3 class="text-2xl font-bold" data-i18n="sc.lo_title">Lorenz attractor — 4 figures that tell the chaos story</h3>
         <p class="text-slate-400 mt-2 max-w-2xl text-sm leading-relaxed" data-i18n="sc.lo_body">A one-line prompt: solve the Lorenz system with RK45 and produce 4 chaos figures. Out comes a full paper — derivations, code, and the plots below.</p>
       </div>
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-3">
         <div class="glass rounded-lg px-4 py-2">
           <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.time">time</div>
           <div class="font-mono text-sm text-slate-200">11 min</div>
@@ -494,6 +602,15 @@
         <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.lo_fig4">fig.4 &nbsp;(σ,ρ) stability heatmap, 30×30 grid</figcaption>
       </figure>
     </div>
+
+    <div class="resource-links">
+      <a class="resource-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/paper_polished.md" target="_blank" rel="noopener">
+        <span class="resource-link-label" data-i18n="sc.paper_label">paper</span>
+        <span class="resource-link-text" data-i18n="sc.lo_paper">Lorenz polished paper</span>
+        <span class="resource-link-arrow">↗</span>
+      </a>
+      <div class="resource-note" data-i18n="sc.lo_foot">Read the full write-up for this run.</div>
+    </div>
   </div>
 
   <!-- CIFAR -->
@@ -504,7 +621,7 @@
         <h3 class="text-2xl font-bold" data-i18n="sc.ci_title">Does legitimate transfer learning weaken backdoor watermarks?</h3>
         <p class="text-slate-400 mt-2 max-w-2xl text-sm leading-relaxed" data-i18n="sc.ci_body">An empirical question: does legitimate fine-tuning erase a BadNets-style watermark? MAARS poisons a CIFAR-10 source, fine-tunes to CIFAR-100 under Head-only vs Full FT, and delivers the comparative figures that land in the paper.</p>
       </div>
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-3">
         <div class="glass rounded-lg px-4 py-2">
           <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.time">time</div>
           <div class="font-mono text-sm text-slate-200">3 h</div>
@@ -534,12 +651,19 @@
       </figure>
     </div>
 
-    <div class="mt-6 text-sm text-slate-400" data-i18n="sc.ci_foot">→ Browse the full <a class="text-slate-200 underline decoration-white/20 hover:decoration-white/60" href="https://github.com/dozybot001/MAARS/tree/main/showcase" target="_blank" rel="noopener">showcase/</a> directory in the repo.</div>
+    <div class="resource-links">
+      <a class="resource-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260415-102608-showcase-phase-1-1-cifar10/paper_final_polished.md" target="_blank" rel="noopener">
+        <span class="resource-link-label" data-i18n="sc.paper_label">paper</span>
+        <span class="resource-link-text" data-i18n="sc.ci_paper">CIFAR polished paper</span>
+        <span class="resource-link-arrow">↗</span>
+      </a>
+      <div class="resource-note" data-i18n="sc.ci_foot">Open the final paper for this empirical run.</div>
+    </div>
   </div>
 </section>
 
 <!-- ============ SCREENS ============ -->
-<section id="screens" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="screens" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="ui.label">/ interface</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="ui.title">A window into the loop.</h2>
@@ -559,7 +683,7 @@
 </section>
 
 <!-- ============ QUICKSTART ============ -->
-<section id="quickstart" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="quickstart" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="qs.label">/ quick start</div>
     <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="qs.title"><span class="gradient-text">One command.</span></h2>
@@ -606,7 +730,7 @@ bash start.sh</code></pre>
 </section>
 
 <!-- ============ DOCS ============ -->
-<section id="docs" class="max-w-6xl mx-auto px-6 py-24 border-t border-white/5">
+<section id="docs" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="docs.label">/ docs</div>
     <h2 class="text-3xl md:text-4xl font-bold tracking-tight" data-i18n="docs.title">Go deeper.</h2>
@@ -634,8 +758,8 @@ bash start.sh</code></pre>
 </section>
 
 <!-- ============ CTA ============ -->
-<section class="max-w-6xl mx-auto px-6 py-24">
-  <div class="relative glass rounded-3xl p-10 md:p-16 overflow-hidden">
+<section class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24">
+  <div class="relative glass rounded-3xl p-7 sm:p-10 md:p-16 overflow-hidden">
     <div class="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-gradient-to-br from-indigo-500/25 to-white/5 blur-3xl"></div>
     <div class="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-gradient-to-br from-white/8 to-indigo-500/10 blur-3xl"></div>
     <div class="relative">
@@ -778,6 +902,9 @@ bash start.sh</code></pre>
       "sc.lo_fig2": "fig.2 &nbsp;bifurcation over ρ ∈ [0, 50]",
       "sc.lo_fig3": "fig.3 &nbsp;trajectory divergence → max Lyapunov exponent",
       "sc.lo_fig4": "fig.4 &nbsp;(σ,ρ) stability heatmap, 30×30 grid",
+      "sc.paper_label": "paper",
+      "sc.lo_paper": "Lorenz polished paper",
+      "sc.lo_foot": "Read the full write-up for this run.",
 
       "sc.ci_label": "case · deep learning empirical study",
       "sc.ci_title": "Does legitimate transfer learning weaken backdoor watermarks?",
@@ -786,7 +913,8 @@ bash start.sh</code></pre>
       "sc.ci_fig2": "fig.2 &nbsp;Head-only vs Full FT — accuracy vs watermark",
       "sc.ci_fig3": "fig.3 &nbsp;anchor-class metrics on CIFAR-100",
       "sc.ci_fig4": "fig.4 &nbsp;trigger-input prediction distribution",
-      "sc.ci_foot": "→ Browse the full <a class=\"text-slate-200 underline decoration-white/20 hover:decoration-white/60\" href=\"https://github.com/dozybot001/MAARS/tree/main/showcase\" target=\"_blank\" rel=\"noopener\">showcase/</a> directory in the repo.",
+      "sc.ci_paper": "CIFAR polished paper",
+      "sc.ci_foot": "Open the final paper for this empirical run.",
 
       "ui.label": "/ interface",
       "ui.title": "A window into the loop.",
@@ -937,6 +1065,9 @@ bash start.sh</code></pre>
       "sc.lo_fig2": "图 2 &nbsp;ρ ∈ [0, 50] 的分叉图",
       "sc.lo_fig3": "图 3 &nbsp;轨迹发散 → 最大 Lyapunov 指数",
       "sc.lo_fig4": "图 4 &nbsp;(σ,ρ) 稳定性热力图,30×30 网格",
+      "sc.paper_label": "论文",
+      "sc.lo_paper": "Lorenz 精修论文",
+      "sc.lo_foot": "查看这次运行的完整论文成稿。",
 
       "sc.ci_label": "案例 · 深度学习实证研究",
       "sc.ci_title": "合法的迁移学习是否会削弱后门水印?",
@@ -945,7 +1076,8 @@ bash start.sh</code></pre>
       "sc.ci_fig2": "图 2 &nbsp;Head-only vs Full FT — 精度 vs 水印",
       "sc.ci_fig3": "图 3 &nbsp;CIFAR-100 上的锚点类指标",
       "sc.ci_fig4": "图 4 &nbsp;触发样本的预测分布",
-      "sc.ci_foot": "→ 到仓库查看完整的 <a class=\"text-slate-200 underline decoration-white/20 hover:decoration-white/60\" href=\"https://github.com/dozybot001/MAARS/tree/main/showcase\" target=\"_blank\" rel=\"noopener\">showcase/</a> 目录。",
+      "sc.ci_paper": "CIFAR 精修论文",
+      "sc.ci_foot": "打开这次实证案例的最终论文。",
 
       "ui.label": "/ 界面",
       "ui.title": "一扇看进循环的窗。",

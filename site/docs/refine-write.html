@@ -67,6 +67,20 @@
         <button type="button" data-lang-btn="en" class="active">EN</button>
       </div>
       <a href="../index.html" class="btn-ghost" data-i18n="nav.home">← Home</a>
+      <details class="mobile-doc-menu">
+        <summary aria-label="Open docs navigation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16"></path>
+          </svg>
+        </summary>
+        <div class="mobile-doc-panel">
+          <span class="mobile-doc-label">Docs</span>
+          <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+          <a href="refine-write.html" class="current" data-i18n="nav.refine_write">Refine &amp; Write</a>
+          <a href="research.html" data-i18n="nav.research">Research</a>
+          <a href="../index.html" data-i18n="nav.home">← Home</a>
+        </div>
+      </details>
     </div>
   </div>
 </header>
@@ -89,6 +103,23 @@
   </aside>
 
   <main class="prose">
+    <details class="mobile-toc">
+      <summary>
+        <span data-i18n="toc.label">On this page</span>
+        <span>›</span>
+      </summary>
+      <ul class="toc">
+        <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+        <li><a href="#state" data-i18n="toc.state">IterationState</a></li>
+        <li><a href="#loop" data-i18n="toc.loop">Loop mechanics</a></li>
+        <li><a href="#config" data-i18n="toc.config">Refine vs Write</a></li>
+        <li><a href="#lifecycle" data-i18n="toc.lifecycle">Round-by-round example</a></li>
+        <li><a href="#reviewer" data-i18n="toc.reviewer">Reviewer JSON</a></li>
+        <li><a href="#vs-research" data-i18n="toc.vs_research">vs Research</a></li>
+        <li><a href="#polish" data-i18n="toc.polish">Polish + Metadata</a></li>
+        <li><a href="#code" data-i18n="toc.code">Code locations</a></li>
+      </ul>
+    </details>
 
     <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · refine &amp; write</div>
     <h1 data-i18n="doc.title">Refine &amp; Write</h1>
