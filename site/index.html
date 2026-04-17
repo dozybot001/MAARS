@@ -31,10 +31,10 @@
   html[lang="zh"] body { font-family: 'Inter','Noto Sans SC','ui-sans-serif','system-ui'; }
   body {
     background:
-      radial-gradient(1200px 600px at 85% -10%, rgba(168,85,247,.25), transparent 60%),
-      radial-gradient(900px 500px at -10% 20%, rgba(6,182,212,.18), transparent 60%),
-      radial-gradient(800px 500px at 50% 120%, rgba(217,70,239,.18), transparent 60%),
-      #05060d;
+      radial-gradient(1200px 600px at 85% -10%, rgba(255,255,255,.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(255,255,255,.045), transparent 60%),
+      radial-gradient(800px 500px at 50% 120%, rgba(255,255,255,.035), transparent 60%),
+      #0a0b10;
     color: #e2e8f0;
   }
   .grain::before {
@@ -49,13 +49,12 @@
   }
   .glass:hover { border-color: rgba(255,255,255,.18); }
   .gradient-text {
-    background: linear-gradient(120deg,#c4b5fd 0%, #f0abfc 40%, #67e8f9 100%);
+    background: linear-gradient(120deg,#f8fafc 0%, #cbd5e1 55%, #64748b 100%);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
-  .stage-accent-refine   { --from:#a78bfa; --to:#c4b5fd; }
-  .stage-accent-research { --from:#22d3ee; --to:#38bdf8; }
-  .stage-accent-write    { --from:#f472b6; --to:#f9a8d4; }
-  .stage-accent-polish   { --from:#fbbf24; --to:#fde68a; }
+  .stage-accent-refine,
+  .stage-accent-research,
+  .stage-accent-write { --from:#cbd5e1; --to:#475569; }
   .stage-card::before {
     content:""; position:absolute; inset:0; border-radius:inherit; padding:1px;
     background: linear-gradient(135deg, var(--from), var(--to), transparent 70%);
@@ -81,7 +80,7 @@
   .nav-link { position:relative; }
   .nav-link::after {
     content:""; position:absolute; left:0; right:100%; bottom:-4px; height:1px;
-    background: linear-gradient(90deg,#a78bfa,#67e8f9);
+    background: linear-gradient(90deg,#e2e8f0,#64748b);
     transition: right .2s ease;
   }
   .nav-link:hover::after { right:0; }
@@ -91,7 +90,7 @@
     background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
     font-size:.78rem; color:#cbd5e1;
   }
-  .dot { width:.4rem; height:.4rem; border-radius:999px; background:#a78bfa; box-shadow:0 0 10px #a78bfa; }
+  .dot { width:.4rem; height:.4rem; border-radius:999px; background:#cbd5e1; box-shadow:0 0 10px rgba(255,255,255,.35); }
   details > summary { list-style:none; cursor:pointer; }
   details > summary::-webkit-details-marker { display:none; }
   .shine {
@@ -115,7 +114,7 @@
     transition: color .15s ease, background .15s ease;
   }
   .lang-toggle button.active {
-    color:#f8fafc; background: linear-gradient(135deg,#7c3aed,#06b6d4);
+    color:#0f172a; background:#e2e8f0;
   }
   .lang-toggle button:not(.active):hover { color:#e2e8f0; }
 </style>
@@ -128,7 +127,7 @@
 <header class="sticky top-0 z-50 backdrop-blur-md bg-slate-950/60 border-b border-white/5">
   <nav class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
     <a href="#top" class="flex items-center gap-2 group">
-      <span class="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-violet-400 to-cyan-400 shadow-[0_0_12px_rgba(168,85,247,.6)]"></span>
+      <span class="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-slate-200 to-slate-500 shadow-[0_0_12px_rgba(255,255,255,.25)]"></span>
       <span class="font-semibold tracking-tight text-slate-100 group-hover:text-white">MAARS</span>
       <span class="hidden sm:inline text-xs text-slate-500 font-mono">v13.4</span>
     </a>
@@ -141,8 +140,8 @@
     </div>
     <div class="flex items-center gap-2">
       <div class="lang-toggle" role="tablist" aria-label="Language">
-        <button type="button" data-lang-btn="en" class="active" aria-label="English">EN</button>
         <button type="button" data-lang-btn="zh" aria-label="中文">中</button>
+        <button type="button" data-lang-btn="en" class="active" aria-label="English">EN</button>
       </div>
       <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
          class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition">
@@ -166,7 +165,7 @@
 
   <div class="flex flex-wrap gap-3 mb-14">
     <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
-       class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium shadow-[0_8px_30px_-10px_rgba(168,85,247,.7)] hover:shadow-[0_8px_40px_-5px_rgba(168,85,247,.8)] transition">
+       class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-medium shadow-[0_8px_30px_-10px_rgba(255,255,255,.25)] hover:bg-slate-100 hover:shadow-[0_8px_40px_-5px_rgba(255,255,255,.4)] transition">
       <span data-i18n="hero.cta_github">View on GitHub</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg>
     </a>
@@ -179,17 +178,17 @@
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-5 font-mono" data-i18n="hero.loop_label">/ the three-stage loop</div>
     <div class="grid grid-cols-3 gap-2 md:gap-6 items-center">
       <div class="text-center">
-        <div class="font-mono text-xs text-violet-300 mb-1">01</div>
+        <div class="font-mono text-xs text-slate-300 mb-1">01</div>
         <div class="font-semibold" data-i18n="stage.refine">Refine</div>
         <div class="text-xs text-slate-500 mt-1" data-i18n="hero.refine_agents">Explorer ↔ Critic</div>
       </div>
       <div class="text-center">
-        <div class="font-mono text-xs text-cyan-300 mb-1">02</div>
+        <div class="font-mono text-xs text-slate-300 mb-1">02</div>
         <div class="font-semibold" data-i18n="stage.research">Research</div>
         <div class="text-xs text-slate-500 mt-1" data-i18n="hero.research_agents">Decompose · Execute · Evaluate</div>
       </div>
       <div class="text-center">
-        <div class="font-mono text-xs text-pink-300 mb-1">03</div>
+        <div class="font-mono text-xs text-slate-300 mb-1">03</div>
         <div class="font-semibold" data-i18n="stage.write">Write</div>
         <div class="text-xs text-slate-500 mt-1" data-i18n="hero.write_agents">Writer ↔ Reviewer → Polish</div>
       </div>
@@ -292,11 +291,11 @@
   <div class="mt-10 grid md:grid-cols-3 gap-5">
     <div class="rounded-xl glass p-6">
       <div class="text-sm font-semibold mb-2 text-slate-200" data-i18n="pipe.d1_title">Runtime vs Agent</div>
-      <p class="text-sm text-slate-400 leading-relaxed" data-i18n="pipe.d1_body"><span class="font-mono text-xs text-violet-300">if · for · while</span>, scheduling, retries, termination → <b>runtime</b>. Search, coding, reasoning → <b>agent</b>.</p>
+      <p class="text-sm text-slate-400 leading-relaxed" data-i18n="pipe.d1_body"><span class="font-mono text-xs text-slate-300">if · for · while</span>, scheduling, retries, termination → <b>runtime</b>. Search, coding, reasoning → <b>agent</b>.</p>
     </div>
     <div class="rounded-xl glass p-6">
       <div class="text-sm font-semibold mb-2 text-slate-200" data-i18n="pipe.d2_title">IterationState pattern</div>
-      <p class="text-sm text-slate-400 leading-relaxed" data-i18n="pipe.d2_body">Primary drafts → Reviewer returns <span class="font-mono text-xs text-cyan-300">{issues, resolved, pass}</span> → Primary revises. Loops until <span class="font-mono text-xs">pass=true</span> or the iteration cap.</p>
+      <p class="text-sm text-slate-400 leading-relaxed" data-i18n="pipe.d2_body">Primary drafts → Reviewer returns <span class="font-mono text-xs text-slate-300">{issues, resolved, pass}</span> → Primary revises. Loops until <span class="font-mono text-xs">pass=true</span> or the iteration cap.</p>
     </div>
     <div class="rounded-xl glass p-6">
       <div class="text-sm font-semibold mb-2 text-slate-200" data-i18n="pipe.d3_title">DB as single source of truth</div>
@@ -363,17 +362,17 @@
     <div class="md:col-span-3">
       <pre class="glass rounded-xl p-5 text-xs overflow-x-auto leading-relaxed"><code><span class="text-slate-500">results/{session}/</span>
 <span class="text-slate-300">├── idea.md</span>                     <span class="text-slate-500"># <span data-i18n="tree.c1">user input</span></span>
-<span class="text-violet-300">├── proposals/ critiques/</span>       <span class="text-slate-500"># <span data-i18n="tree.c2">Refine: rounds</span></span>
-<span class="text-violet-300">├── refined_idea.md</span>             <span class="text-slate-500"># <span data-i18n="tree.c3">Refine: final</span></span>
-<span class="text-cyan-300">├── calibration.md</span>              <span class="text-slate-500"># <span data-i18n="tree.c4">Research: calibration</span></span>
-<span class="text-cyan-300">├── strategy/ plan_tree.json</span>    <span class="text-slate-500"># <span data-i18n="tree.c5">Research: strategy · plan</span></span>
-<span class="text-cyan-300">├── plan_list.json</span>              <span class="text-slate-500"># <span data-i18n="tree.c6">Research: flat task list</span></span>
-<span class="text-cyan-300">├── tasks/ artifacts/</span>           <span class="text-slate-500"># <span data-i18n="tree.c7">code · figures · data</span></span>
-<span class="text-cyan-300">├── evaluations/</span>                <span class="text-slate-500"># <span data-i18n="tree.c8">Research: eval rounds</span></span>
-<span class="text-cyan-300">├── results_summary.{json,md}</span>   <span class="text-slate-500"># <span data-i18n="tree.c9">Research: summary</span></span>
-<span class="text-pink-300">├── drafts/ reviews/</span>            <span class="text-slate-500"># <span data-i18n="tree.c10">Write: rounds</span></span>
-<span class="text-pink-300">├── paper.md</span>                    <span class="text-slate-500"># <span data-i18n="tree.c11">Write: draft</span></span>
-<span class="text-pink-300">├── paper_polished.md</span>           <span class="text-slate-500"># <span data-i18n="tree.c12">Write: polished (sub-step)</span></span>
+<span class="text-slate-300">├── proposals/ critiques/</span>       <span class="text-slate-500"># <span data-i18n="tree.c2">Refine: rounds</span></span>
+<span class="text-slate-300">├── refined_idea.md</span>             <span class="text-slate-500"># <span data-i18n="tree.c3">Refine: final</span></span>
+<span class="text-slate-300">├── calibration.md</span>              <span class="text-slate-500"># <span data-i18n="tree.c4">Research: calibration</span></span>
+<span class="text-slate-300">├── strategy/ plan_tree.json</span>    <span class="text-slate-500"># <span data-i18n="tree.c5">Research: strategy · plan</span></span>
+<span class="text-slate-300">├── plan_list.json</span>              <span class="text-slate-500"># <span data-i18n="tree.c6">Research: flat task list</span></span>
+<span class="text-slate-300">├── tasks/ artifacts/</span>           <span class="text-slate-500"># <span data-i18n="tree.c7">code · figures · data</span></span>
+<span class="text-slate-300">├── evaluations/</span>                <span class="text-slate-500"># <span data-i18n="tree.c8">Research: eval rounds</span></span>
+<span class="text-slate-300">├── results_summary.{json,md}</span>   <span class="text-slate-500"># <span data-i18n="tree.c9">Research: summary</span></span>
+<span class="text-slate-300">├── drafts/ reviews/</span>            <span class="text-slate-500"># <span data-i18n="tree.c10">Write: rounds</span></span>
+<span class="text-slate-300">├── paper.md</span>                    <span class="text-slate-500"># <span data-i18n="tree.c11">Write: draft</span></span>
+<span class="text-slate-300">├── paper_polished.md</span>           <span class="text-slate-500"># <span data-i18n="tree.c12">Write: polished (sub-step)</span></span>
 ├── meta.json                   <span class="text-slate-500"># <span data-i18n="tree.c13">metadata (tokens, score)</span></span>
 ├── log.jsonl                   <span class="text-slate-500"># <span data-i18n="tree.c14">SSE stream log</span></span>
 ├── execution_log.jsonl         <span class="text-slate-500"># <span data-i18n="tree.c15">Docker exec log</span></span>
@@ -615,14 +614,14 @@ bash start.sh</code></pre>
 <!-- ============ CTA ============ -->
 <section class="max-w-6xl mx-auto px-6 py-24">
   <div class="relative glass rounded-3xl p-10 md:p-16 overflow-hidden">
-    <div class="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/20 blur-3xl"></div>
-    <div class="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-gradient-to-br from-cyan-400/20 to-violet-500/10 blur-3xl"></div>
+    <div class="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-gradient-to-br from-white/10 to-white/5 blur-3xl"></div>
+    <div class="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-gradient-to-br from-white/8 to-white/3 blur-3xl"></div>
     <div class="relative">
       <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4" data-i18n="cta.title">Bring an idea.<br/><span class="gradient-text">Walk away with a paper.</span></h2>
       <p class="text-slate-400 max-w-xl mb-8" data-i18n="cta.body">MAARS is MIT-licensed, self-hostable, and reproducible by construction. Fork it, run it, break it.</p>
       <div class="flex flex-wrap gap-3">
         <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium shadow-[0_8px_30px_-10px_rgba(168,85,247,.7)] hover:shadow-[0_8px_40px_-5px_rgba(168,85,247,.8)] transition">
+           class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-medium shadow-[0_8px_30px_-10px_rgba(255,255,255,.25)] hover:bg-slate-100 hover:shadow-[0_8px_40px_-5px_rgba(255,255,255,.4)] transition">
           <span data-i18n="cta.btn1">Star on GitHub</span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.8 1.6 7-6.2-3.8L5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg>
         </a>
@@ -637,7 +636,7 @@ bash start.sh</code></pre>
 <footer class="border-t border-white/5 mt-8">
   <div class="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-sm text-slate-500">
     <div class="flex items-center gap-3">
-      <span class="w-2 h-2 rounded-sm bg-gradient-to-br from-violet-400 to-cyan-400"></span>
+      <span class="w-2 h-2 rounded-sm bg-gradient-to-br from-slate-200 to-slate-500"></span>
       <span class="text-slate-300 font-medium">MAARS</span>
       <span>· <span data-i18n="footer.license">MIT License</span></span>
     </div>
@@ -689,9 +688,9 @@ bash start.sh</code></pre>
       "pipe.research_body": "The core engine. A <b>strategy</b> decomposes the proposal into atomic tasks, which execute in <b>Docker sandboxes</b> with parallel scheduling. Outputs are verified, then evaluated — loops with strategy updates when gaps exist.",
       "pipe.write_body": "<b>Writer</b> reads all research outputs and drafts a complete paper. <b>Reviewer</b> critiques and drives revisions — same IterationState pattern as Refine. A final <b>Polish</b> sub-step runs a single-pass LLM refinement and appends a deterministic metadata appendix (tokens, timings, scores).",
       "pipe.d1_title": "Runtime vs Agent",
-      "pipe.d1_body": "<span class=\"font-mono text-xs text-violet-300\">if · for · while</span>, scheduling, retries, termination → <b>runtime</b>. Search, coding, reasoning → <b>agent</b>.",
+      "pipe.d1_body": "<span class=\"font-mono text-xs text-slate-300\">if · for · while</span>, scheduling, retries, termination → <b>runtime</b>. Search, coding, reasoning → <b>agent</b>.",
       "pipe.d2_title": "IterationState pattern",
-      "pipe.d2_body": "Primary drafts → Reviewer returns <span class=\"font-mono text-xs text-cyan-300\">{issues, resolved, pass}</span> → Primary revises. Loops until <span class=\"font-mono text-xs\">pass=true</span> or the iteration cap.",
+      "pipe.d2_body": "Primary drafts → Reviewer returns <span class=\"font-mono text-xs text-slate-300\">{issues, resolved, pass}</span> → Primary revises. Loops until <span class=\"font-mono text-xs\">pass=true</span> or the iteration cap.",
       "pipe.d3_title": "DB as single source of truth",
       "pipe.d3_body": "State lives on disk — JSON + Markdown under <span class=\"kbd\">results/{session}/</span>. SSE is notification only; the UI reads canonical data from the session DB.",
 
@@ -847,9 +846,9 @@ bash start.sh</code></pre>
       "pipe.research_body": "核心引擎。<b>strategy</b> 将提案分解为原子任务,在 <b>Docker 沙箱</b>中并行调度执行。输出经验证后再评估——若存在关键缺口,则循环更新策略。",
       "pipe.write_body": "<b>Writer</b> 通读所有研究输出,起草完整论文。<b>Reviewer</b> 点评并驱动修订——与 Refine 同样的 IterationState 模式。最后的 <b>Polish</b> 子阶段做一次 LLM 润色,并附加确定性元数据附录(token、耗时、分数)。",
       "pipe.d1_title": "运行时 vs 智能体",
-      "pipe.d1_body": "<span class=\"font-mono text-xs text-violet-300\">if · for · while</span>、调度、重试、终止 → <b>运行时</b>。搜索、编码、推理 → <b>智能体</b>。",
+      "pipe.d1_body": "<span class=\"font-mono text-xs text-slate-300\">if · for · while</span>、调度、重试、终止 → <b>运行时</b>。搜索、编码、推理 → <b>智能体</b>。",
       "pipe.d2_title": "IterationState 模式",
-      "pipe.d2_body": "主智能体起草 → 评审返回 <span class=\"font-mono text-xs text-cyan-300\">{issues, resolved, pass}</span> → 主智能体修订。循环直至 <span class=\"font-mono text-xs\">pass=true</span> 或触达迭代上限。",
+      "pipe.d2_body": "主智能体起草 → 评审返回 <span class=\"font-mono text-xs text-slate-300\">{issues, resolved, pass}</span> → 主智能体修订。循环直至 <span class=\"font-mono text-xs\">pass=true</span> 或触达迭代上限。",
       "pipe.d3_title": "DB 即唯一真源",
       "pipe.d3_body": "状态存在磁盘上——<span class=\"kbd\">results/{session}/</span> 下的 JSON + Markdown。SSE 只做通知;UI 从 session DB 读权威数据。",
 
