@@ -1148,11 +1148,17 @@ bash start.sh</code></pre>
     },
     {
       scrollTo: '#docs',
-      openUrl: 'docs/research.html',
       lines: [
         'Full documentation is on the website.',
-        'The Research doc walks through every phase — Calibrate, Strategy, Decompose, Execute, Verify, Evaluate — with code references.',
-        '[ O — open Research doc  ·  1 — Architecture  ·  2 — Refine & Write ]',
+        'Architecture — five layers, SSE protocol, storage layout, stage inheritance.',
+        'Refine & Write — IterationState pattern, how the Primary ↔ Reviewer loop converges.',
+        'Research — every phase from Calibrate through Evaluate, with code references.',
+      ],
+      lineUrls: [
+        null,
+        'docs/architecture.html',
+        'docs/refine-write.html',
+        'docs/research.html',
       ],
     },
     {
@@ -1217,7 +1223,14 @@ bash start.sh</code></pre>
     statusEl.textContent =
       `seg ${seg + 1}/${SEGMENTS.length}  ·  line ${doneLines()}/${totalLines()}` +
       `  ·  Space next  ·  ← prev  ·  H hide${hint}`;
-    currentEl.textContent = s.lines[ln];
+    const url = s.lineUrls?.[ln];
+    if (url) {
+      currentEl.innerHTML = `<a href="${url}" target="_blank" rel="noopener"
+        style="color:#a5b4fc;text-decoration:underline;text-underline-offset:4px;cursor:pointer;"
+        >${s.lines[ln]}</a>`;
+    } else {
+      currentEl.textContent = s.lines[ln];
+    }
     const peek = s.lines[ln + 1] ?? SEGMENTS[seg + 1]?.lines[0];
     nextEl.textContent = peek ? `↓  ${peek}` : '';
   }

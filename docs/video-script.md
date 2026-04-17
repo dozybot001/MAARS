@@ -60,8 +60,9 @@ I'll scrub through to give you a sense of how the system works in real time. `·
 ---
 
 Full documentation is on the website. `·`
-The Research doc walks through every phase — Calibrate through Evaluate — with code references. `·`
-*[press **O** for Research doc, **1** for Architecture, **2** for Refine & Write]* `· ↓ scroll → Quickstart`
+Architecture — five layers, SSE protocol, storage layout, stage inheritance. `·` *(点击跳转)*
+Refine & Write — IterationState pattern, how the Primary ↔ Reviewer loop converges. `·` *(点击跳转)*
+Research — every phase from Calibrate through Evaluate, with code references. `·` *(点击跳转)* `· ↓ scroll → Quickstart`
 
 ---
 
