@@ -24,7 +24,11 @@ Verify reviews each result — pass, retry, or redecompose — forwarding partia
 
 ---
 
-Writer drafts, Reviewer critiques — same IterationState pattern — until zero issues remain. A final Polish pass refines the prose and appends a metadata appendix: tokens, timings, model versions. `· ↓ scroll → Showcase / Lorenz`
+Writer drafts, Reviewer critiques — same IterationState pattern — until zero issues remain. A final Polish pass refines the prose and appends a metadata appendix: tokens, timings, model versions. `· ↓ scroll → Architecture`
+
+---
+
+Under the hood: a FastAPI server streams progress over SSE, a Python orchestrator drives the stage sequence, agents run on Agno with Gemini, and all state lives in a plain file-based session directory — no database, fully reproducible. `· ↓ scroll → Showcase / Lorenz`
 
 ---
 
@@ -42,9 +46,7 @@ Here's a live screen recording of a complete MAARS run — I'll scrub through so
 
 ---
 
-Full documentation is on the website. `·`\
-Architecture — five layers, SSE protocol, storage layout. `·`\
-Research — every phase from Calibrate through Evaluate, with code references. `·`
+Full documentation is at dozybot001.github.io/MAARS. `·`
 
 ---
 
