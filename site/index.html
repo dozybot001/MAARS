@@ -75,25 +75,24 @@
   .io-row { line-height: 2.1; }
   .io-row > div { word-break: break-word; overflow-wrap: anywhere; }
 
-  /* copy-to-clipboard button on code blocks */
+  /* click-to-copy card (whole card is the button) */
+  .copy-card { cursor: pointer; outline: none; }
+  .copy-card:focus-visible pre { box-shadow: 0 0 0 2px rgba(129,140,248,.55); }
   .copy-btn {
+    pointer-events:none; user-select:none;
     position:absolute; top:.6rem; right:.6rem;
     padding:4px 10px; border-radius:6px;
     background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10);
     color:#cbd5e1; font-family:'JetBrains Mono',monospace; font-size:.7rem;
-    opacity:.6; cursor:pointer;
-    transition: opacity .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+    opacity:.55; transition: opacity .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
   }
-  .group:hover .copy-btn { opacity:1; }
-  .copy-btn:hover { background:rgba(99,102,241,.18); color:#fff; border-color:rgba(129,140,248,.45); }
-  .copy-btn.copied { color:#a5b4fc; border-color:rgba(129,140,248,.55); opacity:1; }
+  .copy-card:hover .copy-btn { opacity:1; background:rgba(99,102,241,.18); color:#fff; border-color:rgba(129,140,248,.45); }
+  .copy-btn.copied { color:#a5b4fc; border-color:rgba(129,140,248,.55); background:rgba(99,102,241,.18); opacity:1; }
 
   /* matplotlib charts on dark bg — just darken the white canvas */
   .chart-img {
     filter: brightness(.55) contrast(1.1) saturate(.75);
-    transition: filter .3s ease;
   }
-  figure:hover .chart-img { filter: brightness(.78) contrast(1.05) saturate(.85); }
   .card-hover { transition: transform .25s ease, border-color .25s ease; }
   .card-hover:hover { transform: translateY(-2px); }
   pre, code { font-family:'JetBrains Mono',monospace; }
@@ -569,12 +568,12 @@
 
   <div class="grid md:grid-cols-2 gap-6">
     <div>
-      <div class="relative group">
+      <div class="relative group copy-card" data-copy-target="qs-code" role="button" tabindex="0" aria-label="Copy command">
         <pre class="glass rounded-xl p-6 text-sm overflow-x-auto leading-relaxed shine"><code id="qs-code"><span class="text-slate-500"># <span data-i18n="qs.code_c">clone &amp; run</span></span>
 git clone https://github.com/dozybot001/MAARS.git
 cd MAARS
 bash start.sh</code></pre>
-        <button type="button" data-copy-target="qs-code" data-i18n="qs.copy" class="copy-btn" aria-label="Copy">Copy</button>
+        <span data-i18n="qs.copy" class="copy-btn" aria-hidden="true">Copy</span>
       </div>
 
       <p class="text-sm text-slate-500 mt-4 leading-relaxed" data-i18n="qs.post">On first boot <span class="kbd">start.sh</span> creates a venv, installs deps, scaffolds <span class="kbd">.env</span> from the example, builds the sandbox image, and serves on <span class="kbd">localhost:8000</span>. GPU is auto-detected.</p>
@@ -1028,30 +1027,45 @@ bash start.sh</code></pre>
 
   applyLang(initialLang());
 
-  // click-to-copy code blocks
-  document.querySelectorAll('[data-copy-target]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const el = document.getElementById(btn.getAttribute('data-copy-target'));
-      if (!el) return;
-      const text = el.innerText
-        .split('\n')
-        .filter(line => !line.trim().startsWith('#') && line.trim() !== '')
-        .join('\n');
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (e) {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta);
-        ta.select(); document.execCommand('copy'); ta.remove();
+  // click-to-copy: whole card is the button
+  async function copyCard(card) {
+    const code = document.getElementById(card.getAttribute('data-copy-target'));
+    if (!code) return;
+    const text = code.innerText
+      .split('\n')
+      .filter(line => !line.trim().startsWith('#') && line.trim() !== '')
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    const lang = document.documentElement.lang || 'en';
+    const badge = card.querySelector('.copy-btn');
+    if (!badge) return;
+    badge.textContent = (T[lang] && T[lang]['qs.copied']) || 'Copied ✓';
+    badge.classList.add('copied');
+    clearTimeout(card._resetTimer);
+    card._resetTimer = setTimeout(() => {
+      badge.classList.remove('copied');
+      badge.textContent = (T[lang] && T[lang]['qs.copy']) || 'Copy';
+    }, 1600);
+  }
+
+  document.querySelectorAll('[data-copy-target]').forEach(card => {
+    card.addEventListener('click', () => {
+      // preserve manual text selection — don't hijack a drag-select
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.toString().trim().length > 0) return;
+      copyCard(card);
+    });
+    card.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        copyCard(card);
       }
-      const lang = document.documentElement.lang || 'en';
-      btn.textContent = (T[lang] && T[lang]['qs.copied']) || 'Copied ✓';
-      btn.classList.add('copied');
-      clearTimeout(btn._resetTimer);
-      btn._resetTimer = setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.textContent = (T[lang] && T[lang]['qs.copy']) || 'Copy';
-      }, 1600);
     });
   });
 
