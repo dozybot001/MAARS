@@ -1234,7 +1234,7 @@ bash start.sh</code></pre>
 
   let hidden = false;
   document.addEventListener('keydown', e => {
-    if (e.key === ' ')              { e.preventDefault(); advance(); }
+    if (e.key === ' ')              { if (document.activeElement?.tagName === 'VIDEO') return; e.preventDefault(); advance(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); retreat(); }
     else if (e.key === 'h' || e.key === 'H') {
       hidden = !hidden;
