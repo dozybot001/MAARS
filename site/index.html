@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>MAARS — Multi-Agent Automated Research System</title>
-<meta name="description" content="MAARS turns a vague research idea into a polished paper through a four-stage multi-agent pipeline: Refine → Research → Write → Polish." />
+<meta name="description" content="MAARS turns a vague research idea into a polished paper through a three-stage multi-agent pipeline: Refine → Research → Write (with Polish)." />
 <meta property="og:title" content="MAARS — From idea to paper, fully automated" />
-<meta property="og:description" content="A four-stage multi-agent pipeline that autonomously surveys literature, runs sandboxed experiments, and writes structured research papers." />
+<meta property="og:description" content="A three-stage multi-agent pipeline that autonomously surveys literature, runs sandboxed experiments, and writes structured research papers." />
 <meta property="og:image" content="assets/demo-cover.png" />
 <meta name="twitter:card" content="summary_large_image" />
 
@@ -243,7 +243,7 @@
     <p class="text-slate-400 mt-4 max-w-2xl" data-i18n="pipe.sub">Each stage has a stable I/O boundary: a runtime orchestrates control flow and persistence, while agents do the open-ended work.</p>
   </div>
 
-  <div class="grid md:grid-cols-2 gap-5">
+  <div class="grid md:grid-cols-3 gap-5">
 
     <!-- Refine -->
     <div class="stage-card stage-accent-refine relative rounded-2xl p-7 glass card-hover">
@@ -272,7 +272,7 @@
     </div>
 
     <!-- Write (includes Polish sub-step) -->
-    <div class="stage-card stage-accent-write relative rounded-2xl p-7 glass card-hover md:col-span-2">
+    <div class="stage-card stage-accent-write relative rounded-2xl p-7 glass card-hover">
       <div class="flex items-center justify-between mb-5">
         <div class="font-mono text-xs text-slate-500"><span data-i18n="pipe.stage">stage</span> 03</div>
         <div class="stage-badge font-bold tracking-tight text-xl" data-i18n="stage.write">Write</div>
@@ -322,7 +322,7 @@
       <div class="font-mono text-xs text-slate-500 w-8">L4</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l4_t">Orchestration layer</div>
-        <div class="text-sm text-slate-400" data-i18n="arch.l4_b">Sequences the four stages; manages lifecycle, session recovery, termination</div>
+        <div class="text-sm text-slate-400" data-i18n="arch.l4_b">Sequences the three stages; manages lifecycle, session recovery, termination</div>
       </div>
       <span class="chip">orchestrator.py</span>
     </div>
@@ -338,7 +338,7 @@
       <div class="font-mono text-xs text-slate-500 w-8">L2</div>
       <div class="flex-1">
         <div class="font-semibold text-slate-100" data-i18n="arch.l2_t">Execution layer</div>
-        <div class="text-sm text-slate-400" data-i18n="arch.l2_b">Multi-agent — all four stages; Agno framework · Gemini with native Google Search</div>
+        <div class="text-sm text-slate-400" data-i18n="arch.l2_b">Multi-agent — all three stages; Agno framework · Gemini with native Google Search</div>
       </div>
       <span class="chip">Agno · Gemini</span>
     </div>
@@ -438,7 +438,7 @@
       <div>
         <div class="text-xs text-slate-500 font-mono mb-1" data-i18n="sc.lo_label">case · scientific visualization</div>
         <h3 class="text-2xl font-bold" data-i18n="sc.lo_title">Lorenz attractor — 4 figures that tell the chaos story</h3>
-        <p class="text-slate-400 mt-2 max-w-2xl text-sm leading-relaxed" data-i18n="sc.lo_body">Input: <i>"Solve the Lorenz system with <span class="kbd">scipy.integrate.solve_ivp</span> (RK45). Produce 4 figures: 3D trajectory, bifurcation diagram, divergence curve, (σ,ρ) Lyapunov heatmap."</i> Output: a full paper with derivations, code, and the plots below.</p>
+        <p class="text-slate-400 mt-2 max-w-2xl text-sm leading-relaxed" data-i18n="sc.lo_body">A one-line prompt: solve the Lorenz system with RK45 and produce 4 chaos figures. Out comes a full paper — derivations, code, and the plots below.</p>
       </div>
       <div class="flex gap-3">
         <div class="glass rounded-lg px-4 py-2">
@@ -477,7 +477,7 @@
       <div>
         <div class="text-xs text-slate-500 font-mono mb-1" data-i18n="sc.ci_label">case · deep learning empirical study</div>
         <h3 class="text-2xl font-bold" data-i18n="sc.ci_title">Does legitimate transfer learning weaken backdoor watermarks?</h3>
-        <p class="text-slate-400 mt-2 max-w-3xl text-sm leading-relaxed" data-i18n="sc.ci_body">A constrained, time-boxed empirical run: CIFAR-10 → CIFAR-100 with a BadNets-style trigger on ResNet-18. MAARS decomposes the proposal, trains the poisoned source model, fine-tunes under two policies (Head-only vs Full FT), and produces the comparative figures, tables, and analysis that land in the paper.</p>
+        <p class="text-slate-400 mt-2 max-w-2xl text-sm leading-relaxed" data-i18n="sc.ci_body">An empirical question: does legitimate fine-tuning erase a BadNets-style watermark? MAARS poisons a CIFAR-10 source, fine-tunes to CIFAR-100 under Head-only vs Full FT, and delivers the comparative figures that land in the paper.</p>
       </div>
       <div class="flex gap-3">
         <div class="glass rounded-lg px-4 py-2">
@@ -490,22 +490,23 @@
         </div>
       </div>
     </div>
-    <div class="grid md:grid-cols-3 gap-4">
-      <div class="glass rounded-xl p-5 card-hover">
-        <div class="text-xs font-mono text-cyan-300 mb-2">plan_tree.json</div>
-        <div class="font-semibold text-slate-100 mb-2" data-i18n="sc.ci_c1_t">Task decomposition</div>
-        <p class="text-sm text-slate-400" data-i18n="sc.ci_c1_b">Recursive decomposition into atomic, dependency-ordered tasks — executed in parallel when the DAG allows.</p>
-      </div>
-      <div class="glass rounded-xl p-5 card-hover">
-        <div class="text-xs font-mono text-cyan-300 mb-2">artifacts/</div>
-        <div class="font-semibold text-slate-100 mb-2" data-i18n="sc.ci_c2_t">Executed code &amp; checkpoints</div>
-        <p class="text-sm text-slate-400" data-i18n="sc.ci_c2_b">Poisoned <span class="kbd">.pth</span> checkpoints, metrics JSON, per-round analysis reports, plots.</p>
-      </div>
-      <div class="glass rounded-xl p-5 card-hover">
-        <div class="text-xs font-mono text-cyan-300 mb-2">paper_polished.md</div>
-        <div class="font-semibold text-slate-100 mb-2" data-i18n="sc.ci_c3_t">Final paper</div>
-        <p class="text-sm text-slate-400" data-i18n="sc.ci_c3_b">Headline claim, quantitative table, Head-only vs Full FT comparison, limitations — all LLM-written, all grounded in the artifacts.</p>
-      </div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <figure class="glass rounded-xl p-3 card-hover">
+        <img src="assets/cifar_decay.png" alt="Watermark decay curve" class="rounded-lg w-full bg-white" loading="lazy" />
+        <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.ci_fig1">fig.1 &nbsp;watermark persistence across fine-tuning</figcaption>
+      </figure>
+      <figure class="glass rounded-xl p-3 card-hover">
+        <img src="assets/cifar_final.png" alt="Final comparison" class="rounded-lg w-full bg-white" loading="lazy" />
+        <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.ci_fig2">fig.2 &nbsp;Head-only vs Full FT — accuracy vs watermark</figcaption>
+      </figure>
+      <figure class="glass rounded-xl p-3 card-hover">
+        <img src="assets/cifar_anchor.png" alt="Anchor class metrics" class="rounded-lg w-full bg-white" loading="lazy" />
+        <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.ci_fig3">fig.3 &nbsp;anchor-class metrics on CIFAR-100</figcaption>
+      </figure>
+      <figure class="glass rounded-xl p-3 card-hover">
+        <img src="assets/cifar_pred.png" alt="Prediction distribution" class="rounded-lg w-full bg-white" loading="lazy" />
+        <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.ci_fig4">fig.4 &nbsp;trigger-input prediction distribution</figcaption>
+      </figure>
     </div>
 
     <div class="mt-6 text-sm text-slate-400" data-i18n="sc.ci_foot">→ Browse the full <a class="text-slate-200 underline decoration-white/20 hover:decoration-white/60" href="https://github.com/dozybot001/MAARS/tree/main/showcase" target="_blank" rel="noopener">showcase/</a> directory in the repo.</div>
@@ -692,12 +693,12 @@ bash start.sh</code></pre>
       "arch.l5_t": "Entry layer",
       "arch.l5_b": "Frontend (Vanilla JS, SSE streaming, marked.js) · FastAPI server",
       "arch.l4_t": "Orchestration layer",
-      "arch.l4_b": "Sequences the four stages; manages lifecycle, session recovery, termination",
+      "arch.l4_b": "Sequences the three stages; manages lifecycle, session recovery, termination",
       "arch.l3_t": "Stage layer",
       "arch.l3_b": "<span class=\"font-mono text-xs text-slate-300\">Stage</span> base → <span class=\"font-mono text-xs text-slate-300\">ResearchStage</span> · <span class=\"font-mono text-xs text-slate-300\">TeamStage</span> → Refine / Write (Polish sub-step)",
       "arch.l3_chip": "stable I/O",
       "arch.l2_t": "Execution layer",
-      "arch.l2_b": "Multi-agent — all four stages; Agno framework · Gemini with native Google Search",
+      "arch.l2_b": "Multi-agent — all three stages; Agno framework · Gemini with native Google Search",
       "arch.l1_t": "Tools & State layer",
       "arch.l1_b": "ArXiv · Wikipedia · DDGS · Kaggle API · PyPDF · Docker sandbox · file-based session DB",
       "arch.l1_chip": "persistent",
@@ -732,7 +733,7 @@ bash start.sh</code></pre>
 
       "sc.lo_label": "case · scientific visualization",
       "sc.lo_title": "Lorenz attractor — 4 figures that tell the chaos story",
-      "sc.lo_body": "Input: <i>\"Solve the Lorenz system with <span class=\"kbd\">scipy.integrate.solve_ivp</span> (RK45). Produce 4 figures: 3D trajectory, bifurcation diagram, divergence curve, (σ,ρ) Lyapunov heatmap.\"</i> Output: a full paper with derivations, code, and the plots below.",
+      "sc.lo_body": "A one-line prompt: solve the Lorenz system with RK45 and produce 4 chaos figures. Out comes a full paper — derivations, code, and the plots below.",
       "sc.lo_fig1": "fig.1 &nbsp;3D phase-space trajectory (σ=10, ρ=28, β=8/3)",
       "sc.lo_fig2": "fig.2 &nbsp;bifurcation over ρ ∈ [0, 50]",
       "sc.lo_fig3": "fig.3 &nbsp;trajectory divergence → max Lyapunov exponent",
@@ -740,13 +741,11 @@ bash start.sh</code></pre>
 
       "sc.ci_label": "case · deep learning empirical study",
       "sc.ci_title": "Does legitimate transfer learning weaken backdoor watermarks?",
-      "sc.ci_body": "A constrained, time-boxed empirical run: CIFAR-10 → CIFAR-100 with a BadNets-style trigger on ResNet-18. MAARS decomposes the proposal, trains the poisoned source model, fine-tunes under two policies (Head-only vs Full FT), and produces the comparative figures, tables, and analysis that land in the paper.",
-      "sc.ci_c1_t": "Task decomposition",
-      "sc.ci_c1_b": "Recursive decomposition into atomic, dependency-ordered tasks — executed in parallel when the DAG allows.",
-      "sc.ci_c2_t": "Executed code & checkpoints",
-      "sc.ci_c2_b": "Poisoned <span class=\"kbd\">.pth</span> checkpoints, metrics JSON, per-round analysis reports, plots.",
-      "sc.ci_c3_t": "Final paper",
-      "sc.ci_c3_b": "Headline claim, quantitative table, Head-only vs Full FT comparison, limitations — all LLM-written, all grounded in the artifacts.",
+      "sc.ci_body": "An empirical question: does legitimate fine-tuning erase a BadNets-style watermark? MAARS poisons a CIFAR-10 source, fine-tunes to CIFAR-100 under Head-only vs Full FT, and delivers the comparative figures that land in the paper.",
+      "sc.ci_fig1": "fig.1 &nbsp;watermark persistence across fine-tuning",
+      "sc.ci_fig2": "fig.2 &nbsp;Head-only vs Full FT — accuracy vs watermark",
+      "sc.ci_fig3": "fig.3 &nbsp;anchor-class metrics on CIFAR-100",
+      "sc.ci_fig4": "fig.4 &nbsp;trigger-input prediction distribution",
       "sc.ci_foot": "→ Browse the full <a class=\"text-slate-200 underline decoration-white/20 hover:decoration-white/60\" href=\"https://github.com/dozybot001/MAARS/tree/main/showcase\" target=\"_blank\" rel=\"noopener\">showcase/</a> directory in the repo.",
 
       "ui.label": "/ interface",
@@ -840,12 +839,12 @@ bash start.sh</code></pre>
       "arch.l5_t": "入口层",
       "arch.l5_b": "前端(Vanilla JS、SSE 流式、marked.js)· FastAPI 服务端",
       "arch.l4_t": "编排层",
-      "arch.l4_b": "顺序调度四阶段,管理生命周期、会话恢复与终止",
+      "arch.l4_b": "顺序调度三阶段,管理生命周期、会话恢复与终止",
       "arch.l3_t": "阶段层",
       "arch.l3_b": "<span class=\"font-mono text-xs text-slate-300\">Stage</span> 基类 → <span class=\"font-mono text-xs text-slate-300\">ResearchStage</span> · <span class=\"font-mono text-xs text-slate-300\">TeamStage</span> → Refine / Write(Polish 子阶段)",
       "arch.l3_chip": "稳定接口",
       "arch.l2_t": "执行层",
-      "arch.l2_b": "所有四阶段均为多智能体;Agno 框架 · Gemini 原生 Google 搜索",
+      "arch.l2_b": "所有三阶段均为多智能体;Agno 框架 · Gemini 原生 Google 搜索",
       "arch.l1_t": "工具与状态层",
       "arch.l1_b": "ArXiv · Wikipedia · DDGS · Kaggle API · PyPDF · Docker 沙箱 · 文件式 session DB",
       "arch.l1_chip": "持久化",
@@ -880,7 +879,7 @@ bash start.sh</code></pre>
 
       "sc.lo_label": "案例 · 科学可视化",
       "sc.lo_title": "Lorenz 吸引子 — 用 4 张图讲清混沌",
-      "sc.lo_body": "输入：<i>「用 <span class=\"kbd\">scipy.integrate.solve_ivp</span>（RK45）求解 Lorenz 方程组，产出 4 张图：3D 相空间轨迹、分叉图、发散曲线、(σ,ρ) Lyapunov 热力图。」</i>输出：含推导、代码与下列图表的完整论文。",
+      "sc.lo_body": "一句话 prompt：用 RK45 求解 Lorenz 方程，产出 4 张混沌图。MAARS 返回完整论文——含推导、代码与下方图表。",
       "sc.lo_fig1": "图 1 &nbsp;3D 相空间轨迹 (σ=10, ρ=28, β=8/3)",
       "sc.lo_fig2": "图 2 &nbsp;ρ ∈ [0, 50] 的分叉图",
       "sc.lo_fig3": "图 3 &nbsp;轨迹发散 → 最大 Lyapunov 指数",
@@ -888,13 +887,11 @@ bash start.sh</code></pre>
 
       "sc.ci_label": "案例 · 深度学习实证研究",
       "sc.ci_title": "合法的迁移学习是否会削弱后门水印?",
-      "sc.ci_body": "一次限定时间预算的实证运行:ResNet-18 上做 CIFAR-10 → CIFAR-100,带 BadNets 风格触发器。MAARS 分解提案、训练带毒源模型、在两种策略下做微调(Head-only vs Full FT),产出论文所需的对比图表、数据表与分析。",
-      "sc.ci_c1_t": "任务分解",
-      "sc.ci_c1_b": "递归分解为原子任务,按依赖关系排序——DAG 允许时并行执行。",
-      "sc.ci_c2_t": "执行代码与权重",
-      "sc.ci_c2_b": "带毒 <span class=\"kbd\">.pth</span> 权重、指标 JSON、各轮分析报告、图表。",
-      "sc.ci_c3_t": "最终论文",
-      "sc.ci_c3_b": "主张、定量表、Head-only vs Full FT 对比、局限性——均由 LLM 撰写,基于实际产出。",
+      "sc.ci_body": "一个实证问题:合法微调能否擦除 BadNets 风格的后门水印?MAARS 训练带毒的 CIFAR-10 源模型,在 Head-only 与 Full FT 两种策略下微调到 CIFAR-100,产出论文所需的对比图表。",
+      "sc.ci_fig1": "图 1 &nbsp;微调过程中的水印持续性",
+      "sc.ci_fig2": "图 2 &nbsp;Head-only vs Full FT — 精度 vs 水印",
+      "sc.ci_fig3": "图 3 &nbsp;CIFAR-100 上的锚点类指标",
+      "sc.ci_fig4": "图 4 &nbsp;触发样本的预测分布",
       "sc.ci_foot": "→ 到仓库查看完整的 <a class=\"text-slate-200 underline decoration-white/20 hover:decoration-white/60\" href=\"https://github.com/dozybot001/MAARS/tree/main/showcase\" target=\"_blank\" rel=\"noopener\">showcase/</a> 目录。",
 
       "ui.label": "/ 界面",
