@@ -24,7 +24,10 @@
     background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.008));
     border: 1px solid rgba(255,255,255,.07);
     border-radius: 10px;
+    min-width: 0;
+    overflow: hidden;
   }
+  .phase-card code { white-space: normal; word-break: break-word; }
   .phase-card-head {
     display: flex; align-items: center; gap: .65rem; margin-bottom: .75rem;
   }
@@ -55,12 +58,13 @@
     line-height: 1.55;
   }
   .phase-meta-row .mk { color: #64748b; font-family: 'JetBrains Mono', monospace; font-size: .72rem; }
-  .phase-meta-row .mv { color: #94a3b8; }
+  .phase-meta-row .mv { color: #94a3b8; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
   .phase-card .phase-note {
     margin-top: .6rem; padding: .45rem .6rem;
     background: rgba(99,102,241,.06); border-left: 2px solid rgba(129,140,248,.4);
     border-radius: 4px;
     font-size: .76rem; color: #94a3b8; line-height: 1.6;
+    overflow-wrap: break-word; word-break: break-word;
   }
 
   /* decision table highlight */
