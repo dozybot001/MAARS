@@ -42,9 +42,9 @@ Here's a live screen recording of a complete MAARS run — I'll scrub through so
 
 ---
 
-Full documentation is on the website. `·` *(自动跳转)*\
-Architecture — five layers, SSE protocol, storage layout. `·` *(自动跳转)*\
-Research — every phase from Calibrate through Evaluate, with code references. `·` *(自动跳转)*
+Full documentation is on the website. `·`\
+Architecture — five layers, SSE protocol, storage layout. `·`\
+Research — every phase from Calibrate through Evaluate, with code references. `·`
 
 ---
 
