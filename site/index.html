@@ -189,43 +189,20 @@
     .io-row { line-height: 1.8; }
   }
 
-  .resource-links {
-    display:flex; flex-wrap:wrap; align-items:center; gap:.75rem;
-    margin-top:1.5rem;
-  }
-  .resource-link {
-    display:inline-flex; align-items:center; gap:.55rem;
-    padding:.72rem 1rem;
-    border-radius:.9rem;
-    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025));
-    border:1px solid rgba(255,255,255,.10);
-    color:#e2e8f0;
+  .showcase-stat-link {
+    display:block;
+    color:inherit;
     transition: transform .18s ease, border-color .18s ease, background .18s ease;
   }
-  .resource-link:hover {
+  .showcase-stat-link:hover {
     transform: translateY(-1px);
-    border-color: rgba(199,210,254,.35);
+  }
+  .showcase-stat-link .glass {
+    border-color: rgba(255,255,255,.10);
+  }
+  .showcase-stat-link:hover .glass {
+    border-color: rgba(199,210,254,.32);
     background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
-  }
-  .resource-link-label {
-    font-family:'JetBrains Mono',monospace;
-    font-size:.68rem;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    color:#818cf8;
-  }
-  .resource-link-text {
-    font-size:.92rem;
-    font-weight:600;
-    color:#f8fafc;
-  }
-  .resource-link-arrow {
-    color:#94a3b8;
-    font-size:1rem;
-  }
-  .resource-note {
-    color:#94a3b8;
-    font-size:.92rem;
   }
 </style>
 </head>
@@ -582,6 +559,12 @@
           <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.tokens">tokens</div>
           <div class="font-mono text-sm text-slate-200">347k</div>
         </div>
+        <a class="showcase-stat-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/paper_polished.md" target="_blank" rel="noopener">
+          <div class="glass rounded-lg px-4 py-2">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.paper_label">paper</div>
+            <div class="font-mono text-sm text-slate-200" data-i18n="sc.paper_open">open</div>
+          </div>
+        </a>
       </div>
     </div>
     <div class="grid md:grid-cols-2 gap-4">
@@ -603,14 +586,6 @@
       </figure>
     </div>
 
-    <div class="resource-links">
-      <a class="resource-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260416-230413-lorenz-4-scipyintegratesolveivp-rk45-lorenz/paper_polished.md" target="_blank" rel="noopener">
-        <span class="resource-link-label" data-i18n="sc.paper_label">paper</span>
-        <span class="resource-link-text" data-i18n="sc.lo_paper">Lorenz polished paper</span>
-        <span class="resource-link-arrow">↗</span>
-      </a>
-      <div class="resource-note" data-i18n="sc.lo_foot">Read the full write-up for this run.</div>
-    </div>
   </div>
 
   <!-- CIFAR -->
@@ -630,6 +605,12 @@
           <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.tokens">tokens</div>
           <div class="font-mono text-sm text-slate-200">2.47M</div>
         </div>
+        <a class="showcase-stat-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260415-102608-showcase-phase-1-1-cifar10/paper_final_polished.md" target="_blank" rel="noopener">
+          <div class="glass rounded-lg px-4 py-2">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500" data-i18n="sc.paper_label">paper</div>
+            <div class="font-mono text-sm text-slate-200" data-i18n="sc.paper_open">open</div>
+          </div>
+        </a>
       </div>
     </div>
     <div class="grid md:grid-cols-2 gap-4">
@@ -649,15 +630,6 @@
         <img src="assets/cifar_pred.png" alt="Prediction distribution" class="rounded-lg w-full chart-img" loading="lazy" />
         <figcaption class="text-xs text-slate-500 mt-2 font-mono" data-i18n="sc.ci_fig4">fig.4 &nbsp;trigger-input prediction distribution</figcaption>
       </figure>
-    </div>
-
-    <div class="resource-links">
-      <a class="resource-link" href="https://github.com/dozybot001/MAARS/blob/main/showcase/20260415-102608-showcase-phase-1-1-cifar10/paper_final_polished.md" target="_blank" rel="noopener">
-        <span class="resource-link-label" data-i18n="sc.paper_label">paper</span>
-        <span class="resource-link-text" data-i18n="sc.ci_paper">CIFAR polished paper</span>
-        <span class="resource-link-arrow">↗</span>
-      </a>
-      <div class="resource-note" data-i18n="sc.ci_foot">Open the final paper for this empirical run.</div>
     </div>
   </div>
 </section>
@@ -903,8 +875,7 @@ bash start.sh</code></pre>
       "sc.lo_fig3": "fig.3 &nbsp;trajectory divergence → max Lyapunov exponent",
       "sc.lo_fig4": "fig.4 &nbsp;(σ,ρ) stability heatmap, 30×30 grid",
       "sc.paper_label": "paper",
-      "sc.lo_paper": "Lorenz polished paper",
-      "sc.lo_foot": "Read the full write-up for this run.",
+      "sc.paper_open": "open ↗",
 
       "sc.ci_label": "case · deep learning empirical study",
       "sc.ci_title": "Does legitimate transfer learning weaken backdoor watermarks?",
@@ -913,8 +884,6 @@ bash start.sh</code></pre>
       "sc.ci_fig2": "fig.2 &nbsp;Head-only vs Full FT — accuracy vs watermark",
       "sc.ci_fig3": "fig.3 &nbsp;anchor-class metrics on CIFAR-100",
       "sc.ci_fig4": "fig.4 &nbsp;trigger-input prediction distribution",
-      "sc.ci_paper": "CIFAR polished paper",
-      "sc.ci_foot": "Open the final paper for this empirical run.",
 
       "ui.label": "/ interface",
       "ui.title": "A window into the loop.",
@@ -1066,8 +1035,7 @@ bash start.sh</code></pre>
       "sc.lo_fig3": "图 3 &nbsp;轨迹发散 → 最大 Lyapunov 指数",
       "sc.lo_fig4": "图 4 &nbsp;(σ,ρ) 稳定性热力图,30×30 网格",
       "sc.paper_label": "论文",
-      "sc.lo_paper": "Lorenz 精修论文",
-      "sc.lo_foot": "查看这次运行的完整论文成稿。",
+      "sc.paper_open": "打开",
 
       "sc.ci_label": "案例 · 深度学习实证研究",
       "sc.ci_title": "合法的迁移学习是否会削弱后门水印?",
@@ -1076,8 +1044,6 @@ bash start.sh</code></pre>
       "sc.ci_fig2": "图 2 &nbsp;Head-only vs Full FT — 精度 vs 水印",
       "sc.ci_fig3": "图 3 &nbsp;CIFAR-100 上的锚点类指标",
       "sc.ci_fig4": "图 4 &nbsp;触发样本的预测分布",
-      "sc.ci_paper": "CIFAR 精修论文",
-      "sc.ci_foot": "打开这次实证案例的最终论文。",
 
       "ui.label": "/ 界面",
       "ui.title": "一扇看进循环的窗。",
