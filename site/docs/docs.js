@@ -64,15 +64,17 @@ function initScrollspy() {
   links.forEach(a => {
     const id = a.getAttribute('href').slice(1);
     const target = document.getElementById(id);
-    if (target) byId.set(id, a);
+    if (!target) return;
+    if (!byId.has(id)) byId.set(id, []);
+    byId.get(id).push(a);
   });
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(e => {
-      const link = byId.get(e.target.id);
-      if (!link) return;
+      const targetLinks = byId.get(e.target.id);
+      if (!targetLinks) return;
       if (e.isIntersecting) {
         links.forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
+        targetLinks.forEach(link => link.classList.add('active'));
       }
     });
   }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
