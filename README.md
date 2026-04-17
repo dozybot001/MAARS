@@ -5,6 +5,12 @@
   <p align="center">
     <a href="README_CN.md">中文</a> · English
   </p>
+  <p align="center">
+    <a href="https://dozybot001.github.io/MAARS/">🌐 Website</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/architecture.html">Architecture</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/refine-write.html">Refine & Write</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/research.html">Research</a>
+  </p>
 </p>
 
 ---
@@ -167,11 +173,13 @@ results/{session}/
 
 ## Documentation
 
+Full docs are at **[dozybot001.github.io/MAARS](https://dozybot001.github.io/MAARS/)**.
+
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/EN/architecture.md) | System overview, SSE protocol, storage layout |
-| [Refine & Write](docs/EN/refine-write.md) | IterationState pattern, Multi-Agent loop details |
-| [Research](docs/EN/research.md) | Task decomposition, parallel execution, evaluation loop |
+| [Architecture](https://dozybot001.github.io/MAARS/docs/architecture.html) | Five layers, SSE protocol, stage inheritance, session storage |
+| [Refine & Write](https://dozybot001.github.io/MAARS/docs/refine-write.html) | IterationState pattern, Multi-Agent loop, Polish sub-step |
+| [Research](https://dozybot001.github.io/MAARS/docs/research.html) | Task decomposition, parallel execution, evaluation loop |
 
 ## Tech Stack
 

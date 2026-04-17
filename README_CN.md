@@ -5,6 +5,12 @@
   <p align="center">
     中文 · <a href="README.md">English</a>
   </p>
+  <p align="center">
+    <a href="https://dozybot001.github.io/MAARS/">🌐 网站</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/architecture.html">架构</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/refine-write.html">Refine & Write</a> ·
+    <a href="https://dozybot001.github.io/MAARS/docs/research.html">Research</a>
+  </p>
 </p>
 
 ---
@@ -167,11 +173,13 @@ results/{session}/
 
 ## 文档
 
+完整文档见 **[dozybot001.github.io/MAARS](https://dozybot001.github.io/MAARS/)**（页面内置中英切换）。
+
 | 文档 | 内容 |
 |------|------|
-| [架构概览](docs/CN/architecture.md) | 系统概览、SSE 协议、存储结构 |
-| [Refine & Write](docs/CN/refine-write.md) | IterationState 模式、双 Agent 循环详情 |
-| [Research](docs/CN/research.md) | 任务分解、并行执行、评估循环 |
+| [架构](https://dozybot001.github.io/MAARS/docs/architecture.html) | 五层架构、SSE 协议、阶段继承、会话存储 |
+| [Refine & Write](https://dozybot001.github.io/MAARS/docs/refine-write.html) | IterationState 模式、双 Agent 循环、Polish 子阶段 |
+| [Research](https://dozybot001.github.io/MAARS/docs/research.html) | 任务分解、并行执行、评估循环 |
 
 ## 技术栈
 
