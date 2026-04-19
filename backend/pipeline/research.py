@@ -253,7 +253,8 @@ class ResearchStage(Stage):
                 self._all_tasks = existing_plan
                 self._tree = self.db.get_plan_tree() or self._tree
             has_pending = any(
-                t["id"] not in self._task_results for t in self._all_tasks
+                t["id"] not in self._task_results and t.get("status") != "failed"
+                for t in self._all_tasks
             ) if self._all_tasks else False
             if not self._all_tasks:
                 await self._decompose_fresh(idea)
@@ -581,10 +582,11 @@ class ResearchStage(Stage):
             return False, None
         if prev_score is None:
             return True, current
+        threshold = settings.score_improvement_threshold
         if minimize:
-            improved = current < prev_score * 0.995
+            improved = current < prev_score * (1 - threshold)
         else:
-            improved = current > prev_score * 1.005
+            improved = current > prev_score * (1 + threshold)
         return improved, current
 
     async def _evaluate_results(

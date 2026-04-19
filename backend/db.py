@@ -49,6 +49,8 @@ class ResearchDB:
         self._root: Path | None = None
         self.research_id: str = ""
         self._meta_lock = threading.Lock()
+        self._log_lock = threading.Lock()
+        self._exec_log_lock = threading.Lock()
 
     @property
     def current_task_id(self) -> str | None:
@@ -189,8 +191,9 @@ class ResearchDB:
             entry["task_id"] = task_id
         if label:
             entry["label"] = True
-        with open(self._root / "log.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        with self._log_lock:
+            with open(self._root / "log.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def append_execution_log(self, task_id: str, script: str,
                              language: str = "python", requirements: str = ""):
@@ -198,8 +201,9 @@ class ResearchDB:
         self._ensure_root()
         entry = {"ts": time.time(), "task_id": task_id, "script": script,
                  "language": language, "requirements": requirements}
-        with open(self._root / "execution_log.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        with self._exec_log_lock:
+            with open(self._root / "execution_log.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def update_meta(self, **kwargs):
         self._ensure_root()
@@ -247,17 +251,21 @@ class ResearchDB:
         path = self._root / "log.jsonl"
         if not path.exists():
             return [], 0
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with self._log_lock:
+            lines = path.read_text(encoding="utf-8").splitlines()
         entries = []
-        for line in lines[offset:]:
+        new_offset = offset
+        for i, line in enumerate(lines[offset:], start=offset):
             try:
                 entry = json.loads(line)
-                if stage and entry.get("stage") != stage:
-                    continue
-                entries.append(entry)
             except json.JSONDecodeError:
+                new_offset = i + 1
                 continue
-        return entries, len(lines)
+            new_offset = i + 1
+            if stage and entry.get("stage") != stage:
+                continue
+            entries.append(entry)
+        return entries, new_offset
 
     def get_execution_log(self) -> list[dict]:
         self._ensure_root()

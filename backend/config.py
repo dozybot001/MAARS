@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     docker_sandbox_network: bool
     docker_sandbox_gpu: bool
 
+    # --- Output truncation ---
+    docker_stdout_limit: int = 5000
+    docker_stderr_limit: int = 2000
+
+    # --- Score improvement threshold (fraction, e.g. 0.005 = 0.5%) ---
+    score_improvement_threshold: float = 0.005
+
     class Config:
         env_prefix = "MAARS_"
         env_file = ".env"

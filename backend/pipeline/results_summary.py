@@ -85,7 +85,7 @@ def _build_data(db: ResearchDB) -> dict:
     ]
 
     evaluation_rounds = []
-    for idx, ev in enumerate(evaluations, start=1):
+    for idx, ev in enumerate(evaluations, start=0):
         suggestions = ev.get("suggestions", [])
         if isinstance(suggestions, str):
             suggestions = [suggestions] if suggestions else []

@@ -28,14 +28,15 @@ def kill_all_containers():
         snapshot = list(_active_containers)
         _active_containers.clear()
     for container in snapshot:
+        cid = getattr(container, "short_id", "unknown")
         try:
             container.kill()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Failed to kill container %s: %s", cid, e)
         try:
             container.remove(force=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Failed to remove container %s: %s", cid, e)
 
 
 def _get_docker_client():
@@ -119,14 +120,15 @@ class _SessionContainer:
                 _active_containers.remove(c)
             except ValueError:
                 pass
+        cid = getattr(c, "short_id", "unknown")
         try:
             c.kill()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Failed to kill container %s: %s", cid, e)
         try:
             c.remove(force=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Failed to remove container %s: %s", cid, e)
 
 
 def _exec_in_container(container, shell_cmd, timeout):
@@ -220,8 +222,8 @@ def create_docker_tools(db: ResearchDB) -> list:
                        if f.is_file())
 
         return json.dumps({
-            "stdout": stdout[-5000:],
-            "stderr": stderr[-2000:],
+            "stdout": stdout[-settings.docker_stdout_limit:],
+            "stderr": stderr[-settings.docker_stderr_limit:],
             "exit_code": exit_code,
             "timed_out": timed_out,
             "script": script_name,

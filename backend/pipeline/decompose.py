@@ -111,6 +111,15 @@ async def _process_task(task_id, tasks, pending, context, system_prompt,
         progress_fn(_serialize_tree(tasks, root_id))
         return
 
+    seen_ids = set()
+    for st in subtasks:
+        if st["id"] in seen_ids:
+            log.warning("Judge %s: duplicate subtask id '%s', treating as atomic", task_id, st["id"])
+            task.is_atomic = True
+            progress_fn(_serialize_tree(tasks, root_id))
+            return
+        seen_ids.add(st["id"])
+
     task.is_atomic = False
     for st in subtasks:
         child_id = st["id"] if is_root and root_id == "0" else f"{task_id}_{st['id']}"
@@ -211,7 +220,12 @@ def _ancestor_chain(task_id, root_id="0"):
     return ancestors
 
 
-def _get_atomic_descendants(all_tasks, task_id, atomic_tasks):
+def _get_atomic_descendants(all_tasks, task_id, atomic_tasks, _visited=None):
+    if _visited is None:
+        _visited = set()
+    if task_id in _visited:
+        return set()
+    _visited.add(task_id)
     result = set()
     task = all_tasks.get(task_id)
     if not task:
@@ -220,5 +234,5 @@ def _get_atomic_descendants(all_tasks, task_id, atomic_tasks):
         result.add(task_id)
         return result
     for child_id in task.children:
-        result.update(_get_atomic_descendants(all_tasks, child_id, atomic_tasks))
+        result.update(_get_atomic_descendants(all_tasks, child_id, atomic_tasks, _visited))
     return result
