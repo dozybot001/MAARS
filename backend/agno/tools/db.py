@@ -5,6 +5,14 @@ from pathlib import Path
 from backend.db import ResearchDB
 
 
+def _is_within_dir(candidate: Path, root: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def create_db_tools(db: ResearchDB) -> list:
     def read_task_output(task_id: str) -> str:
         """Read the output of a previously completed task by its ID."""
@@ -55,7 +63,7 @@ def create_db_tools(db: ResearchDB) -> list:
         try:
             artifacts_root = db.get_artifacts_dir()
             target = (artifacts_root / path).resolve()
-            if not str(target).startswith(str(artifacts_root.resolve())):
+            if not _is_within_dir(target, artifacts_root.resolve()):
                 return "Error: path escapes artifacts directory."
             if not target.exists():
                 return f"File not found: {path}"

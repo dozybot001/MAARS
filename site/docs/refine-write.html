@@ -4,46 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Refine &amp; Write — MAARS Docs</title>
-<meta name="description" content="MAARS Refine and Write stages: shared TeamStage base, IterationState-driven Multi-Agent loop, Polish + Metadata sub-steps." />
+<meta name="description" content="Design of the Refine and Write stages in MAARS: shared loop, IterationState, reviewer contract, and Write-specific polish behavior." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="docs.css" />
-
-<style>
-  /* lifecycle round card */
-  .round-card {
-    position: relative;
-    padding: 1rem 1.2rem 1.1rem 3rem;
-    background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.008));
-    border: 1px solid rgba(255,255,255,.07);
-    border-radius: 10px;
-    margin: .6rem 0;
-  }
-  .round-card .round-num {
-    position: absolute; top: 1rem; left: 1rem;
-    width: 1.6rem; height: 1.6rem; border-radius: 999px;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: rgba(99,102,241,.18); border: 1px solid rgba(129,140,248,.4);
-    color: #c7d2fe;
-    font-family: 'JetBrains Mono', monospace; font-size: .72rem; font-weight: 600;
-  }
-  .round-card h4 { margin: 0 0 .35rem; font-size: .95rem; color: #f1f5f9; font-weight: 600; }
-  .round-card .trace {
-    font-family: 'JetBrains Mono', monospace; font-size: .78rem;
-    color: #94a3b8; line-height: 1.85;
-  }
-  .round-card .trace .ag { color: #c7d2fe; }
-  .round-card .trace .arrow { color: #475569; }
-  .round-card .state-after {
-    margin-top: .5rem; padding: .5rem .7rem;
-    background: rgba(99,102,241,.06); border-left: 2px solid rgba(129,140,248,.45);
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: #cbd5e1;
-  }
-  .round-card .state-after .k { color: #818cf8; }
-</style>
 </head>
 
 <body>
@@ -60,6 +26,7 @@
       <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
       <a href="refine-write.html" class="current" data-i18n="nav.refine_write">Refine &amp; Write</a>
       <a href="research.html" data-i18n="nav.research">Research</a>
+      <a href="tools.html" data-i18n="nav.tools">Tools</a>
     </nav>
     <div class="nav-right">
       <div class="lang-toggle">
@@ -78,6 +45,7 @@
           <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
           <a href="refine-write.html" class="current" data-i18n="nav.refine_write">Refine &amp; Write</a>
           <a href="research.html" data-i18n="nav.research">Research</a>
+          <a href="tools.html" data-i18n="nav.tools">Tools</a>
           <a href="../index.html" data-i18n="nav.home">← Home</a>
         </div>
       </details>
@@ -86,19 +54,17 @@
 </header>
 
 <div class="doc-layout">
-
   <aside class="sidebar">
     <div class="sidebar-title" data-i18n="toc.label">On this page</div>
     <ul class="toc">
       <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+      <li><a href="#loop" data-i18n="toc.loop">Shared loop</a></li>
       <li><a href="#state" data-i18n="toc.state">IterationState</a></li>
-      <li><a href="#loop" data-i18n="toc.loop">Loop mechanics</a></li>
-      <li><a href="#config" data-i18n="toc.config">Refine vs Write</a></li>
-      <li><a href="#lifecycle" data-i18n="toc.lifecycle">Round-by-round example</a></li>
-      <li><a href="#reviewer" data-i18n="toc.reviewer">Reviewer JSON</a></li>
-      <li><a href="#vs-research" data-i18n="toc.vs_research">vs Research</a></li>
-      <li><a href="#polish" data-i18n="toc.polish">Polish + Metadata</a></li>
-      <li><a href="#code" data-i18n="toc.code">Code locations</a></li>
+      <li><a href="#refine" data-i18n="toc.refine">Refine design</a></li>
+      <li><a href="#write" data-i18n="toc.write">Write design</a></li>
+      <li><a href="#polish" data-i18n="toc.polish">Polish + metadata</a></li>
+      <li><a href="#termination" data-i18n="toc.termination">Termination</a></li>
+      <li><a href="#code" data-i18n="toc.code">Code map</a></li>
     </ul>
   </aside>
 
@@ -110,335 +76,73 @@
       </summary>
       <ul class="toc">
         <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+        <li><a href="#loop" data-i18n="toc.loop">Shared loop</a></li>
         <li><a href="#state" data-i18n="toc.state">IterationState</a></li>
-        <li><a href="#loop" data-i18n="toc.loop">Loop mechanics</a></li>
-        <li><a href="#config" data-i18n="toc.config">Refine vs Write</a></li>
-        <li><a href="#lifecycle" data-i18n="toc.lifecycle">Round-by-round example</a></li>
-        <li><a href="#reviewer" data-i18n="toc.reviewer">Reviewer JSON</a></li>
-        <li><a href="#vs-research" data-i18n="toc.vs_research">vs Research</a></li>
-        <li><a href="#polish" data-i18n="toc.polish">Polish + Metadata</a></li>
-        <li><a href="#code" data-i18n="toc.code">Code locations</a></li>
+        <li><a href="#refine" data-i18n="toc.refine">Refine design</a></li>
+        <li><a href="#write" data-i18n="toc.write">Write design</a></li>
+        <li><a href="#polish" data-i18n="toc.polish">Polish + metadata</a></li>
+        <li><a href="#termination" data-i18n="toc.termination">Termination</a></li>
+        <li><a href="#code" data-i18n="toc.code">Code map</a></li>
       </ul>
     </details>
 
     <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · refine &amp; write</div>
     <h1 data-i18n="doc.title">Refine &amp; Write</h1>
     <p class="lede" data-i18n="doc.lede">
-      Refine and Write share the same <code>TeamStage</code> base class and an <code>IterationState</code>-driven Multi-Agent loop. Symmetric at the loop level, they differ only in configuration. Write additionally overrides <code>_execute()</code> to append <strong>Polish</strong> and <strong>Metadata</strong> sub-steps.
+      Refine and Write share the same control shape: a primary agent produces a draft, a reviewer critiques it, and the runtime iterates until the issue list is empty or the round limit is reached.
     </p>
 
-    <!-- ===== Overview ===== -->
     <section id="overview">
-      <h2><span class="num">01</span><span data-i18n="ov.title">One shape, two roles</span></h2>
-      <p data-i18n="ov.body">
-        A <strong>primary</strong> agent drafts, a <strong>reviewer</strong> agent critiques, and an <code>IterationState</code> tracks the delta between them. Python runtime drives the loop. The LLM never decides when to stop — the runtime does, by inspecting whether <code>issues</code> has reached zero.
-      </p>
+      <h2><span class="num">01</span><span data-i18n="ov.title">Why these two stages belong together</span></h2>
+      <div data-i18n="ov.body"></div>
     </section>
 
-    <!-- ===== IterationState ===== -->
-    <section id="state">
-      <h2><span class="num">02</span><span data-i18n="st.title">IterationState</span></h2>
-      <p class="sub" data-i18n="st.sub">Three fields. Bounded context. No growth with iteration count.</p>
-
-      <div class="copy-card" data-copy-target="state-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="state-code"><span class="k">@dataclass</span>
-<span class="k">class</span> <span class="n">IterationState</span>:
-    <span class="n">draft</span>: <span class="n">str</span>              <span class="c"># <span data-i18n="st.f1">latest full content (proposal / paper)</span></span>
-    <span class="n">issues</span>: <span class="n">list</span>[<span class="n">dict</span>]      <span class="c"># <span data-i18n="st.f2">[{section, problem, suggestion}]</span></span>
-    <span class="n">iteration</span>: <span class="n">int</span>          <span class="c"># <span data-i18n="st.f3">current round</span></span>
-    <span class="n">_next_id</span>: <span class="n">int</span> = <span class="s">1</span>       <span class="c"># <span data-i18n="st.f4">Issue ID counter (I1, I2, I3...)</span></span></code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-
-      <h3 data-i18n="st.rules_t">Update rules</h3>
-      <ul>
-        <li data-i18n="st.r1"><code>draft</code>: produced by the primary agent each round, overwrites the previous.</li>
-        <li data-i18n="st.r2"><code>issues</code>: reviewer returns a <code>resolved</code> list — those IDs are removed; reviewer returns a fresh <code>issues</code> list — runtime auto-assigns new IDs (I1, I2, …) and appends.</li>
-        <li data-i18n="st.r3"><code>iteration</code>: increments by 1 each round.</li>
-      </ul>
-
-      <h3 data-i18n="st.ctx_t">Context injection</h3>
-      <p data-i18n="st.ctx_body">
-        <code>IterationState</code> is not an object the agent "sees". It is stitched into the <code>user_text</code> prompt by <code>_build_primary_prompt()</code> / <code>_build_reviewer_prompt()</code>. Every round, the agent receives a <strong>constant-sized</strong> context: original input + latest draft + unresolved issues. Context doesn't grow with iteration count.
-      </p>
-    </section>
-
-    <!-- ===== Loop mechanics ===== -->
     <section id="loop">
-      <h2><span class="num">03</span><span data-i18n="lp.title">Loop mechanics</span></h2>
-      <p class="sub" data-i18n="lp.sub">Two LLM calls per round. Reviewer emits structured JSON. Runtime decides when to stop.</p>
-
-      <div class="copy-card" data-copy-target="loop-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="loop-code"><span class="k">for</span> <span class="n">round</span> <span class="k">in</span> <span class="n">range</span>(<span class="n">max_delegations</span>):
-    <span class="c"># <span data-i18n="lp.c1">1. Primary agent drafts / revises</span></span>
-    <span class="n">draft</span> = <span class="n">_stream_llm</span>(<span class="n">primary_agent</span>, <span class="n">input</span> + <span class="n">state</span>)
-    <span class="n">state</span>.<span class="n">draft</span> = <span class="n">draft</span>
-    <span class="n">save_round_md</span>(<span class="n">primary_dir</span>, <span class="n">draft</span>, <span class="n">round</span>)
-    <span class="n">send</span>()                                       <span class="c"># <span data-i18n="lp.c2">done signal</span></span>
-
-    <span class="c"># <span data-i18n="lp.c3">2. Reviewer critiques</span></span>
-    <span class="n">review</span> = <span class="n">_stream_llm</span>(<span class="n">reviewer_agent</span>, <span class="n">input</span> + <span class="n">state</span>)
-    <span class="n">feedback</span> = <span class="n">parse_json_fenced</span>(<span class="n">review</span>)         <span class="c"># <span data-i18n="lp.c4">{issues, resolved}</span></span>
-    <span class="n">save_round_md</span>(<span class="n">reviewer_dir</span>, <span class="n">review</span>, <span class="n">round</span>)
-    <span class="n">save_round_json</span>(<span class="n">reviewer_dir</span>, <span class="n">feedback</span>, <span class="n">round</span>)
-    <span class="n">send</span>()
-
-    <span class="n">state</span>.<span class="n">update</span>(<span class="n">draft</span>, <span class="n">feedback</span>)                <span class="c"># <span data-i18n="lp.c5">drop resolved · assign IDs to new issues</span></span>
-    <span class="k">if</span> <span class="k">not</span> <span class="n">state</span>.<span class="n">issues</span>: <span class="k">break</span>                   <span class="c"># <span data-i18n="lp.c6">empty list = pass</span></span>
-
-<span class="c"># <span data-i18n="lp.c7">Fell through max_delegations with unresolved issues?</span></span>
-<span class="c"># <span data-i18n="lp.c8">Log a warning, continue the pipeline with the last draft.</span></span></code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-
-      <p data-i18n="lp.body">
-        The reviewer emits structured feedback via the <code>_REVIEWER_OUTPUT_FORMAT</code> JSON schema. The <em>runtime</em> — not the reviewer — checks whether <code>issues</code> is empty to decide pass/fail. The runtime mechanically maintains state and auto-assigns issue IDs (I1, I2, …); state management involves no LLM. When <code>max_delegations</code> is hit, the runtime logs a warning and proceeds with the last draft.
-      </p>
+      <h2><span class="num">02</span><span data-i18n="lp.title">Shared loop</span></h2>
+      <p class="sub" data-i18n="lp.sub">Same runtime pattern, different prompts and toolsets.</p>
+      <div data-i18n="lp.body"></div>
     </section>
 
-    <!-- ===== Refine vs Write config ===== -->
-    <section id="config">
-      <h2><span class="num">04</span><span data-i18n="cf.title">Refine vs Write configuration</span></h2>
-      <p class="sub" data-i18n="cf.sub">Same loop, different agents, different artifacts on disk.</p>
-
-      <table>
-        <thead><tr>
-          <th></th>
-          <th data-i18n="cf.th_refine">Refine</th>
-          <th data-i18n="cf.th_write">Write</th>
-        </tr></thead>
-        <tbody>
-          <tr>
-            <td data-i18n="cf.r_primary">Primary agent</td>
-            <td data-i18n="cf.v_refine_p">Explorer — search tools (arXiv, Wikipedia)</td>
-            <td data-i18n="cf.v_write_p">Writer — DB tools (list_tasks, read_task_output, list_artifacts)</td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_reviewer">Reviewer agent</td>
-            <td data-i18n="cf.v_refine_r">Critic — search tools</td>
-            <td data-i18n="cf.v_write_r">Reviewer — DB tools + list_artifacts</td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_input">Input</td>
-            <td><code>db.get_idea()</code></td>
-            <td data-i18n="cf.v_write_i">Static instruction (Writer reads data via tools)</td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_output">Output</td>
-            <td><code>refined_idea.md</code></td>
-            <td><code>paper.md</code></td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_dir">On-disk dir</td>
-            <td><code>proposals/</code> + <code>critiques/</code></td>
-            <td><code>drafts/</code> + <code>reviews/</code></td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_sse">SSE phase</td>
-            <td><code>proposal</code> / <code>critique</code></td>
-            <td><code>draft</code> / <code>review</code></td>
-          </tr>
-          <tr>
-            <td data-i18n="cf.r_search">Gemini Search</td>
-            <td data-i18n="cf.v_refine_s">enabled (<code>search=True</code>)</td>
-            <td data-i18n="cf.v_write_s">enabled</td>
-          </tr>
-        </tbody>
-      </table>
+    <section id="state">
+      <h2><span class="num">03</span><span data-i18n="st.title">IterationState</span></h2>
+      <p class="sub" data-i18n="st.sub">The runtime carries only the latest draft and the currently open issues.</p>
+      <div data-i18n="st.body"></div>
     </section>
 
-    <!-- ===== Lifecycle example ===== -->
-    <section id="lifecycle">
-      <h2><span class="num">05</span><span data-i18n="lc.title">A typical lifecycle</span></h2>
-      <p class="sub" data-i18n="lc.sub">Three rounds, from fresh idea to "issues: []". This is the canonical shape of a Refine or Write session.</p>
-
-      <div class="round-card">
-        <div class="round-num">01</div>
-        <h4 data-i18n="lc.r1_t">First draft, first critique</h4>
-        <div class="trace">
-<span class="ag">Explorer</span>(idea)                           <span class="arrow">→</span> draft v1<br>
-<span class="ag">Critic</span>(idea + v1)                        <span class="arrow">→</span> {issues:[A,B,C]}<br>
-<span style="color:#64748b" data-i18n="lc.r1_assign"># runtime assigns IDs: I1=A, I2=B, I3=C</span>
-        </div>
-        <div class="state-after">state = {<span class="k">draft</span>: v1, <span class="k">issues</span>: [I1,I2,I3], <span class="k">iteration</span>: 1, <span class="k">_next_id</span>: 4}</div>
-      </div>
-
-      <div class="round-card">
-        <div class="round-num">02</div>
-        <h4 data-i18n="lc.r2_t">Revise; some resolved, one new</h4>
-        <div class="trace">
-<span class="ag">Explorer</span>(idea + v1 + [I1,I2,I3])         <span class="arrow">→</span> draft v2<br>
-<span class="ag">Critic</span>(idea + v2 + [I1,I2,I3])           <span class="arrow">→</span> {issues:[D], resolved:[I1,I2]}<br>
-<span style="color:#64748b" data-i18n="lc.r2_assign"># runtime: I4=D · remove I1, I2</span>
-        </div>
-        <div class="state-after">state = {<span class="k">draft</span>: v2, <span class="k">issues</span>: [I3,I4], <span class="k">iteration</span>: 2, <span class="k">_next_id</span>: 5}</div>
-      </div>
-
-      <div class="round-card">
-        <div class="round-num">03</div>
-        <h4 data-i18n="lc.r3_t">Convergence — empty issues, break</h4>
-        <div class="trace">
-<span class="ag">Explorer</span>(idea + v2 + [I3,I4])            <span class="arrow">→</span> draft v3<br>
-<span class="ag">Critic</span>(idea + v3 + [I3,I4])              <span class="arrow">→</span> {issues:[], resolved:[I3,I4]}<br>
-<span style="color:#64748b" data-i18n="lc.r3_break"># issues is empty → break → save refined_idea.md / paper.md</span>
-        </div>
-      </div>
+    <section id="refine">
+      <h2><span class="num">04</span><span data-i18n="rf.title">Refine design</span></h2>
+      <p class="sub" data-i18n="rf.sub">Refine narrows intent. It does not run experiments or build plans.</p>
+      <div data-i18n="rf.body"></div>
     </section>
 
-    <!-- ===== Reviewer JSON ===== -->
-    <section id="reviewer">
-      <h2><span class="num">06</span><span data-i18n="rv.title">Reviewer JSON format</span></h2>
-      <p class="sub" data-i18n="rv.sub">The reviewer's sole job is to emit this JSON. Runtime does the rest.</p>
-
-      <div class="copy-card" data-copy-target="rv-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="rv-code"><span class="p">{</span>
-  <span class="s">"issues"</span><span class="p">:</span> <span class="p">[</span>
-    <span class="p">{</span>
-      <span class="s">"section"</span><span class="p">:</span> <span class="s">"Methodology"</span><span class="p">,</span>
-      <span class="s">"problem"</span><span class="p">:</span> <span class="s">"DAG extraction feasibility unclear"</span><span class="p">,</span>
-      <span class="s">"suggestion"</span><span class="p">:</span> <span class="s">"Add human-in-the-loop validation step"</span>
-    <span class="p">}</span>
-  <span class="p">]</span><span class="p">,</span>
-  <span class="s">"resolved"</span><span class="p">:</span> <span class="p">[</span><span class="s">"I1"</span><span class="p">,</span> <span class="s">"I3"</span><span class="p">]</span>
-<span class="p">}</span></code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-
-      <ul>
-        <li data-i18n="rv.n1"><code>issues</code>: new problems found this round. No <code>id</code> or <code>severity</code> fields — the runtime assigns IDs.</li>
-        <li data-i18n="rv.n2"><code>resolved</code>: runtime-assigned IDs (like <code>I1</code>, <code>I3</code>) from the "Previously Identified Issues" block that are now fixed.</li>
-        <li data-i18n="rv.n3"><strong>Pass decision</strong>: runtime checks if <code>issues</code> is empty after the update. No <code>pass</code> field needed.</li>
-        <li data-i18n="rv.n4"><code>format_issues()</code> prefixes each with <code>**I{n}**</code> so the reviewer can reference them precisely.</li>
-      </ul>
+    <section id="write">
+      <h2><span class="num">05</span><span data-i18n="wr.title">Write design</span></h2>
+      <p class="sub" data-i18n="wr.sub">Write treats research outputs as facts and turns them into a readable paper.</p>
+      <div data-i18n="wr.body"></div>
     </section>
 
-    <!-- ===== vs Research ===== -->
-    <section id="vs-research">
-      <h2><span class="num">07</span><span data-i18n="vs.title">vs Research</span></h2>
-      <p class="sub" data-i18n="vs.sub">Same philosophy, different execution shape.</p>
-
-      <table>
-        <thead><tr>
-          <th></th>
-          <th data-i18n="vs.th_research">Research</th>
-          <th data-i18n="vs.th_rw">Refine / Write</th>
-        </tr></thead>
-        <tbody>
-          <tr>
-            <td data-i18n="vs.r_loop">Loop</td>
-            <td data-i18n="vs.v_research_l">strategy → decompose → execute → evaluate</td>
-            <td data-i18n="vs.v_rw_l">primary → reviewer → primary → reviewer</td>
-          </tr>
-          <tr>
-            <td data-i18n="vs.r_state">State</td>
-            <td data-i18n="vs.v_research_s">task_results + plan_tree + score</td>
-            <td data-i18n="vs.v_rw_s">IterationState (draft + issues)</td>
-          </tr>
-          <tr>
-            <td data-i18n="vs.r_driver">Driver</td>
-            <td><code>ResearchStage._run_loop</code></td>
-            <td><code>TeamStage._execute</code></td>
-          </tr>
-          <tr>
-            <td data-i18n="vs.r_agent">Agent role</td>
-            <td data-i18n="vs.v_research_a">One agent per task (many)</td>
-            <td data-i18n="vs.v_rw_a">Two fixed roles alternating</td>
-          </tr>
-          <tr>
-            <td data-i18n="vs.r_comm">Communication</td>
-            <td data-i18n="vs.v_research_c">via artifacts / DB</td>
-            <td data-i18n="vs.v_rw_c">via IterationState injected into prompt</td>
-          </tr>
-          <tr>
-            <td data-i18n="vs.r_term">Termination</td>
-            <td data-i18n="vs.v_research_t">Evaluate emits no strategy_update</td>
-            <td data-i18n="vs.v_rw_t">issues empty, or max_delegations (warn + continue)</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p data-i18n="vs.epilogue"><strong>The shared core</strong>: Python owns the flow, the agent only executes one step, state lives in the runtime.</p>
-    </section>
-
-    <!-- ===== Polish + Metadata ===== -->
     <section id="polish">
-      <h2><span class="num">08</span><span data-i18n="pl.title">Polish + Metadata sub-steps</span></h2>
-      <p class="sub" data-i18n="pl.sub">Polish and Metadata are <strong>sub-steps of Write</strong>, not independent stages. <code>WriteStage</code> overrides <code>TeamStage._execute()</code>: after the Writer/Reviewer loop converges and <code>paper.md</code> is on disk, these two sub-steps run, and only then does the Write stage emit <code>done</code>.</p>
-
-      <h3 data-i18n="pl.order_t">Sub-step order (inside WriteStage._execute)</h3>
-      <ol>
-        <li data-i18n="pl.o1"><strong>Writer/Reviewer loop</strong> — standard <code>TeamStage</code> iteration via <code>super()</code>, produces <code>paper.md</code>.</li>
-        <li data-i18n="pl.o2"><strong><code>phase='polish'</code></strong> — single LLM call with <code>POLISH_SYSTEM</code> prompt. Uses <code>polish_model</code> (<code>MAARS_POLISH_MODEL</code> → <code>write_model</code> → <code>google_model</code>). Reads <code>paper.md</code>, returns polished prose.</li>
-        <li data-i18n="pl.o3"><strong><code>phase='metadata'</code></strong> — deterministic (no LLM). <code>build_metadata_appendix()</code> appends the meta block (generation date, models, config, …).</li>
-        <li data-i18n="pl.o4">Save <code>paper_polished.md</code>, emit Write stage <code>done</code>.</li>
-      </ol>
-
-      <h3 data-i18n="pl.cmp_t">Compared to the loop</h3>
-      <table>
-        <thead><tr>
-          <th></th>
-          <th data-i18n="pl.th_loop">Writer/Reviewer loop</th>
-          <th data-i18n="pl.th_polish">Polish sub-step</th>
-          <th data-i18n="pl.th_meta">Metadata sub-step</th>
-        </tr></thead>
-        <tbody>
-          <tr>
-            <td data-i18n="pl.r_trigger">Trigger</td>
-            <td data-i18n="pl.v_loop_t">TeamStage main loop</td>
-            <td data-i18n="pl.v_polish_t">After loop, <code>phase='polish'</code></td>
-            <td data-i18n="pl.v_meta_t">After Polish, <code>phase='metadata'</code></td>
-          </tr>
-          <tr>
-            <td data-i18n="pl.r_llm">LLM</td>
-            <td data-i18n="pl.v_loop_l">iterative, up to <code>max_delegations</code></td>
-            <td data-i18n="pl.v_polish_l">single call</td>
-            <td data-i18n="pl.v_meta_l">none (deterministic)</td>
-          </tr>
-          <tr>
-            <td data-i18n="pl.r_input">Input</td>
-            <td data-i18n="pl.v_loop_i">task data via DB tools</td>
-            <td><code>paper.md</code></td>
-            <td data-i18n="pl.v_meta_i">polished prose + session meta</td>
-          </tr>
-          <tr>
-            <td data-i18n="pl.r_output">Output</td>
-            <td><code>paper.md</code></td>
-            <td data-i18n="pl.v_polish_o">polished prose (in memory)</td>
-            <td data-i18n="pl.v_meta_o">append metadata block</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p data-i18n="pl.note">
-        Polish handles formatting cleanup, consistency, and metadata injection — work that doesn't benefit from iterative review. Because Polish is embedded in Write, the frontend progress bar has <strong>no separate "polish" node</strong>; the visible chain stays: <code>refine / calibrate / strategy / decompose / execute / evaluate / write</code>.
-      </p>
+      <h2><span class="num">06</span><span data-i18n="pl.title">Polish + metadata</span></h2>
+      <p class="sub" data-i18n="pl.sub">These are sub-steps inside Write, not a fourth top-level stage.</p>
+      <div data-i18n="pl.body"></div>
     </section>
 
-    <!-- ===== Code locations ===== -->
+    <section id="termination">
+      <h2><span class="num">07</span><span data-i18n="tm.title">Termination and reviewer contract</span></h2>
+      <p class="sub" data-i18n="tm.sub">The runtime decides when the loop stops; the reviewer only reports issues.</p>
+      <div data-i18n="tm.body"></div>
+    </section>
+
     <section id="code">
-      <h2><span class="num">09</span><span data-i18n="cd.title">Code locations</span></h2>
-
-      <table>
-        <thead><tr>
-          <th data-i18n="cd.th_file">File</th>
-          <th data-i18n="cd.th_role">Role</th>
-        </tr></thead>
-        <tbody>
-          <tr><td><code>backend/team/stage.py</code></td><td data-i18n="cd.c1">TeamStage base + IterationState</td></tr>
-          <tr><td><code>backend/team/refine.py</code></td><td data-i18n="cd.c2">RefineStage configuration</td></tr>
-          <tr><td><code>backend/team/write.py</code></td><td data-i18n="cd.c3">WriteStage — Writer/Reviewer loop + <code>_execute()</code> override with polish/metadata sub-steps</td></tr>
-          <tr><td><code>backend/team/polish.py</code></td><td data-i18n="cd.c4">Utilities: <code>build_polish_input</code>, <code>build_metadata_appendix</code> (not a Stage subclass)</td></tr>
-          <tr><td><code>backend/team/prompts_en.py</code></td><td data-i18n="cd.c5">EN prompts + <code>_REVIEWER_OUTPUT_FORMAT</code> + <code>POLISH_SYSTEM</code></td></tr>
-          <tr><td><code>backend/team/prompts_zh.py</code></td><td data-i18n="cd.c6">ZH prompts</td></tr>
-        </tbody>
-      </table>
+      <h2><span class="num">08</span><span data-i18n="cd.title">Code map</span></h2>
+      <p class="sub" data-i18n="cd.sub">Most of the complexity lives in the shared base, not in the concrete stages.</p>
+      <div data-i18n="cd.body"></div>
     </section>
 
-    <div style="margin-top:5rem;display:flex;justify-content:space-between;gap:1rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,.06)">
+    <div class="pager">
       <a href="architecture.html" class="btn-ghost">← <span data-i18n="nav.prev_arch">Architecture</span></a>
       <a href="research.html" class="btn-ghost"><span data-i18n="nav.next_research">Research</span> →</a>
     </div>
-
   </main>
 </div>
 
@@ -450,147 +154,196 @@ const T = {
     "nav.architecture": "Architecture",
     "nav.refine_write": "Refine & Write",
     "nav.research": "Research",
+    "nav.tools": "Tools",
     "nav.home": "← Home",
     "nav.prev_arch": "Architecture",
     "nav.next_research": "Research",
 
     "toc.label": "On this page",
     "toc.overview": "Overview",
+    "toc.loop": "Shared loop",
     "toc.state": "IterationState",
-    "toc.loop": "Loop mechanics",
-    "toc.config": "Refine vs Write",
-    "toc.lifecycle": "Round-by-round example",
-    "toc.reviewer": "Reviewer JSON",
-    "toc.vs_research": "vs Research",
-    "toc.polish": "Polish + Metadata",
-    "toc.code": "Code locations",
+    "toc.refine": "Refine design",
+    "toc.write": "Write design",
+    "toc.polish": "Polish + metadata",
+    "toc.termination": "Termination",
+    "toc.code": "Code map",
 
     "doc.eyebrow": "/ docs · refine & write",
     "doc.title": "Refine & Write",
-    "doc.lede": "Refine and Write share the same <code>TeamStage</code> base class and an <code>IterationState</code>-driven Multi-Agent loop. Symmetric at the loop level, they differ only in configuration. Write additionally overrides <code>_execute()</code> to append <strong>Polish</strong> and <strong>Metadata</strong> sub-steps.",
-    "doc.copied": "Copied ✓",
+    "doc.lede": "Refine and Write share the same control shape: a primary agent produces a draft, a reviewer critiques it, and the runtime iterates until the issue list is empty or the round limit is reached.",
 
-    "ov.title": "One shape, two roles",
-    "ov.body": "A <strong>primary</strong> agent drafts, a <strong>reviewer</strong> agent critiques, and an <code>IterationState</code> tracks the delta between them. Python runtime drives the loop. The LLM never decides when to stop — the runtime does, by inspecting whether <code>issues</code> has reached zero.",
+    "ov.title": "Why these two stages belong together",
+    "ov.body": `
+      <p>Refine and Write solve different problems, but they use the same execution pattern. In both cases, the runtime only needs a latest draft, a list of unresolved issues, and two agent roles that alternate cleanly.</p>
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Refine</div>
+          <h3>Intent shaping</h3>
+          <p>Turns a loose idea into a tighter, reviewable research objective.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Write</div>
+          <h3>Paper synthesis</h3>
+          <p>Turns completed research outputs into a coherent paper with review-driven revisions.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Shared core</div>
+          <h3>Two-role loop</h3>
+          <p>A primary role drafts, a reviewer role critiques, and the runtime maintains the state between rounds.</p>
+        </div>
+      </div>
+    `,
+
+    "lp.title": "Shared loop",
+    "lp.sub": "Same runtime pattern, different prompts and toolsets.",
+    "lp.body": `
+      <pre><code>for round in range(max_delegations):
+    draft = primary(input_text, latest_draft, open_issues)
+    save(primary_dir / round_n, draft)
+
+    review = reviewer(input_text, draft, open_issues)
+    feedback = parse_json_fenced(review)
+    save(reviewer_dir / round_n, review, feedback)
+
+    state.update(draft, feedback)
+    if not state.issues:
+        break</code></pre>
+      <div class="note-box">
+        <p><strong>The runtime owns the loop.</strong> Agents do not decide whether the stage has converged. They only produce a draft or a critique for the current round.</p>
+      </div>
+    `,
 
     "st.title": "IterationState",
-    "st.sub": "Three fields. Bounded context. No growth with iteration count.",
-    "st.f1": "latest full content (proposal / paper)",
-    "st.f2": "[{section, problem, suggestion}]",
-    "st.f3": "current round",
-    "st.f4": "Issue ID counter (I1, I2, I3...)",
-    "st.rules_t": "Update rules",
-    "st.r1": "<code>draft</code>: produced by the primary agent each round, overwrites the previous.",
-    "st.r2": "<code>issues</code>: reviewer returns a <code>resolved</code> list — those IDs are removed; reviewer returns a fresh <code>issues</code> list — runtime auto-assigns new IDs (I1, I2, …) and appends.",
-    "st.r3": "<code>iteration</code>: increments by 1 each round.",
-    "st.ctx_t": "Context injection",
-    "st.ctx_body": "<code>IterationState</code> is not an object the agent \"sees\". It is stitched into the <code>user_text</code> prompt by <code>_build_primary_prompt()</code> / <code>_build_reviewer_prompt()</code>. Every round, the agent receives a <strong>constant-sized</strong> context: original input + latest draft + unresolved issues. Context doesn't grow with iteration count.",
+    "st.sub": "The runtime carries only the latest draft and the currently open issues.",
+    "st.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Field 01</div>
+          <h3><code>draft</code></h3>
+          <p>The latest full proposal or paper draft. Each round overwrites the previous version in memory.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Field 02</div>
+          <h3><code>issues</code></h3>
+          <p>The unresolved review items. The runtime removes resolved IDs and assigns new IDs to newly discovered issues.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Field 03</div>
+          <h3><code>iteration</code></h3>
+          <p>A small round counter used to build prompts and keep on-disk revisions ordered.</p>
+        </div>
+      </div>
+      <p>This state model stays intentionally compact. Prompt context does not grow with every round; it is rebuilt from <strong>original input + latest draft + unresolved issues</strong>.</p>
+    `,
 
-    "lp.title": "Loop mechanics",
-    "lp.sub": "Two LLM calls per round. Reviewer emits structured JSON. Runtime decides when to stop.",
-    "lp.c1": "1. Primary agent drafts / revises",
-    "lp.c2": "done signal",
-    "lp.c3": "2. Reviewer critiques",
-    "lp.c4": "{issues, resolved}",
-    "lp.c5": "drop resolved · assign IDs to new issues",
-    "lp.c6": "empty list = pass",
-    "lp.c7": "Fell through max_delegations with unresolved issues?",
-    "lp.c8": "Log a warning, continue the pipeline with the last draft.",
-    "lp.body": "The reviewer emits structured feedback via the <code>_REVIEWER_OUTPUT_FORMAT</code> JSON schema. The <em>runtime</em> — not the reviewer — checks whether <code>issues</code> is empty to decide pass/fail. The runtime mechanically maintains state and auto-assigns issue IDs (I1, I2, …); state management involves no LLM. When <code>max_delegations</code> is hit, the runtime logs a warning and proceeds with the last draft.",
+    "rf.title": "Refine design",
+    "rf.sub": "Refine narrows intent. It does not run experiments or build plans.",
+    "rf.body": `
+      <div class="split">
+        <div class="half">
+          <div class="label">Input + tools</div>
+          <h4>Raw idea, search-oriented context</h4>
+          <p>Refine reads <code>idea.md</code> and uses literature-oriented tools to explore and critique the idea space. Its job is to sharpen the question, not to execute work.</p>
+        </div>
+        <div class="half">
+          <div class="label">Output</div>
+          <h4><code>refined_idea.md</code></h4>
+          <p>The final product is a cleaner problem statement that Research can decompose into concrete tasks. Round artifacts are stored in <code>proposals/</code> and <code>critiques/</code>.</p>
+        </div>
+      </div>
+      <div class="note-box">
+        <p>Kaggle input is the special case: when the input is a competition URL, the runtime can skip Refine and synthesize a refined idea directly from competition metadata.</p>
+      </div>
+    `,
 
-    "cf.title": "Refine vs Write configuration",
-    "cf.sub": "Same loop, different agents, different artifacts on disk.",
-    "cf.th_refine": "Refine",
-    "cf.th_write": "Write",
-    "cf.r_primary": "Primary agent",
-    "cf.v_refine_p": "Explorer — search tools (arXiv, Wikipedia)",
-    "cf.v_write_p": "Writer — DB tools (list_tasks, read_task_output, list_artifacts)",
-    "cf.r_reviewer": "Reviewer agent",
-    "cf.v_refine_r": "Critic — search tools",
-    "cf.v_write_r": "Reviewer — DB tools + list_artifacts",
-    "cf.r_input": "Input",
-    "cf.v_write_i": "Static instruction (Writer reads data via tools)",
-    "cf.r_output": "Output",
-    "cf.r_dir": "On-disk dir",
-    "cf.r_sse": "SSE phase",
-    "cf.r_search": "Gemini Search",
-    "cf.v_refine_s": "enabled (<code>search=True</code>)",
-    "cf.v_write_s": "enabled",
+    "wr.title": "Write design",
+    "wr.sub": "Write treats research outputs as facts and turns them into a readable paper.",
+    "wr.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Factual anchor</div>
+          <h3><code>results_summary.json</code></h3>
+          <p>Write uses the deterministic results summary as its primary truth source, then drills into tasks and artifacts for supporting detail.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Artifact handling</div>
+          <h3>Path rewriting</h3>
+          <p>Drafts live under <code>drafts/</code> and <code>reviews/</code>, so artifact links are rewritten to keep relative paths valid during drafting and after finalization.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Outputs</div>
+          <h3><code>paper.md</code></h3>
+          <p>The writer/reviewer loop produces a stable full draft before any final polish or metadata append step runs.</p>
+        </div>
+      </div>
+      <p>The main design point is that Write is not asked to infer facts from prose. It is explicitly pointed at structured research outputs first, then at detailed artifacts second.</p>
+    `,
 
-    "lc.title": "A typical lifecycle",
-    "lc.sub": "Three rounds, from fresh idea to \"issues: []\". This is the canonical shape of a Refine or Write session.",
-    "lc.r1_t": "First draft, first critique",
-    "lc.r1_assign": "# runtime assigns IDs: I1=A, I2=B, I3=C",
-    "lc.r2_t": "Revise; some resolved, one new",
-    "lc.r2_assign": "# runtime: I4=D · remove I1, I2",
-    "lc.r3_t": "Convergence — empty issues, break",
-    "lc.r3_break": "# issues is empty → break → save refined_idea.md / paper.md",
+    "pl.title": "Polish + metadata",
+    "pl.sub": "These are sub-steps inside Write, not a fourth top-level stage.",
+    "pl.body": `
+      <ol>
+        <li><strong>Writer/Reviewer loop:</strong> converges on <code>paper.md</code>.</li>
+        <li><strong>Polish:</strong> one additional LLM pass improves wording and consistency without reopening the reviewer loop.</li>
+        <li><strong>Metadata appendix:</strong> a deterministic step appends models, runtime settings, token counts, artifact counts, and session metadata.</li>
+      </ol>
+      <div class="note-box">
+        <p>This separation keeps the iterative loop focused on structure and correctness, while leaving final presentation cleanup to a cheaper, single-pass step.</p>
+      </div>
+    `,
 
-    "rv.title": "Reviewer JSON format",
-    "rv.sub": "The reviewer's sole job is to emit this JSON. Runtime does the rest.",
-    "rv.n1": "<code>issues</code>: new problems found this round. No <code>id</code> or <code>severity</code> fields — the runtime assigns IDs.",
-    "rv.n2": "<code>resolved</code>: runtime-assigned IDs (like <code>I1</code>, <code>I3</code>) from the \"Previously Identified Issues\" block that are now fixed.",
-    "rv.n3": "<strong>Pass decision</strong>: runtime checks if <code>issues</code> is empty after the update. No <code>pass</code> field needed.",
-    "rv.n4": "<code>format_issues()</code> prefixes each with <code>**I{n}**</code> so the reviewer can reference them precisely.",
+    "tm.title": "Termination and reviewer contract",
+    "tm.sub": "The runtime decides when the loop stops; the reviewer only reports issues.",
+    "tm.body": `
+      <p>The reviewer is expected to emit structured feedback rather than control flow signals. A minimal shape looks like this:</p>
+      <pre><code>{
+  "issues": [
+    {"section": "Method", "problem": "...", "suggestion": "..."}
+  ],
+  "resolved": ["I1", "I2"]
+}</code></pre>
+      <ul>
+        <li>If <code>issues</code> is empty after the runtime updates state, the stage passes.</li>
+        <li>If the round limit is reached first, the runtime logs a warning and continues with the latest available draft.</li>
+        <li>The runtime, not the reviewer, assigns and tracks issue IDs such as <code>I1</code>, <code>I2</code>, and so on.</li>
+      </ul>
+    `,
 
-    "vs.title": "vs Research",
-    "vs.sub": "Same philosophy, different execution shape.",
-    "vs.th_research": "Research",
-    "vs.th_rw": "Refine / Write",
-    "vs.r_loop": "Loop",
-    "vs.v_research_l": "strategy → decompose → execute → evaluate",
-    "vs.v_rw_l": "primary → reviewer → primary → reviewer",
-    "vs.r_state": "State",
-    "vs.v_research_s": "task_results + plan_tree + score",
-    "vs.v_rw_s": "IterationState (draft + issues)",
-    "vs.r_driver": "Driver",
-    "vs.r_agent": "Agent role",
-    "vs.v_research_a": "One agent per task (many)",
-    "vs.v_rw_a": "Two fixed roles alternating",
-    "vs.r_comm": "Communication",
-    "vs.v_research_c": "via artifacts / DB",
-    "vs.v_rw_c": "via IterationState injected into prompt",
-    "vs.r_term": "Termination",
-    "vs.v_research_t": "Evaluate emits no strategy_update",
-    "vs.v_rw_t": "issues empty, or max_delegations (warn + continue)",
-    "vs.epilogue": "<strong>The shared core</strong>: Python owns the flow, the agent only executes one step, state lives in the runtime.",
-
-    "pl.title": "Polish + Metadata sub-steps",
-    "pl.sub": "Polish and Metadata are <strong>sub-steps of Write</strong>, not independent stages. <code>WriteStage</code> overrides <code>TeamStage._execute()</code>: after the Writer/Reviewer loop converges and <code>paper.md</code> is on disk, these two sub-steps run, and only then does the Write stage emit <code>done</code>.",
-    "pl.order_t": "Sub-step order (inside WriteStage._execute)",
-    "pl.o1": "<strong>Writer/Reviewer loop</strong> — standard <code>TeamStage</code> iteration via <code>super()</code>, produces <code>paper.md</code>.",
-    "pl.o2": "<strong><code>phase='polish'</code></strong> — single LLM call with <code>POLISH_SYSTEM</code> prompt. Uses <code>polish_model</code> (<code>MAARS_POLISH_MODEL</code> → <code>write_model</code> → <code>google_model</code>). Reads <code>paper.md</code>, returns polished prose.",
-    "pl.o3": "<strong><code>phase='metadata'</code></strong> — deterministic (no LLM). <code>build_metadata_appendix()</code> appends the meta block (generation date, models, config, …).",
-    "pl.o4": "Save <code>paper_polished.md</code>, emit Write stage <code>done</code>.",
-    "pl.cmp_t": "Compared to the loop",
-    "pl.th_loop": "Writer/Reviewer loop",
-    "pl.th_polish": "Polish sub-step",
-    "pl.th_meta": "Metadata sub-step",
-    "pl.r_trigger": "Trigger",
-    "pl.v_loop_t": "TeamStage main loop",
-    "pl.v_polish_t": "After loop, <code>phase='polish'</code>",
-    "pl.v_meta_t": "After Polish, <code>phase='metadata'</code>",
-    "pl.r_llm": "LLM",
-    "pl.v_loop_l": "iterative, up to <code>max_delegations</code>",
-    "pl.v_polish_l": "single call",
-    "pl.v_meta_l": "none (deterministic)",
-    "pl.r_input": "Input",
-    "pl.v_loop_i": "task data via DB tools",
-    "pl.v_meta_i": "polished prose + session meta",
-    "pl.r_output": "Output",
-    "pl.v_polish_o": "polished prose (in memory)",
-    "pl.v_meta_o": "append metadata block",
-    "pl.note": "Polish handles formatting cleanup, consistency, and metadata injection — work that doesn't benefit from iterative review. Because Polish is embedded in Write, the frontend progress bar has <strong>no separate \"polish\" node</strong>; the visible chain stays: <code>refine / calibrate / strategy / decompose / execute / evaluate / write</code>.",
-
-    "cd.title": "Code locations",
-    "cd.th_file": "File",
-    "cd.th_role": "Role",
-    "cd.c1": "TeamStage base + IterationState",
-    "cd.c2": "RefineStage configuration",
-    "cd.c3": "WriteStage — Writer/Reviewer loop + <code>_execute()</code> override with polish/metadata sub-steps",
-    "cd.c4": "Utilities: <code>build_polish_input</code>, <code>build_metadata_appendix</code> (not a Stage subclass)",
-    "cd.c5": "EN prompts + <code>_REVIEWER_OUTPUT_FORMAT</code> + <code>POLISH_SYSTEM</code>",
-    "cd.c6": "ZH prompts",
+    "cd.title": "Code map",
+    "cd.sub": "Most of the complexity lives in the shared base, not in the concrete stages.",
+    "cd.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>backend/team/stage.py</code></td>
+            <td>Shared <code>TeamStage</code> loop and <code>IterationState</code>.</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/refine.py</code></td>
+            <td>Refine-specific role and tool wiring.</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/write.py</code></td>
+            <td>Write-specific loop configuration plus polish/metadata sub-steps.</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/polish.py</code></td>
+            <td>Polish input builder and deterministic metadata appendix generator.</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/prompts_*.py</code></td>
+            <td>Refine, Write, reviewer, and polish prompts in both languages.</td>
+          </tr>
+        </tbody>
+      </table>
+    `
   },
 
   zh: {
@@ -598,149 +351,199 @@ const T = {
     "nav.architecture": "架构",
     "nav.refine_write": "Refine & Write",
     "nav.research": "Research",
+    "nav.tools": "Tools",
     "nav.home": "← 首页",
     "nav.prev_arch": "架构",
     "nav.next_research": "Research",
 
     "toc.label": "本页目录",
     "toc.overview": "总览",
+    "toc.loop": "共享循环",
     "toc.state": "IterationState",
-    "toc.loop": "循环机制",
-    "toc.config": "Refine vs Write 配置",
-    "toc.lifecycle": "逐轮示例",
-    "toc.reviewer": "Reviewer JSON",
-    "toc.vs_research": "与 Research 对比",
-    "toc.polish": "Polish + Metadata",
-    "toc.code": "代码位置",
+    "toc.refine": "Refine 设计",
+    "toc.write": "Write 设计",
+    "toc.polish": "Polish + metadata",
+    "toc.termination": "终止条件",
+    "toc.code": "代码地图",
 
     "doc.eyebrow": "/ 文档 · refine & write",
     "doc.title": "Refine & Write",
-    "doc.lede": "Refine 与 Write 共享同一个 <code>TeamStage</code> 基类,由 <code>IterationState</code> 驱动的 Multi-Agent 循环。循环层面两者对称,仅配置不同。Write 额外覆写 <code>_execute()</code>,在循环之后追加 <strong>Polish</strong> 与 <strong>Metadata</strong> 两个子阶段。",
-    "doc.copied": "已复制 ✓",
+    "doc.lede": "Refine 和 Write 共享同一种控制形态：主角色先产出 draft，评审角色再给出 critique，runtime 在问题清零或达到轮次上限前持续迭代。",
 
-    "ov.title": "一种形态,两种角色",
-    "ov.body": "<strong>primary</strong> agent 起草,<strong>reviewer</strong> agent 评审,<code>IterationState</code> 记录两者之间的 delta。Python 运行时驱动循环。LLM 永远不决定何时停止——决定由 runtime 通过检查 <code>issues</code> 是否为空作出。",
+    "ov.title": "为什么这两个阶段应该放在一起讲",
+    "ov.body": `
+      <p>Refine 和 Write 解决的问题不同，但执行模式高度一致。两者都只需要维护“最新 draft”“未解决 issue 列表”以及两种交替出现的 agent 角色。</p>
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Refine</div>
+          <h3>收敛研究意图</h3>
+          <p>把松散的想法收敛成更清晰、可评审的研究目标。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Write</div>
+          <h3>综合为论文</h3>
+          <p>把已经完成的研究产物变成结构完整、可阅读的论文。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Shared core</div>
+          <h3>双角色迭代</h3>
+          <p>一个角色负责产出，一个角色负责评审，runtime 在轮次之间维护状态。</p>
+        </div>
+      </div>
+    `,
+
+    "lp.title": "共享循环",
+    "lp.sub": "runtime 模式相同，区别只在 prompt 和工具集合。",
+    "lp.body": `
+      <pre><code>for round in range(max_delegations):
+    draft = primary(input_text, latest_draft, open_issues)
+    save(primary_dir / round_n, draft)
+
+    review = reviewer(input_text, draft, open_issues)
+    feedback = parse_json_fenced(review)
+    save(reviewer_dir / round_n, review, feedback)
+
+    state.update(draft, feedback)
+    if not state.issues:
+        break</code></pre>
+      <div class="note-box">
+        <p><strong>循环的拥有者是 runtime。</strong> Agent 不负责决定是否收敛，只负责在当前轮次产出 draft 或 critique。</p>
+      </div>
+    `,
 
     "st.title": "IterationState",
-    "st.sub": "三个字段。有界上下文。不随迭代轮数增长。",
-    "st.f1": "最新一版完整内容(提案 / 论文)",
-    "st.f2": "[{section, problem, suggestion}]",
-    "st.f3": "当前轮次",
-    "st.f4": "Issue ID 自增计数(I1, I2, I3...)",
-    "st.rules_t": "状态更新规则",
-    "st.r1": "<code>draft</code>:每轮由 primary agent 产出,直接覆盖前一版。",
-    "st.r2": "<code>issues</code>:reviewer 输出 <code>resolved</code> 列表 → 对应 ID 被移除;reviewer 输出新的 <code>issues</code> 列表 → runtime 自动分配 ID(I1, I2, …)并追加。",
-    "st.r3": "<code>iteration</code>:每轮 +1。",
-    "st.ctx_t": "上下文注入",
-    "st.ctx_body": "<code>IterationState</code> 并非 agent 可感知的对象,而是通过 <code>_build_primary_prompt()</code> / <code>_build_reviewer_prompt()</code> 拼接到 <code>user_text</code> 中。每轮 agent 收到的上下文大小<strong>恒定</strong>:原始输入 + 最新 draft + 未解决 issues。上下文不随迭代轮数增长。",
+    "st.sub": "runtime 只携带最新 draft 和当前仍未关闭的问题。",
+    "st.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Field 01</div>
+          <h3><code>draft</code></h3>
+          <p>当前最新的一版完整提案或论文草稿。每轮都会在内存里覆盖上一版。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Field 02</div>
+          <h3><code>issues</code></h3>
+          <p>尚未解决的评审项。runtime 会移除已解决 ID，并给新问题分配新的 issue ID。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Field 03</div>
+          <h3><code>iteration</code></h3>
+          <p>一个很小的轮次计数器，用于构建 prompt 和保持磁盘上的版本有序。</p>
+        </div>
+      </div>
+      <p>这个状态模型被刻意保持得很轻。prompt 上下文不会随着轮次无限增长，而是由<strong>原始输入 + 最新 draft + 未解决 issues</strong>重新构建。</p>
+    `,
 
-    "lp.title": "循环机制",
-    "lp.sub": "每轮 2 次 LLM 调用。Reviewer 输出结构化 JSON。Runtime 决定何时停止。",
-    "lp.c1": "1. Primary agent 产出 / 修订",
-    "lp.c2": "done 信号",
-    "lp.c3": "2. Reviewer 评审",
-    "lp.c4": "{issues, resolved}",
-    "lp.c5": "移除已解决 · 给新 issue 分配 ID",
-    "lp.c6": "列表为空 = 通过",
-    "lp.c7": "超过 max_delegations 仍有未解决 issues?",
-    "lp.c8": "记录警告,用最后一版 draft 继续流水线。",
-    "lp.body": "Reviewer 通过 <code>_REVIEWER_OUTPUT_FORMAT</code> JSON schema 输出结构化反馈。<em>Runtime</em>——而非 reviewer——通过检查 <code>issues</code> 是否为空来判定 pass/fail。Runtime 机械地维护状态并自动分配 issue ID(I1, I2, …);状态管理不涉及 LLM。当达到 <code>max_delegations</code> 时,runtime 记录警告并继续流水线。",
+    "rf.title": "Refine 设计",
+    "rf.sub": "Refine 的工作是收窄问题，不是执行实验，也不是生成任务计划。",
+    "rf.body": `
+      <div class="split">
+        <div class="half">
+          <div class="label">输入 + 工具</div>
+          <h4>原始 idea，偏搜索型上下文</h4>
+          <p>Refine 读取 <code>idea.md</code>，借助文献与背景搜索工具探索问题空间并进行批评。它的目标是把问题说清楚，而不是开始执行。</p>
+        </div>
+        <div class="half">
+          <div class="label">输出</div>
+          <h4><code>refined_idea.md</code></h4>
+          <p>最终产物是一份更清晰的问题说明，供 Research 后续分解。中间轮次产物写入 <code>proposals/</code> 和 <code>critiques/</code>。</p>
+        </div>
+      </div>
+      <div class="note-box">
+        <p>Kaggle 输入是特例：当输入是比赛 URL 时，runtime 可以直接根据比赛元数据构造 refined idea，并跳过 Refine。</p>
+      </div>
+    `,
 
-    "cf.title": "Refine vs Write 配置",
-    "cf.sub": "同样的循环,不同的 agent,不同的磁盘产物。",
-    "cf.th_refine": "Refine",
-    "cf.th_write": "Write",
-    "cf.r_primary": "Primary agent",
-    "cf.v_refine_p": "Explorer——搜索工具(arXiv, Wikipedia)",
-    "cf.v_write_p": "Writer——DB 工具(list_tasks, read_task_output, list_artifacts)",
-    "cf.r_reviewer": "Reviewer agent",
-    "cf.v_refine_r": "Critic——搜索工具",
-    "cf.v_write_r": "Reviewer——DB 工具 + list_artifacts",
-    "cf.r_input": "输入",
-    "cf.v_write_i": "静态指令(Writer 通过工具读数据)",
-    "cf.r_output": "输出",
-    "cf.r_dir": "落盘目录",
-    "cf.r_sse": "SSE phase",
-    "cf.r_search": "Gemini Search",
-    "cf.v_refine_s": "启用(<code>search=True</code>)",
-    "cf.v_write_s": "启用",
+    "wr.title": "Write 设计",
+    "wr.sub": "Write 把研究输出当成事实来源，再把这些事实组织成可读论文。",
+    "wr.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Factual anchor</div>
+          <h3><code>results_summary.json</code></h3>
+          <p>Write 会先把确定性实验摘要当成主要事实锚点，再根据需要深入 task 输出和 artifact。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Artifact handling</div>
+          <h3>路径重写</h3>
+          <p>草稿保存在 <code>drafts/</code> 和 <code>reviews/</code> 下，所以系统会重写 artifact 相对路径，保证起草阶段和最终落盘后的链接都有效。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Outputs</div>
+          <h3><code>paper.md</code></h3>
+          <p>Writer/Reviewer 循环会先收敛出一份稳定完整的草稿，然后才进入 polish 和 metadata 附加阶段。</p>
+        </div>
+      </div>
+      <p>这个设计的重点是：Write 不应该从自然语言中“猜事实”，而是要先读取结构化研究输出，再补充读取更细粒度的 artifact。</p>
+    `,
 
-    "lc.title": "一次典型的生命周期",
-    "lc.sub": "三轮,从提出想法到「issues: []」。这是 Refine / Write 会话的标准形态。",
-    "lc.r1_t": "第一次起草,第一次评审",
-    "lc.r1_assign": "# runtime 分配 ID:I1=A, I2=B, I3=C",
-    "lc.r2_t": "修订;部分解决,新增一个",
-    "lc.r2_assign": "# runtime:I4=D · 移除 I1、I2",
-    "lc.r3_t": "收敛——issues 空,break",
-    "lc.r3_break": "# issues 为空 → break → 保存 refined_idea.md / paper.md",
+    "pl.title": "Polish + metadata",
+    "pl.sub": "它们属于 Write 内部子步骤，而不是新的顶层阶段。",
+    "pl.body": `
+      <ol>
+        <li><strong>Writer/Reviewer 循环：</strong>收敛得到 <code>paper.md</code>。</li>
+        <li><strong>Polish：</strong>额外增加一次 LLM 调用，改善表述与一致性，但不重新打开 reviewer 循环。</li>
+        <li><strong>Metadata appendix：</strong>通过确定性步骤附加模型、运行参数、token 统计、artifact 数量和 session 元数据。</li>
+      </ol>
+      <div class="note-box">
+        <p>这样做可以让迭代循环专注于结构和正确性，把最终表达层面的清理交给更便宜的一次性步骤。</p>
+      </div>
+    `,
 
-    "rv.title": "Reviewer JSON 格式",
-    "rv.sub": "Reviewer 唯一的任务就是输出这段 JSON。其余一切由 runtime 完成。",
-    "rv.n1": "<code>issues</code>:本轮新发现的问题。<strong>没有</strong> <code>id</code> / <code>severity</code> 字段——runtime 分配 ID。",
-    "rv.n2": "<code>resolved</code>:引用上方「Previously Identified Issues」块中已修复的 runtime 分配 ID(如 <code>I1</code>、<code>I3</code>)。",
-    "rv.n3": "<strong>通过判定</strong>:runtime 在状态更新后检查 <code>issues</code> 是否为空。不需要 <code>pass</code> 字段。",
-    "rv.n4": "<code>format_issues()</code> 在每条前加 <code>**I{n}**</code> 前缀,让 reviewer 能精确引用。",
+    "tm.title": "终止条件与 reviewer 契约",
+    "tm.sub": "停止条件由 runtime 判断，reviewer 只负责报告问题。",
+    "tm.body": `
+      <p>reviewer 期望输出的是结构化反馈，而不是控制流指令。最小形态如下：</p>
+      <pre><code>{
+  "issues": [
+    {"section": "Method", "problem": "...", "suggestion": "..."}
+  ],
+  "resolved": ["I1", "I2"]
+}</code></pre>
+      <ul>
+        <li>如果 runtime 更新状态后 <code>issues</code> 为空，则阶段通过。</li>
+        <li>如果先达到轮次上限，runtime 会记录 warning，并使用当前最新 draft 继续向前推进。</li>
+        <li>issue ID 例如 <code>I1</code>、<code>I2</code> 都由 runtime 分配并追踪，而不是 reviewer 自己维护。</li>
+      </ul>
+    `,
 
-    "vs.title": "与 Research 对比",
-    "vs.sub": "哲学一致,执行形态不同。",
-    "vs.th_research": "Research",
-    "vs.th_rw": "Refine / Write",
-    "vs.r_loop": "循环",
-    "vs.v_research_l": "strategy → decompose → execute → evaluate",
-    "vs.v_rw_l": "primary → reviewer → primary → reviewer",
-    "vs.r_state": "状态",
-    "vs.v_research_s": "task_results + plan_tree + score",
-    "vs.v_rw_s": "IterationState(draft + issues)",
-    "vs.r_driver": "驱动方",
-    "vs.r_agent": "Agent 角色",
-    "vs.v_research_a": "每个 task 独立 agent(多个)",
-    "vs.v_rw_a": "两个固定角色交替",
-    "vs.r_comm": "通信方式",
-    "vs.v_research_c": "通过 artifacts / DB",
-    "vs.v_rw_c": "通过 IterationState 注入 prompt",
-    "vs.r_term": "终止条件",
-    "vs.v_research_t": "Evaluate 不再输出 strategy_update",
-    "vs.v_rw_t": "issues 列表为空,或 max_delegations(警告 + 继续)",
-    "vs.epilogue": "<strong>共同内核</strong>:Python 控制流程,Agent 只负责执行单步,状态在 runtime 层管理。",
-
-    "pl.title": "Polish + Metadata 子阶段",
-    "pl.sub": "Polish 与 Metadata 是 <strong>Write 的子阶段</strong>,不是独立阶段。<code>WriteStage</code> 覆写 <code>TeamStage._execute()</code>:Writer/Reviewer 循环收敛、<code>paper.md</code> 落盘后,这两个子阶段继续执行,然后才发出 Write 的 <code>done</code> 信号。",
-    "pl.order_t": "子阶段顺序(在 WriteStage._execute 内部)",
-    "pl.o1": "<strong>Writer/Reviewer 循环</strong>——标准 <code>TeamStage</code> 迭代(通过 <code>super()</code>),产出 <code>paper.md</code>。",
-    "pl.o2": "<strong><code>phase='polish'</code></strong>——使用 <code>POLISH_SYSTEM</code> prompt 的单次 LLM 调用。使用 <code>polish_model</code>(<code>MAARS_POLISH_MODEL</code> → <code>write_model</code> → <code>google_model</code>)。读取 <code>paper.md</code>,返回润色后的正文。",
-    "pl.o3": "<strong><code>phase='metadata'</code></strong>——确定性处理(无 LLM)。<code>build_metadata_appendix()</code> 追加元数据块(生成日期、模型、配置…)。",
-    "pl.o4": "保存 <code>paper_polished.md</code>,发出 Write 的 <code>done</code> 信号。",
-    "pl.cmp_t": "与循环的对比",
-    "pl.th_loop": "Writer/Reviewer 循环",
-    "pl.th_polish": "Polish 子阶段",
-    "pl.th_meta": "Metadata 子阶段",
-    "pl.r_trigger": "触发",
-    "pl.v_loop_t": "TeamStage 主循环",
-    "pl.v_polish_t": "循环后,<code>phase='polish'</code>",
-    "pl.v_meta_t": "Polish 后,<code>phase='metadata'</code>",
-    "pl.r_llm": "LLM",
-    "pl.v_loop_l": "迭代,最多 <code>max_delegations</code> 轮",
-    "pl.v_polish_l": "单次调用",
-    "pl.v_meta_l": "无(确定性)",
-    "pl.r_input": "输入",
-    "pl.v_loop_i": "通过 DB 工具读取 task 数据",
-    "pl.v_meta_i": "润色后正文 + session meta",
-    "pl.r_output": "输出",
-    "pl.v_polish_o": "润色后正文(在内存)",
-    "pl.v_meta_o": "追加元数据块",
-    "pl.note": "Polish 用于处理格式清理、一致性检查和元数据注入——这些工作并不受益于迭代评审。由于 Polish 内嵌在 Write 中,前端进度条 <strong>不包含独立的 \"polish\" 节点</strong>,可见链路保持:<code>refine / calibrate / strategy / decompose / execute / evaluate / write</code>。",
-
-    "cd.title": "代码位置",
-    "cd.th_file": "文件",
-    "cd.th_role": "职责",
-    "cd.c1": "TeamStage 基类 + IterationState",
-    "cd.c2": "RefineStage 配置",
-    "cd.c3": "WriteStage——Writer/Reviewer 循环 + 覆写 <code>_execute()</code> 追加 polish/metadata 子阶段",
-    "cd.c4": "工具模块:<code>build_polish_input</code>、<code>build_metadata_appendix</code>(非 Stage 子类)",
-    "cd.c5": "EN prompts + <code>_REVIEWER_OUTPUT_FORMAT</code> + <code>POLISH_SYSTEM</code>",
-    "cd.c6": "ZH prompts",
+    "cd.title": "代码地图",
+    "cd.sub": "大部分复杂度在共享基类中，而不在具体阶段本身。",
+    "cd.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>文件</th>
+            <th>职责</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>backend/team/stage.py</code></td>
+            <td>共享的 <code>TeamStage</code> 循环和 <code>IterationState</code>。</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/refine.py</code></td>
+            <td>Refine 的角色与工具配置。</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/write.py</code></td>
+            <td>Write 的循环配置，以及 polish/metadata 子步骤。</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/polish.py</code></td>
+            <td>Polish 输入拼装和确定性 metadata appendix 生成。</td>
+          </tr>
+          <tr>
+            <td><code>backend/team/prompts_*.py</code></td>
+            <td>中英文 Refine、Write、reviewer 和 polish prompt。</td>
+          </tr>
+        </tbody>
+      </table>
+    `
   }
 };
+
 initLang(T);
 </script>
 </body>

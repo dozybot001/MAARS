@@ -4,83 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Research — MAARS Docs</title>
-<meta name="description" content="MAARS Research stage: preflight, six phases (Calibrate→Strategy→Decompose→Execute→Verify→Evaluate), parallel execution, _stream_llm, JSON parsing." />
+<meta name="description" content="Design of the Research stage in MAARS: outer loop, task DAG, execution cycle, iteration policy, runtime guards, and outputs." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="docs.css" />
-
-<style>
-  /* phase cards grid */
-  .phase-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: .9rem;
-    margin: 1.4rem 0;
-  }
-  .phase-card {
-    padding: 1.1rem 1.2rem 1.2rem;
-    background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.008));
-    border: 1px solid rgba(255,255,255,.07);
-    border-radius: 10px;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .phase-card code { white-space: normal; word-break: break-word; }
-  .phase-card-head {
-    display: flex; align-items: center; gap: .65rem; margin-bottom: .75rem;
-  }
-  .phase-num {
-    flex-shrink: 0;
-    width: 1.8rem; height: 1.8rem; border-radius: 999px;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: rgba(99,102,241,.15); border: 1px solid rgba(129,140,248,.35);
-    color: #c7d2fe;
-    font-family: 'JetBrains Mono', monospace; font-size: .7rem; font-weight: 700;
-    letter-spacing: .04em;
-  }
-  .phase-card h3 {
-    margin: 0; font-size: 1rem; color: #f1f5f9; font-weight: 600;
-  }
-  .phase-card .phase-once {
-    font-size: .72rem; color: #818cf8;
-    font-family: 'JetBrains Mono', monospace;
-    background: rgba(99,102,241,.12); border-radius: 4px;
-    padding: .1rem .4rem; margin-left: auto; white-space: nowrap;
-  }
-  .phase-meta {
-    display: flex; flex-direction: column; gap: .35rem;
-    font-size: .78rem;
-  }
-  .phase-meta-row {
-    display: grid; grid-template-columns: 4rem 1fr; gap: .4rem;
-    line-height: 1.55;
-  }
-  .phase-meta-row .mk { color: #64748b; font-family: 'JetBrains Mono', monospace; font-size: .72rem; }
-  .phase-meta-row .mv { color: #94a3b8; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
-  .phase-card .phase-note {
-    margin-top: .6rem; padding: .45rem .6rem;
-    background: rgba(99,102,241,.06); border-left: 2px solid rgba(129,140,248,.4);
-    border-radius: 4px;
-    font-size: .76rem; color: #94a3b8; line-height: 1.6;
-    overflow-wrap: break-word; word-break: break-word;
-  }
-
-  /* decision table highlight */
-  .decision-table td:first-child { font-family: 'JetBrains Mono', monospace; font-size: .8rem; color: #c7d2fe; }
-
-  /* path badges */
-  .path-badges { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .5rem; }
-  .path-badge {
-    display: inline-flex; align-items: center; gap: .35rem;
-    padding: .2rem .65rem; border-radius: 999px; font-size: .75rem;
-    border: 1px solid; font-family: 'JetBrains Mono', monospace;
-  }
-  .path-badge.pass  { color: #86efac; border-color: rgba(134,239,172,.3); background: rgba(134,239,172,.07); }
-  .path-badge.retry { color: #fcd34d; border-color: rgba(252,211,77,.3);  background: rgba(252,211,77,.07); }
-  .path-badge.rede  { color: #f9a8d4; border-color: rgba(249,168,212,.3); background: rgba(249,168,212,.07); }
-</style>
 </head>
 
 <body>
@@ -97,6 +26,7 @@
       <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
       <a href="refine-write.html" data-i18n="nav.refine_write">Refine &amp; Write</a>
       <a href="research.html" class="current" data-i18n="nav.research">Research</a>
+      <a href="tools.html" data-i18n="nav.tools">Tools</a>
     </nav>
     <div class="nav-right">
       <div class="lang-toggle">
@@ -115,6 +45,7 @@
           <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
           <a href="refine-write.html" data-i18n="nav.refine_write">Refine &amp; Write</a>
           <a href="research.html" class="current" data-i18n="nav.research">Research</a>
+          <a href="tools.html" data-i18n="nav.tools">Tools</a>
           <a href="../index.html" data-i18n="nav.home">← Home</a>
         </div>
       </details>
@@ -123,21 +54,17 @@
 </header>
 
 <div class="doc-layout">
-
   <aside class="sidebar">
     <div class="sidebar-title" data-i18n="toc.label">On this page</div>
     <ul class="toc">
-      <li><a href="#overview"   data-i18n="toc.overview">Overview</a></li>
-      <li><a href="#preflight"  data-i18n="toc.preflight">Preflight</a></li>
-      <li><a href="#principles" data-i18n="toc.principles">Principles</a></li>
-      <li><a href="#phases"     data-i18n="toc.phases">Six phases</a></li>
-      <li><a href="#tools"      data-i18n="toc.tools">Tool scoping</a></li>
-      <li><a href="#loop"       data-i18n="toc.loop">Main loop</a></li>
-      <li><a href="#decisions"  data-i18n="toc.decisions">Key decisions</a></li>
-      <li><a href="#parallel"   data-i18n="toc.parallel">Parallel execution</a></li>
-      <li><a href="#stream"     data-i18n="toc.stream">_stream_llm</a></li>
-      <li><a href="#json"       data-i18n="toc.json">JSON parsing</a></li>
-      <li><a href="#code"       data-i18n="toc.code">Code locations</a></li>
+      <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+      <li><a href="#phases" data-i18n="toc.phases">Outer loop</a></li>
+      <li><a href="#tasks" data-i18n="toc.tasks">Task model</a></li>
+      <li><a href="#cycle" data-i18n="toc.cycle">Task execution cycle</a></li>
+      <li><a href="#iterations" data-i18n="toc.iterations">Iteration policy</a></li>
+      <li><a href="#runtime" data-i18n="toc.runtime">Runtime guards</a></li>
+      <li><a href="#outputs" data-i18n="toc.outputs">Outputs</a></li>
+      <li><a href="#code" data-i18n="toc.code">Code map</a></li>
     </ul>
   </aside>
 
@@ -149,350 +76,73 @@
       </summary>
       <ul class="toc">
         <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
-        <li><a href="#preflight" data-i18n="toc.preflight">Preflight</a></li>
-        <li><a href="#principles" data-i18n="toc.principles">Principles</a></li>
-        <li><a href="#phases" data-i18n="toc.phases">Six phases</a></li>
-        <li><a href="#tools" data-i18n="toc.tools">Tool scoping</a></li>
-        <li><a href="#loop" data-i18n="toc.loop">Main loop</a></li>
-        <li><a href="#decisions" data-i18n="toc.decisions">Key decisions</a></li>
-        <li><a href="#parallel" data-i18n="toc.parallel">Parallel execution</a></li>
-        <li><a href="#stream" data-i18n="toc.stream">_stream_llm</a></li>
-        <li><a href="#json" data-i18n="toc.json">JSON parsing</a></li>
-        <li><a href="#code" data-i18n="toc.code">Code locations</a></li>
+        <li><a href="#phases" data-i18n="toc.phases">Outer loop</a></li>
+        <li><a href="#tasks" data-i18n="toc.tasks">Task model</a></li>
+        <li><a href="#cycle" data-i18n="toc.cycle">Task execution cycle</a></li>
+        <li><a href="#iterations" data-i18n="toc.iterations">Iteration policy</a></li>
+        <li><a href="#runtime" data-i18n="toc.runtime">Runtime guards</a></li>
+        <li><a href="#outputs" data-i18n="toc.outputs">Outputs</a></li>
+        <li><a href="#code" data-i18n="toc.code">Code map</a></li>
       </ul>
     </details>
 
     <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · research</div>
     <h1 data-i18n="doc.title">Research</h1>
     <p class="lede" data-i18n="doc.lede">
-      Research is the core stage of MAARS. The Python runtime orchestrates task decomposition, parallel execution, verification, and iterative evaluation. Each atomic task runs inside a Docker sandbox under agent control.
+      Research is the execution engine of MAARS. It plans concrete work, runs task-level agent sessions, verifies outputs, and decides whether another iteration is warranted.
     </p>
 
-    <!-- ===== Overview ===== -->
     <section id="overview">
-      <h2><span class="num">01</span><span data-i18n="ov.title">How it fits in</span></h2>
-      <p data-i18n="ov.body">
-        Research sits between <strong>Refine</strong> (which sharpens the research idea) and <strong>Write</strong> (which drafts the paper). It receives a <code>refined_idea.md</code> and produces a set of task results, artifacts, and an evaluation history that Write later synthesises into prose. The stage may run multiple outer iterations — each iteration refreshes Strategy, re-decomposes the plan, re-executes tasks, and evaluates completeness.
-      </p>
+      <h2><span class="num">01</span><span data-i18n="ov.title">What Research is responsible for</span></h2>
+      <div data-i18n="ov.body"></div>
     </section>
 
-    <!-- ===== Preflight ===== -->
-    <section id="preflight">
-      <h2><span class="num">02</span><span data-i18n="pf.title">Preflight</span></h2>
-      <p data-i18n="pf.body">
-        <code>_preflight_docker()</code> is the first call inside <code>_execute()</code>. It verifies three conditions before spending any tokens:
-      </p>
-      <ul>
-        <li data-i18n="pf.c1">Docker SDK installed (<code>pip install docker</code>)</li>
-        <li data-i18n="pf.c2">Docker daemon reachable (<code>client.ping()</code>)</li>
-        <li data-i18n="pf.c3">Sandbox image built — <code>MAARS_DOCKER_SANDBOX_IMAGE</code> (default <code>maars-sandbox:latest</code>)</li>
-      </ul>
-      <p data-i18n="pf.fail">Any failure raises immediately — no wasted calibration tokens.</p>
-    </section>
-
-    <!-- ===== Principles ===== -->
-    <section id="principles">
-      <h2><span class="num">03</span><span data-i18n="pr.title">Principles</span></h2>
-      <ul>
-        <li data-i18n="pr.p1">Every LLM call receives a <strong>capability profile</strong> (<code>_build_capability_profile</code>) — sandbox config + available tool list — so the model knows what it can and cannot do.</li>
-        <li data-i18n="pr.p2">Context is <strong>explicit</strong>: Calibrate → Strategy → Decompose → Execute → Evaluate. Each phase passes its output forward; nothing is re-derived implicitly.</li>
-        <li data-i18n="pr.p3"><code>plan_tree.json</code> is the single source of truth. <code>plan_list.json</code> is a derived cache — flat view of the tree for convenience.</li>
-      </ul>
-    </section>
-
-    <!-- ===== Six phases ===== -->
     <section id="phases">
-      <h2><span class="num">04</span><span data-i18n="ph.title">Six phases</span></h2>
-      <p class="sub" data-i18n="ph.sub">Calibrate runs once per session. Strategy through Evaluate repeat every outer iteration.</p>
-
-      <div class="phase-grid">
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">01</div>
-            <h3>Calibrate</h3>
-            <span class="phase-once" data-i18n="ph.once">once</span>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.cal_in">capability profile + dataset + research topic</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv" data-i18n="ph.cal_out">atomic definition (3-5 sentences) → injected into Decompose system prompt</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.disk">disk</span><span class="mv"><code>calibration.md</code></span></div>
-          </div>
-        </div>
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">02</div>
-            <h3>Strategy</h3>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.str_in">capability profile + topic + atomic def. (round 1) / old strategy + eval feedback (later rounds)</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv" data-i18n="ph.str_out">strategy doc + <code>score_direction</code></span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.disk">disk</span><span class="mv"><code>strategy/round_N.md</code></span></div>
-          </div>
-        </div>
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">03</div>
-            <h3>Decompose</h3>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.dec_in">topic + atomic def. + strategy + sibling context</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv" data-i18n="ph.dec_out">flat task list + tree structure</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.disk">disk</span><span class="mv"><code>plan_tree.json</code> + <code>plan_list.json</code></span></div>
-          </div>
-          <div class="phase-note" data-i18n="ph.dec_note">Recursive decomposition; <code>root_id</code> supports re-decomposing any node. Judge gather uses <code>return_exceptions=True</code> — a single judge failure does not cancel siblings.</div>
-        </div>
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">04</div>
-            <h3>Execute</h3>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.exe_in">task description + sandbox constraints + dependency summaries</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv" data-i18n="ph.exe_out">Markdown result + artifacts + SUMMARY line</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.disk">disk</span><span class="mv"><code>tasks/{id}.md</code> + <code>artifacts/{id}/</code></span></div>
-          </div>
-          <div class="phase-note" data-i18n="ph.exe_note"><code>asyncio.gather</code> parallelism; Semaphore (<code>MAARS_API_CONCURRENCY</code>) caps concurrent LLM calls.</div>
-        </div>
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">05</div>
-            <h3>Verify</h3>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.vfy_in">task description + execution result</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv"><code>{pass, retry, redecompose}</code></span></div>
-          </div>
-          <div class="phase-note">
-            <div class="path-badges">
-              <span class="path-badge pass">pass</span>
-              <span class="path-badge retry">retry</span>
-              <span class="path-badge rede">redecompose</span>
-            </div>
-            <div style="margin-top:.45rem" data-i18n="ph.vfy_note">Encourages calling <code>list_artifacts</code> to verify. for/else retry loop (2 attempts) for JSON parsing.</div>
-          </div>
-        </div>
-
-        <div class="phase-card">
-          <div class="phase-card-head">
-            <div class="phase-num">06</div>
-            <h3>Evaluate</h3>
-          </div>
-          <div class="phase-meta">
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.in">in</span><span class="mv" data-i18n="ph.evl_in">research goal + strategy + score trend + history + capability profile + task summaries</span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.out">out</span><span class="mv"><code>{feedback, suggestions, strategy_update?}</code></span></div>
-            <div class="phase-meta-row"><span class="mk" data-i18n="ph.disk">disk</span><span class="mv"><code>evaluations/round_N.json</code> + <code>.md</code></span></div>
-          </div>
-          <div class="phase-note" data-i18n="ph.evl_note">Prefer-stop: only critical gaps trigger <code>strategy_update</code>. Focuses on completeness / consistency — does not propose untried directions. <code>is_final=True</code> → summarise and halt.</div>
-        </div>
-
-      </div>
+      <h2><span class="num">02</span><span data-i18n="ph.title">Outer loop</span></h2>
+      <p class="sub" data-i18n="ph.sub">Calibrate runs once; the remaining phases repeat until evaluation is satisfied or the iteration limit is reached.</p>
+      <div data-i18n="ph.body"></div>
     </section>
 
-    <!-- ===== Tool scoping ===== -->
-    <section id="tools">
-      <h2><span class="num">05</span><span data-i18n="ts.title">Tool scoping</span></h2>
-      <p class="sub" data-i18n="ts.sub">Each phase receives only the tools it actually needs. Planning phases cannot run code; evaluation does not search for new papers.</p>
-
-      <table>
-        <thead>
-          <tr>
-            <th data-i18n="ts.th_phase">Phase</th>
-            <th data-i18n="ts.th_tools">Tools</th>
-            <th data-i18n="ts.th_why">Rationale</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Calibrate</strong></td>
-            <td><em data-i18n="ts.none">none</em></td>
-            <td data-i18n="ts.cal_why">Pure reasoning from the capability profile text; no tools needed.</td>
-          </tr>
-          <tr>
-            <td><strong>Strategy</strong></td>
-            <td><code>arXiv</code> · <code>Wikipedia</code></td>
-            <td data-i18n="ts.str_why">Search for best practices only. No <code>code_execute</code> — must search, not run experiments.</td>
-          </tr>
-          <tr>
-            <td><strong>Decompose root</strong></td>
-            <td data-i18n="ts.dec_tools">read + search</td>
-            <td data-i18n="ts.dec_why">May inspect existing results and search for domain context; must not execute code during planning.</td>
-          </tr>
-          <tr>
-            <td><strong>Decompose non-root</strong></td>
-            <td><em data-i18n="ts.none">none</em></td>
-            <td data-i18n="ts.decnr_why">JSON output only.</td>
-          </tr>
-          <tr>
-            <td><strong>Execute</strong></td>
-            <td data-i18n="ts.exe_tools">full set</td>
-            <td data-i18n="ts.exe_why">Handles both code tasks (<code>code_execute</code>) and literature tasks (search), plus result inspection via read tools.</td>
-          </tr>
-          <tr>
-            <td><strong>Verify</strong></td>
-            <td><em data-i18n="ts.none">none</em></td>
-            <td data-i18n="ts.vfy_why">JSON verdict only.</td>
-          </tr>
-          <tr>
-            <td><strong>Evaluate</strong></td>
-            <td data-i18n="ts.evl_tools">read tools</td>
-            <td data-i18n="ts.evl_why">Inspect completed results only; no <code>code_execute</code>, no search — must not run new experiments or fetch new papers.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p style="font-size:.82rem;color:#64748b;margin-top:.9rem" data-i18n="ts.note">
-        <strong data-i18n="ts.note_b">Read tools</strong>: <code>read_task_output</code> · <code>list_tasks</code> · <code>read_refined_idea</code> · <code>read_plan_tree</code> · <code>read_results_summary</code> · <code>read_artifact_file</code> · <code>list_artifacts</code>.
-        The capability profile passed to Calibrate / Strategy / Evaluate always lists the full Execute tool set, so planning agents understand what execution tasks can do — even though they themselves cannot call those tools.
-      </p>
+    <section id="tasks">
+      <h2><span class="num">03</span><span data-i18n="tk.title">Task model</span></h2>
+      <p class="sub" data-i18n="tk.sub">Research breaks the problem into atomic tasks arranged as a dependency-aware DAG.</p>
+      <div data-i18n="tk.body"></div>
     </section>
 
-    <!-- ===== Main loop ===== -->
-    <section id="loop">
-      <h2><span class="num">06</span><span data-i18n="lp.title">Main loop skeleton</span></h2>
-      <p class="sub" data-i18n="lp.sub">Calibrate once, then iterate: Strategy → Decompose → Execute → Evaluate, until Evaluate emits no <code>strategy_update</code>.</p>
-
-      <div class="copy-card" data-copy-target="loop-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="loop-code"><span class="k">async def</span> <span class="n">_execute</span>(<span class="n">self</span>):
-    <span class="k">await</span> <span class="n">_preflight_docker</span>()             <span class="c"># <span data-i18n="lp.c0">abort early if docker not ready</span></span>
-
-    <span class="k">await</span> <span class="n">_calibrate_once</span>(<span class="n">idea</span>)          <span class="c"># <span data-i18n="lp.c1">run once per session</span></span>
-
-    <span class="n">evaluation</span> = <span class="k">None</span>
-    <span class="k">while</span> <span class="k">True</span>:
-        <span class="k">await</span> <span class="n">Strategy</span>(<span class="n">idea</span>, <span class="n">evaluation</span>)   <span class="c"># <span data-i18n="lp.c2">None on first round</span></span>
-        <span class="k">await</span> <span class="n">Decompose</span>(<span class="n">idea</span>, <span class="n">strategy</span>)
-        <span class="k">await</span> <span class="n">Execute</span>(<span class="n">tasks</span>)               <span class="c"># <span data-i18n="lp.c3">parallel, includes verify/retry/redecompose</span></span>
-        <span class="n">evaluation</span> = <span class="k">await</span> <span class="n">Evaluate</span>(<span class="n">results</span>, <span class="n">score</span>)
-        <span class="k">if not</span> <span class="n">evaluation</span>.<span class="n">strategy_update</span>: <span class="k">break</span>
-        <span class="n">iteration</span> += <span class="s">1</span></code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-
-      <p data-i18n="lp.body">
-        Evaluate uses a <strong>prefer-stop</strong> policy: it only emits <code>strategy_update</code> if there is a critical gap that the current plan genuinely cannot cover. Minor issues or diminishing-returns directions do not trigger another iteration. When <code>is_final=True</code> is set externally, Evaluate produces a summary and does not emit <code>strategy_update</code>.
-      </p>
+    <section id="cycle">
+      <h2><span class="num">04</span><span data-i18n="cy.title">Task execution cycle</span></h2>
+      <p class="sub" data-i18n="cy.sub">Each task is a bounded mini-session: execute, verify, maybe retry, maybe redecompose.</p>
+      <div data-i18n="cy.body"></div>
     </section>
 
-    <!-- ===== Key decisions ===== -->
-    <section id="decisions">
-      <h2><span class="num">07</span><span data-i18n="kd.title">Key decisions</span></h2>
-
-      <table class="decision-table">
-        <thead><tr>
-          <th data-i18n="kd.th_decision">Decision</th>
-          <th data-i18n="kd.th_choice">Choice</th>
-        </tr></thead>
-        <tbody>
-          <tr><td data-i18n="kd.k1">Iteration control</td><td data-i18n="kd.v1">Evaluate prefers stopping; only critical gaps emit <code>strategy_update</code></td></tr>
-          <tr><td data-i18n="kd.k2">Iteration feedback</td><td data-i18n="kd.v2">After Strategy update, full re-Decompose</td></tr>
-          <tr><td data-i18n="kd.k3">Granularity calibration</td><td data-i18n="kd.v3">Capability profile + LLM (Calibrate phase)</td></tr>
-          <tr><td data-i18n="kd.k4">Re-decompose</td><td data-i18n="kd.v4"><code>decompose(root_id=task_id)</code> — any node can be re-expanded</td></tr>
-          <tr><td data-i18n="kd.k5">Summary</td><td data-i18n="kd.v5">Execute agent writes a SUMMARY line — downstream phases reference it instead of full output</td></tr>
-          <tr><td data-i18n="kd.k6">Verify fallback</td><td data-i18n="kd.v6"><code>pass=False</code> after 2 JSON parse attempts</td></tr>
-          <tr><td data-i18n="kd.k7">Data source of truth</td><td data-i18n="kd.v7"><code>plan_tree.json</code>; <code>plan_list.json</code> is derived</td></tr>
-        </tbody>
-      </table>
+    <section id="iterations">
+      <h2><span class="num">05</span><span data-i18n="it.title">Iteration policy</span></h2>
+      <p class="sub" data-i18n="it.sub">Research is allowed to loop, but it is biased toward stopping rather than exploring forever.</p>
+      <div data-i18n="it.body"></div>
     </section>
 
-    <!-- ===== Parallel execution ===== -->
-    <section id="parallel">
-      <h2><span class="num">08</span><span data-i18n="pe.title">Parallel execution model</span></h2>
-      <p class="sub" data-i18n="pe.sub">Tasks respect dependency ordering via topological batching; concurrency is capped by semaphore.</p>
-
-      <div class="copy-card" data-copy-target="par-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="par-code"><span class="c"># <span data-i18n="pe.c1">topological batching — respects dependency DAG</span></span>
-<span class="n">batches</span> = <span class="n">topological_batches</span>(<span class="n">tasks</span>)
-
-<span class="k">for</span> <span class="n">batch</span> <span class="k">in</span> <span class="n">batches</span>:
-    <span class="n">results</span> = <span class="k">await</span> <span class="n">asyncio</span>.<span class="n">gather</span>(
-        *[<span class="n">execute_task</span>(<span class="n">t</span>) <span class="k">for</span> <span class="n">t</span> <span class="k">in</span> <span class="n">pending</span>],
-        <span class="n">return_exceptions</span>=<span class="k">True</span>,            <span class="c"># <span data-i18n="pe.c2">one task failure won't cancel siblings</span></span>
-    )</code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-
-      <p data-i18n="pe.body">
-        Each <code>execute_task</code> acquires <code>_get_api_semaphore()</code> before calling <code>_stream_llm</code>, bounding concurrent LLM calls to <code>MAARS_API_CONCURRENCY</code>. The Execute → Verify → (pass | retry | redecompose) cycle is atomic inside the semaphore.
-      </p>
-
-      <h3 data-i18n="pe.cfg_t">Rate-limit config</h3>
-      <ul>
-        <li data-i18n="pe.cfg1"><code>MAARS_API_CONCURRENCY</code> — maximum number of LLM calls in flight simultaneously.</li>
-        <li data-i18n="pe.cfg2"><code>MAARS_API_REQUEST_INTERVAL</code> — minimum seconds between consecutive LLM calls (enforced inside <code>_stream_llm</code> via <code>_rate_limit()</code>).</li>
-      </ul>
+    <section id="runtime">
+      <h2><span class="num">06</span><span data-i18n="rt.title">Runtime guards</span></h2>
+      <p class="sub" data-i18n="rt.sub">Execution is wrapped in deterministic runtime constraints so open-ended agent behavior stays bounded.</p>
+      <div data-i18n="rt.body"></div>
     </section>
 
-    <!-- ===== _stream_llm ===== -->
-    <section id="stream">
-      <h2><span class="num">09</span><span data-i18n="sl.title">_stream_llm internals</span></h2>
-      <p class="sub" data-i18n="sl.sub">Single entry-point for all LLM calls, in <code>stage.py</code>.</p>
-
-      <ul>
-        <li data-i18n="sl.l1"><strong>Rate limiting</strong>: calls <code>_rate_limit()</code> before every request, enforcing the <code>MAARS_API_REQUEST_INTERVAL</code> gap.</li>
-        <li data-i18n="sl.l2"><strong>Model isolation</strong>: deep-copies the model per Agent instance (<code>deepcopy(model)</code>). Prevents shared-state bugs when multiple tasks call <code>_stream_llm</code> concurrently.</li>
-        <li data-i18n="sl.l3"><strong>No <code>validate</code> parameter</strong>: JSON structure validation belongs to the call site, via for/else retry loops — not inside <code>_stream_llm</code>.</li>
-      </ul>
+    <section id="outputs">
+      <h2><span class="num">07</span><span data-i18n="ou.title">Outputs consumed by downstream stages</span></h2>
+      <p class="sub" data-i18n="ou.sub">Research writes both raw outputs and normalized summaries so Write can stay grounded.</p>
+      <div data-i18n="ou.body"></div>
     </section>
 
-    <!-- ===== JSON parsing ===== -->
-    <section id="json">
-      <h2><span class="num">10</span><span data-i18n="jp.title">JSON parsing + retry</span></h2>
-
-      <h3 data-i18n="jp.fn_t"><code>parse_json_fenced</code></h3>
-      <p data-i18n="jp.fn_body">
-        Extracts JSON from an LLM-generated fenced code block. Applies <code>_repair_json_escapes()</code> before parsing — fixes common LaTeX backslash sequences (e.g. <code>\rho</code>, <code>\lambda</code>) that would otherwise break <code>json.loads</code>.
-      </p>
-
-      <h3 data-i18n="jp.retry_t">Call-site retry loop</h3>
-      <p data-i18n="jp.retry_body">
-        Decompose judge, Reviewer, Verify, and Evaluate all use a <strong>for/else retry loop (2 attempts)</strong>. On first parse failure the LLM is called again; if both attempts fail, a safe fallback value is used. This replaces the previous pattern of inline fallback without retry.
-      </p>
-
-      <div class="copy-card" data-copy-target="retry-code" role="button" tabindex="0" aria-label="Copy">
-<pre><code id="retry-code"><span class="k">for</span> <span class="n">attempt</span> <span class="k">in</span> <span class="n">range</span>(<span class="s">2</span>):
-    <span class="n">raw</span> = <span class="k">await</span> <span class="n">_stream_llm</span>(<span class="n">agent</span>, <span class="n">prompt</span>)
-    <span class="k">try</span>:
-        <span class="n">result</span> = <span class="n">parse_json_fenced</span>(<span class="n">raw</span>)
-        <span class="k">break</span>
-    <span class="k">except</span> <span class="n">ValueError</span>:
-        <span class="k">continue</span>
-<span class="k">else</span>:
-    <span class="n">result</span> = <span class="n">SAFE_FALLBACK</span>    <span class="c"># <span data-i18n="jp.c1">both attempts failed</span></span></code></pre>
-        <span class="copy-toast" data-i18n="doc.copied">Copied ✓</span>
-      </div>
-    </section>
-
-    <!-- ===== Code locations ===== -->
     <section id="code">
-      <h2><span class="num">11</span><span data-i18n="cd.title">Code locations</span></h2>
-
-      <table>
-        <thead><tr>
-          <th data-i18n="cd.th_file">File</th>
-          <th data-i18n="cd.th_role">Role</th>
-        </tr></thead>
-        <tbody>
-          <tr><td><code>backend/pipeline/research.py</code></td><td data-i18n="cd.c1">ResearchStage — main loop + task execution</td></tr>
-          <tr><td><code>backend/pipeline/decompose.py</code></td><td data-i18n="cd.c2">Recursive decomposition engine</td></tr>
-          <tr><td><code>backend/pipeline/stage.py</code></td><td data-i18n="cd.c3">Stage base class + <code>_stream_llm</code> (rate-limit, per-agent model deep-copy)</td></tr>
-          <tr><td><code>backend/pipeline/prompts_en.py</code></td><td data-i18n="cd.c4">EN prompts + builder functions</td></tr>
-          <tr><td><code>backend/pipeline/prompts_zh.py</code></td><td data-i18n="cd.c5">ZH prompts</td></tr>
-          <tr><td><code>backend/agno/tools/docker_exec.py</code></td><td data-i18n="cd.c6"><code>code_execute</code> + <code>list_artifacts</code></td></tr>
-          <tr><td><code>backend/agno/tools/db.py</code></td><td data-i18n="cd.c7"><code>list_tasks</code> + <code>read_task_output</code> + <code>read_refined_idea</code> + <code>read_plan_tree</code></td></tr>
-        </tbody>
-      </table>
+      <h2><span class="num">08</span><span data-i18n="cd.title">Code map</span></h2>
+      <p class="sub" data-i18n="cd.sub">The Research implementation spans one main stage file plus smaller decomposition and summary helpers.</p>
+      <div data-i18n="cd.body"></div>
     </section>
 
-    <div style="margin-top:5rem;display:flex;justify-content:space-between;gap:1rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,.06)">
+    <div class="pager">
       <a href="refine-write.html" class="btn-ghost">← <span data-i18n="nav.prev_rw">Refine &amp; Write</span></a>
-      <a href="../index.html" class="btn-ghost"><span data-i18n="nav.next_home">Home</span> →</a>
+      <a href="tools.html" class="btn-ghost"><span data-i18n="nav.next_tools">Tools</span> →</a>
     </div>
-
   </main>
 </div>
 
@@ -500,289 +150,468 @@
 <script>
 const T = {
   en: {
-    "nav.docs":        "/ docs",
+    "nav.docs": "/ docs",
     "nav.architecture": "Architecture",
     "nav.refine_write": "Refine & Write",
-    "nav.research":    "Research",
-    "nav.home":        "← Home",
-    "nav.prev_rw":     "Refine & Write",
-    "nav.next_home":   "Home",
+    "nav.research": "Research",
+    "nav.tools": "Tools",
+    "nav.home": "← Home",
+    "nav.prev_rw": "Refine & Write",
+    "nav.next_tools": "Tools",
 
-    "toc.label":      "On this page",
-    "toc.overview":   "Overview",
-    "toc.preflight":  "Preflight",
-    "toc.principles": "Principles",
-    "toc.phases":     "Six phases",
-    "toc.tools":      "Tool scoping",
-    "toc.loop":       "Main loop",
-    "toc.decisions":  "Key decisions",
-    "toc.parallel":   "Parallel execution",
-    "toc.stream":     "_stream_llm",
-    "toc.json":       "JSON parsing",
-    "toc.code":       "Code locations",
+    "toc.label": "On this page",
+    "toc.overview": "Overview",
+    "toc.phases": "Outer loop",
+    "toc.tasks": "Task model",
+    "toc.cycle": "Task execution cycle",
+    "toc.iterations": "Iteration policy",
+    "toc.runtime": "Runtime guards",
+    "toc.outputs": "Outputs",
+    "toc.code": "Code map",
 
     "doc.eyebrow": "/ docs · research",
-    "doc.title":   "Research",
-    "doc.lede":    "Research is the core stage of MAARS. The Python runtime orchestrates task decomposition, parallel execution, verification, and iterative evaluation. Each atomic task runs inside a Docker sandbox under agent control.",
-    "doc.copied":  "Copied ✓",
+    "doc.title": "Research",
+    "doc.lede": "Research is the execution engine of MAARS. It plans concrete work, runs task-level agent sessions, verifies outputs, and decides whether another iteration is warranted.",
 
-    "ov.title": "How it fits in",
-    "ov.body":  "Research sits between <strong>Refine</strong> (which sharpens the research idea) and <strong>Write</strong> (which drafts the paper). It receives a <code>refined_idea.md</code> and produces a set of task results, artifacts, and an evaluation history that Write later synthesises into prose. The stage may run multiple outer iterations — each iteration refreshes Strategy, re-decomposes the plan, re-executes tasks, and evaluates completeness.",
+    "ov.title": "What Research is responsible for",
+    "ov.body": `
+      <p>Research sits between <strong>Refine</strong> and <strong>Write</strong>. It takes a cleaned-up research objective and turns it into completed tasks, artifacts, evaluation history, and a deterministic summary of what was actually achieved.</p>
+      <p>Unlike Refine and Write, which both revolve around a two-role review loop, Research is an execution engine with an outer iteration loop and many inner task-level sessions.</p>
+    `,
 
-    "pf.title": "Preflight",
-    "pf.body":  "<code>_preflight_docker()</code> is the first call inside <code>_execute()</code>. It verifies three conditions before spending any tokens:",
-    "pf.c1":    "Docker SDK installed (<code>pip install docker</code>)",
-    "pf.c2":    "Docker daemon reachable (<code>client.ping()</code>)",
-    "pf.c3":    "Sandbox image built — <code>MAARS_DOCKER_SANDBOX_IMAGE</code> (default <code>maars-sandbox:latest</code>)",
-    "pf.fail":  "Any failure raises immediately — no wasted calibration tokens.",
+    "ph.title": "Outer loop",
+    "ph.sub": "Calibrate runs once; the remaining phases repeat until evaluation is satisfied or the iteration limit is reached.",
+    "ph.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">01</div>
+          <h3>Calibrate</h3>
+          <p>Define what counts as an atomic task for this research problem and environment.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">02</div>
+          <h3>Strategy</h3>
+          <p>Choose a direction, frame the objective, and determine whether the main score should be minimized or maximized.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">03</div>
+          <h3>Decompose</h3>
+          <p>Turn the strategy into a task tree and a flat dependency list of executable atomic tasks.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">04</div>
+          <h3>Execute</h3>
+          <p>Run each pending task as an agent session, often with code execution inside the persistent sandbox.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">05</div>
+          <h3>Verify</h3>
+          <p>Check whether the task output actually satisfies the task, and choose pass, retry, or redecompose.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">06</div>
+          <h3>Evaluate</h3>
+          <p>Inspect the whole round and decide whether to stop or emit a <code>strategy_update</code> for another iteration.</p>
+        </div>
+      </div>
+    `,
 
-    "pr.title": "Principles",
-    "pr.p1":    "Every LLM call receives a <strong>capability profile</strong> (<code>_build_capability_profile</code>) — sandbox config + available tool list — so the model knows what it can and cannot do.",
-    "pr.p2":    "Context is <strong>explicit</strong>: Calibrate → Strategy → Decompose → Execute → Evaluate. Each phase passes its output forward; nothing is re-derived implicitly.",
-    "pr.p3":    "<code>plan_tree.json</code> is the single source of truth. <code>plan_list.json</code> is a derived cache — flat view of the tree for convenience.",
+    "tk.title": "Task model",
+    "tk.sub": "Research breaks the problem into atomic tasks arranged as a dependency-aware DAG.",
+    "tk.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Atomicity</div>
+          <h3>Calibrated, not hard-coded</h3>
+          <p>Research does not assume one fixed task size. It asks the model to define atomicity for the current problem first.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Canonical tree</div>
+          <h3><code>plan_tree.json</code></h3>
+          <p>The tree preserves decomposition structure and is the main source of truth for task hierarchy.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Flat cache</div>
+          <h3><code>plan_list.json</code></h3>
+          <p>The flat list stores runnable atomic tasks with dependencies, batch IDs, statuses, and summaries.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Redecompose</div>
+          <h3>Any node can expand again</h3>
+          <p>If a task proves too coarse or fails in a meaningful way, the runtime can call decomposition again on that specific node.</p>
+        </div>
+      </div>
+      <p>Dependency ordering is honored through topological batching. That means siblings can run in parallel, but only after all of their prerequisites have completed.</p>
+    `,
 
-    "ph.title":    "Six phases",
-    "ph.sub":      "Calibrate runs once per session. Strategy through Evaluate repeat every outer iteration.",
-    "ph.once":     "once",
-    "ph.in":       "in",
-    "ph.out":      "out",
-    "ph.disk":     "disk",
-    "ph.cal_in":   "capability profile + dataset + research topic",
-    "ph.cal_out":  "atomic definition (3-5 sentences) → injected into Decompose system prompt",
-    "ph.str_in":   "capability profile + topic + atomic def. (round 1) / old strategy + eval feedback (later rounds)",
-    "ph.str_out":  "strategy doc + <code>score_direction</code>",
-    "ph.dec_in":   "topic + atomic def. + strategy + sibling context",
-    "ph.dec_out":  "flat task list + tree structure",
-    "ph.dec_note": "Recursive decomposition; <code>root_id</code> supports re-decomposing any node. Judge gather uses <code>return_exceptions=True</code> — a single judge failure does not cancel siblings.",
-    "ph.exe_in":   "task description + sandbox constraints + dependency summaries",
-    "ph.exe_out":  "Markdown result + artifacts + SUMMARY line",
-    "ph.exe_note": "<code>asyncio.gather</code> parallelism; Semaphore (<code>MAARS_API_CONCURRENCY</code>) caps concurrent LLM calls.",
-    "ph.vfy_in":   "task description + execution result",
-    "ph.vfy_note": "Encourages calling <code>list_artifacts</code> to verify. for/else retry loop (2 attempts) for JSON parsing.",
-    "ph.evl_in":   "research goal + strategy + score trend + history + capability profile + task summaries",
-    "ph.evl_note": "Prefer-stop: only critical gaps trigger <code>strategy_update</code>. Focuses on completeness / consistency — does not propose untried directions. <code>is_final=True</code> → summarise and halt.",
+    "cy.title": "Task execution cycle",
+    "cy.sub": "Each task is a bounded mini-session: execute, verify, maybe retry, maybe redecompose.",
+    "cy.body": `
+      <pre><code>result = execute(task)
+summary = extract_summary(result)
+passed, review, redecompose = verify(task, result)
 
-    "ts.title":     "Tool scoping",
-    "ts.sub":       "Each phase receives only the tools it actually needs. Planning phases cannot run code; evaluation does not search for new papers.",
-    "ts.th_phase":  "Phase",
-    "ts.th_tools":  "Tools",
-    "ts.th_why":    "Rationale",
-    "ts.none":      "none",
-    "ts.cal_why":   "Pure reasoning from the capability profile text; no tools needed.",
-    "ts.str_why":   "Search for best practices only. No <code>code_execute</code> — must search, not run experiments.",
-    "ts.dec_tools":  "read + search",
-    "ts.dec_why":   "May inspect existing results and search for domain context; must not execute code during planning.",
-    "ts.decnr_why": "JSON output only.",
-    "ts.exe_tools":  "full set",
-    "ts.exe_why":   "Handles both code tasks (<code>code_execute</code>) and literature tasks (search), plus result inspection via read tools.",
-    "ts.vfy_why":   "JSON verdict only.",
-    "ts.evl_tools":  "read tools",
-    "ts.evl_why":   "Inspect completed results only; no <code>code_execute</code>, no search — must not run new experiments or fetch new papers.",
-    "ts.note":      "<strong>Read tools</strong>: <code>read_task_output</code> · <code>list_tasks</code> · <code>read_refined_idea</code> · <code>read_plan_tree</code> · <code>read_results_summary</code> · <code>read_artifact_file</code> · <code>list_artifacts</code>. The capability profile passed to Calibrate / Strategy / Evaluate always lists the full Execute tool set, so planning agents understand what execution tasks can do — even though they themselves cannot call those tools.",
-    "ts.note_b":    "Read tools",
+if passed:
+    save_task_output(task, result)
+elif redecompose:
+    replace_task_with_subtasks(task)
+else:
+    retry_once(task, review)</code></pre>
+      <div class="note-box">
+        <p><strong>The SUMMARY line matters.</strong> Research extracts a trailing <code>SUMMARY:</code> line from successful task outputs and uses it as compact downstream context for evaluation and later rounds.</p>
+      </div>
+    `,
 
-    "lp.title": "Main loop skeleton",
-    "lp.sub":   "Calibrate once, then iterate: Strategy → Decompose → Execute → Evaluate, until Evaluate emits no <code>strategy_update</code>.",
-    "lp.c0":    "abort early if docker not ready",
-    "lp.c1":    "run once per session",
-    "lp.c2":    "None on first round",
-    "lp.c3":    "parallel, includes verify/retry/redecompose",
-    "lp.body":  "Evaluate uses a <strong>prefer-stop</strong> policy: it only emits <code>strategy_update</code> if there is a critical gap that the current plan genuinely cannot cover. Minor issues or diminishing-returns directions do not trigger another iteration. When <code>is_final=True</code> is set externally, Evaluate produces a summary and does not emit <code>strategy_update</code>.",
+    "it.title": "Iteration policy",
+    "it.sub": "Research is allowed to loop, but it is biased toward stopping rather than exploring forever.",
+    "it.body": `
+      <div class="split">
+        <div class="half">
+          <div class="label">When another round happens</div>
+          <h4>Only if evaluation sees a critical gap</h4>
+          <p>The evaluator emits a <code>strategy_update</code> only when the current plan genuinely misses something important. Small improvements or speculative directions should not reopen the loop.</p>
+        </div>
+        <div class="half">
+          <div class="label">Score handling</div>
+          <h4>Trend-aware, not score-only</h4>
+          <p>Research tracks best and latest score snapshots, plus a configured improvement threshold, so it can reason about whether progress is meaningful.</p>
+        </div>
+      </div>
+      <div class="note-box">
+        <p><strong>Stopping is a first-class behavior.</strong> The system is not designed to keep searching indefinitely; it is designed to know when the current evidence is good enough to write from.</p>
+      </div>
+    `,
 
-    "kd.title":      "Key decisions",
-    "kd.th_decision": "Decision",
-    "kd.th_choice":  "Choice",
-    "kd.k1": "Iteration control",
-    "kd.v1": "Evaluate prefers stopping; only critical gaps emit <code>strategy_update</code>",
-    "kd.k2": "Iteration feedback",
-    "kd.v2": "After Strategy update, full re-Decompose",
-    "kd.k3": "Granularity calibration",
-    "kd.v3": "Capability profile + LLM (Calibrate phase)",
-    "kd.k4": "Re-decompose",
-    "kd.v4": "<code>decompose(root_id=task_id)</code> — any node can be re-expanded",
-    "kd.k5": "Summary",
-    "kd.v5": "Execute agent writes a SUMMARY line — downstream phases reference it instead of full output",
-    "kd.k6": "Verify fallback",
-    "kd.v6": "<code>pass=False</code> after 2 JSON parse attempts",
-    "kd.k7": "Data source of truth",
-    "kd.v7": "<code>plan_tree.json</code>; <code>plan_list.json</code> is derived",
+    "rt.title": "Runtime guards",
+    "rt.sub": "Execution is wrapped in deterministic runtime constraints so open-ended agent behavior stays bounded.",
+    "rt.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Preflight</div>
+          <h3>Check Docker first</h3>
+          <p>The stage fails early if the Docker SDK or daemon is unavailable, rather than spending tokens before execution is even possible.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Sandbox</div>
+          <h3>Persistent container</h3>
+          <p>All task code execution happens inside one long-lived session container, so installed packages and files can persist across calls.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Concurrency</div>
+          <h3>Semaphore + batching</h3>
+          <p>Task scheduling uses dependency batches, while API concurrency is capped by a semaphore to avoid uncontrolled parallelism.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Timing</div>
+          <h3>Rate limit + timeouts</h3>
+          <p>LLM calls obey a global request gap, task sessions have explicit timeouts, and Docker commands have separate execution timeouts.</p>
+        </div>
+      </div>
+    `,
 
-    "pe.title": "Parallel execution model",
-    "pe.sub":   "Tasks respect dependency ordering via topological batching; concurrency is capped by semaphore.",
-    "pe.c1":    "topological batching — respects dependency DAG",
-    "pe.c2":    "one task failure won't cancel siblings",
-    "pe.body":  "Each <code>execute_task</code> acquires <code>_get_api_semaphore()</code> before calling <code>_stream_llm</code>, bounding concurrent LLM calls to <code>MAARS_API_CONCURRENCY</code>. The Execute → Verify → (pass | retry | redecompose) cycle is atomic inside the semaphore.",
-    "pe.cfg_t": "Rate-limit config",
-    "pe.cfg1":  "<code>MAARS_API_CONCURRENCY</code> — maximum number of LLM calls in flight simultaneously.",
-    "pe.cfg2":  "<code>MAARS_API_REQUEST_INTERVAL</code> — minimum seconds between consecutive LLM calls (enforced inside <code>_stream_llm</code> via <code>_rate_limit()</code>).",
+    "ou.title": "Outputs consumed by downstream stages",
+    "ou.sub": "Research writes both raw outputs and normalized summaries so Write can stay grounded.",
+    "ou.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>Output</th>
+            <th>Why it exists</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tasks/&lt;id&gt;.md</code></td>
+            <td>Human-readable task-level outputs for later inspection and writing.</td>
+          </tr>
+          <tr>
+            <td><code>artifacts/</code></td>
+            <td>Raw figures, scripts, JSON metrics, score files, and other machine-produced evidence.</td>
+          </tr>
+          <tr>
+            <td><code>evaluations/round_n.json</code></td>
+            <td>Outer-loop judgment history that explains why the system stopped or iterated.</td>
+          </tr>
+          <tr>
+            <td><code>results_summary.json</code></td>
+            <td>A deterministic fact anchor that the Write stage can trust without reconstructing every task manually.</td>
+          </tr>
+          <tr>
+            <td><code>reproduce/</code></td>
+            <td>Generated Dockerfile and scripts for reproducibility-oriented handoff.</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
 
-    "sl.title": "_stream_llm internals",
-    "sl.sub":   "Single entry-point for all LLM calls, in <code>stage.py</code>.",
-    "sl.l1":    "<strong>Rate limiting</strong>: calls <code>_rate_limit()</code> before every request, enforcing the <code>MAARS_API_REQUEST_INTERVAL</code> gap.",
-    "sl.l2":    "<strong>Model isolation</strong>: deep-copies the model per Agent instance (<code>deepcopy(model)</code>). Prevents shared-state bugs when multiple tasks call <code>_stream_llm</code> concurrently.",
-    "sl.l3":    "<strong>No <code>validate</code> parameter</strong>: JSON structure validation belongs to the call site, via for/else retry loops — not inside <code>_stream_llm</code>.",
-
-    "jp.title":      "JSON parsing + retry",
-    "jp.fn_t":       "<code>parse_json_fenced</code>",
-    "jp.fn_body":    "Extracts JSON from an LLM-generated fenced code block. Applies <code>_repair_json_escapes()</code> before parsing — fixes common LaTeX backslash sequences (e.g. <code>\\rho</code>, <code>\\lambda</code>) that would otherwise break <code>json.loads</code>.",
-    "jp.retry_t":    "Call-site retry loop",
-    "jp.retry_body": "Decompose judge, Reviewer, Verify, and Evaluate all use a <strong>for/else retry loop (2 attempts)</strong>. On first parse failure the LLM is called again; if both attempts fail, a safe fallback value is used. This replaces the previous pattern of inline fallback without retry.",
-    "jp.c1":         "both attempts failed",
-
-    "cd.title":   "Code locations",
-    "cd.th_file": "File",
-    "cd.th_role": "Role",
-    "cd.c1": "ResearchStage — main loop + task execution",
-    "cd.c2": "Recursive decomposition engine",
-    "cd.c3": "Stage base class + <code>_stream_llm</code> (rate-limit, per-agent model deep-copy)",
-    "cd.c4": "EN prompts + builder functions",
-    "cd.c5": "ZH prompts",
-    "cd.c6": "<code>code_execute</code> + <code>list_artifacts</code>",
-    "cd.c7": "<code>list_tasks</code> + <code>read_task_output</code> + <code>read_refined_idea</code> + <code>read_plan_tree</code>",
+    "cd.title": "Code map",
+    "cd.sub": "The Research implementation spans one main stage file plus smaller decomposition and summary helpers.",
+    "cd.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>backend/pipeline/research.py</code></td>
+            <td>Main Research stage loop, task execution, verification, and evaluation.</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/decompose.py</code></td>
+            <td>Recursive task decomposition engine and dependency resolution.</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/results_summary.py</code></td>
+            <td>Deterministic summary generation for downstream writing.</td>
+          </tr>
+          <tr>
+            <td><code>backend/agno/tools/docker_exec.py</code></td>
+            <td>Persistent sandbox container, <code>code_execute</code>, and artifact listing.</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/prompts_*.py</code></td>
+            <td>Research prompts and prompt builders for each phase.</td>
+          </tr>
+        </tbody>
+      </table>
+    `
   },
 
   zh: {
-    "nav.docs":        "/ 文档",
+    "nav.docs": "/ 文档",
     "nav.architecture": "架构",
     "nav.refine_write": "Refine & Write",
-    "nav.research":    "Research",
-    "nav.home":        "← 首页",
-    "nav.prev_rw":     "Refine & Write",
-    "nav.next_home":   "首页",
+    "nav.research": "Research",
+    "nav.tools": "Tools",
+    "nav.home": "← 首页",
+    "nav.prev_rw": "Refine & Write",
+    "nav.next_tools": "Tools",
 
-    "toc.label":      "本页目录",
-    "toc.overview":   "总览",
-    "toc.preflight":  "前置检查",
-    "toc.principles": "原则",
-    "toc.phases":     "六个阶段",
-    "toc.tools":      "工具分配",
-    "toc.loop":       "主循环",
-    "toc.decisions":  "关键决策",
-    "toc.parallel":   "并行执行",
-    "toc.stream":     "_stream_llm",
-    "toc.json":       "JSON 解析",
-    "toc.code":       "代码位置",
+    "toc.label": "本页目录",
+    "toc.overview": "总览",
+    "toc.phases": "外层循环",
+    "toc.tasks": "任务模型",
+    "toc.cycle": "单任务执行周期",
+    "toc.iterations": "迭代策略",
+    "toc.runtime": "运行时约束",
+    "toc.outputs": "输出产物",
+    "toc.code": "代码地图",
 
     "doc.eyebrow": "/ 文档 · research",
-    "doc.title":   "Research",
-    "doc.lede":    "Research 是 MAARS 的核心阶段。Python runtime 编排任务分解、并行执行、验证与迭代评估，每个原子任务在 Docker 沙箱中由 Agent 执行。",
-    "doc.copied":  "已复制 ✓",
+    "doc.title": "Research",
+    "doc.lede": "Research 是 MAARS 的执行引擎。它负责规划具体工作、运行 task 级 agent session、验证产出，并判断是否需要再来一轮迭代。",
 
-    "ov.title": "在流水线中的位置",
-    "ov.body":  "Research 位于 <strong>Refine</strong>（打磨研究思路）与 <strong>Write</strong>（撰写论文）之间。接收 <code>refined_idea.md</code>，输出一组任务结果、产物和评估历史，供 Write 阶段综合成文。该阶段可能经历多轮外层迭代——每轮刷新 Strategy、重新 Decompose、重新执行任务并评估完整性。",
+    "ov.title": "Research 负责什么",
+    "ov.body": `
+      <p>Research 位于 <strong>Refine</strong> 和 <strong>Write</strong> 之间。它把已经收敛的问题定义转成已完成的 task、artifact、评估历史，以及一份确定性的实验总结。</p>
+      <p>和 Refine/Write 这类双角色 review 循环不同，Research 更像一个执行引擎：外层有迭代循环，内层有很多 task 级独立 session。</p>
+    `,
 
-    "pf.title": "前置检查",
-    "pf.body":  "<code>_preflight_docker()</code> 是 <code>_execute()</code> 最先调用的函数，在消耗任何 token 之前验证三个条件：",
-    "pf.c1":    "Docker SDK 已安装（<code>pip install docker</code>）",
-    "pf.c2":    "Docker daemon 可达（<code>client.ping()</code>）",
-    "pf.c3":    "Sandbox 镜像已构建——<code>MAARS_DOCKER_SANDBOX_IMAGE</code>（默认 <code>maars-sandbox:latest</code>）",
-    "pf.fail":  "任一条件不满足立即报错，不浪费后续的 calibrate token。",
+    "ph.title": "外层循环",
+    "ph.sub": "Calibrate 只运行一次，其余阶段会一直重复到评估满意或达到迭代上限。",
+    "ph.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">01</div>
+          <h3>Calibrate</h3>
+          <p>先定义在当前研究问题和环境下，什么才算“原子任务”。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">02</div>
+          <h3>Strategy</h3>
+          <p>选择研究方向、框定目标，并确定主分数应该被最小化还是最大化。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">03</div>
+          <h3>Decompose</h3>
+          <p>把策略分解成任务树，并得到一份可执行的原子任务依赖列表。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">04</div>
+          <h3>Execute</h3>
+          <p>把每个待执行任务作为一次 agent session 运行，很多时候会在持久 Docker 沙箱里执行代码。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">05</div>
+          <h3>Verify</h3>
+          <p>检查 task 输出是否真的完成了任务，并在 pass、retry、redecompose 之间做选择。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">06</div>
+          <h3>Evaluate</h3>
+          <p>从整轮视角判断是否该停止，还是发出 <code>strategy_update</code> 进入下一轮。</p>
+        </div>
+      </div>
+    `,
 
-    "pr.title": "原则",
-    "pr.p1":    "每次 LLM 调用都携带<strong>能力画像</strong>（<code>_build_capability_profile</code>）——沙箱配置 + 可用工具列表——让模型明确自己能做什么。",
-    "pr.p2":    "上下文<strong>显式传递</strong>：Calibrate → Strategy → Decompose → Execute → Evaluate。每个阶段显式接收前一阶段的输出，不做隐式推导。",
-    "pr.p3":    "<code>plan_tree.json</code> 是唯一真值，<code>plan_list.json</code> 是派生缓存——树的扁平视图，便于查询。",
+    "tk.title": "任务模型",
+    "tk.sub": "Research 会把问题分解成带依赖关系的原子任务 DAG。",
+    "tk.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Atomicity</div>
+          <h3>原子粒度不是写死的</h3>
+          <p>Research 不预设固定 task 大小，而是先让模型根据当前问题和环境校准什么叫 atomic。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Canonical tree</div>
+          <h3><code>plan_tree.json</code></h3>
+          <p>任务树保留了分解结构，是任务层级的主要真值来源。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Flat cache</div>
+          <h3><code>plan_list.json</code></h3>
+          <p>扁平列表保存可运行原子任务的依赖、batch、状态和 summary，便于执行与前端展示。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Redecompose</div>
+          <h3>任意节点都可再次展开</h3>
+          <p>如果某个 task 过粗或失败方式足够有意义，runtime 可以只对该节点再次做 decomposition。</p>
+        </div>
+      </div>
+      <p>依赖顺序通过拓扑分批保证：兄弟任务可以并行，但必须等待各自前置任务完成。</p>
+    `,
 
-    "ph.title":    "六个阶段",
-    "ph.sub":      "Calibrate 每个 session 只执行一次。Strategy 到 Evaluate 每轮外层迭代都会执行。",
-    "ph.once":     "仅一次",
-    "ph.in":       "输入",
-    "ph.out":      "输出",
-    "ph.disk":     "落盘",
-    "ph.cal_in":   "能力画像 + 数据集 + 研究课题",
-    "ph.cal_out":  "原子定义（3-5 句）→ 注入 Decompose system prompt",
-    "ph.str_in":   "能力画像 + 课题 + 原子定义（首轮）/ 旧策略 + 评估反馈（后续轮）",
-    "ph.str_out":  "策略文档 + <code>score_direction</code>",
-    "ph.dec_in":   "课题 + 原子定义 + 策略 + 兄弟上下文",
-    "ph.dec_out":  "扁平任务列表 + 树结构",
-    "ph.dec_note": "递归分解；<code>root_id</code> 支持对任意节点重新分解。Judge gather 使用 <code>return_exceptions=True</code>——单个 judge 失败不会取消兄弟任务。",
-    "ph.exe_in":   "任务描述 + 沙箱约束 + 依赖摘要",
-    "ph.exe_out":  "Markdown 结果 + artifacts + SUMMARY 行",
-    "ph.exe_note": "<code>asyncio.gather</code> 并行；Semaphore（<code>MAARS_API_CONCURRENCY</code>）控制并发 LLM 调用数。",
-    "ph.vfy_in":   "任务描述 + 执行结果",
-    "ph.vfy_note": "鼓励调用 <code>list_artifacts</code> 进行验证。JSON 解析使用 for/else 重试循环（2 次尝试）。",
-    "ph.evl_in":   "研究目标 + 策略 + 分数趋势 + 历史评估 + 能力画像 + 任务摘要",
-    "ph.evl_note": "优先停止：仅关键空白才触发 <code>strategy_update</code>。聚焦完整性/一致性评估，不建议未尝试的新方向。<code>is_final=True</code> → 总结并停止。",
+    "cy.title": "单任务执行周期",
+    "cy.sub": "每个 task 都是一个有边界的小 session：执行、验证，也许重试，也许重分解。",
+    "cy.body": `
+      <pre><code>result = execute(task)
+summary = extract_summary(result)
+passed, review, redecompose = verify(task, result)
 
-    "ts.title":     "工具分配",
-    "ts.sub":       "每个阶段只接收它实际需要的工具。规划阶段不能执行代码；评估阶段不搜索新论文。",
-    "ts.th_phase":  "阶段",
-    "ts.th_tools":  "工具",
-    "ts.th_why":    "原因",
-    "ts.none":      "无",
-    "ts.cal_why":   "纯推理，从能力画像文本中得出结论；无需任何工具。",
-    "ts.str_why":   "只做最佳实践搜索。无 <code>code_execute</code>——只能搜索，不能运行实验。",
-    "ts.dec_tools":  "读工具 + 搜索",
-    "ts.dec_why":   "规划阶段可查看已有结果并搜索领域上下文；不得执行代码。",
-    "ts.decnr_why": "仅输出 JSON，无需工具调用。",
-    "ts.exe_tools":  "全集",
-    "ts.exe_why":   "同时处理代码任务（<code>code_execute</code>）和文献任务（搜索），以及通过读工具检索结果。",
-    "ts.vfy_why":   "仅输出 JSON 判决，无需工具调用。",
-    "ts.evl_tools":  "读工具",
-    "ts.evl_why":   "只检视已完成的结果；无 <code>code_execute</code>，无搜索——不得运行新实验或获取新论文。",
-    "ts.note":      "<strong>读工具</strong>：<code>read_task_output</code> · <code>list_tasks</code> · <code>read_refined_idea</code> · <code>read_plan_tree</code> · <code>read_results_summary</code> · <code>read_artifact_file</code> · <code>list_artifacts</code>。传给 Calibrate / Strategy / Evaluate 的能力画像始终列出完整的 Execute 工具集，让规划阶段的 Agent 了解执行任务能做什么——即使它们自己无法调用这些工具。",
-    "ts.note_b":    "读工具",
+if passed:
+    save_task_output(task, result)
+elif redecompose:
+    replace_task_with_subtasks(task)
+else:
+    retry_once(task, review)</code></pre>
+      <div class="note-box">
+        <p><strong>SUMMARY 行非常重要。</strong> Research 会从成功 task 输出末尾提取 <code>SUMMARY:</code> 行，并把它作为后续评估与下一轮上下文的紧凑摘要。</p>
+      </div>
+    `,
 
-    "lp.title": "主循环骨架",
-    "lp.sub":   "Calibrate 只执行一次，然后迭代：Strategy → Decompose → Execute → Evaluate，直到 Evaluate 不再输出 <code>strategy_update</code>。",
-    "lp.c0":    "Docker 未就绪则提前报错",
-    "lp.c1":    "每个 session 执行一次",
-    "lp.c2":    "首轮为 None",
-    "lp.c3":    "并行执行，包含 verify/retry/redecompose",
-    "lp.body":  "Evaluate 采用<strong>优先停止</strong>策略：只有当前计划确实存在关键空白时才输出 <code>strategy_update</code>。微小问题或收益递减的方向不触发新一轮迭代。当外部设置 <code>is_final=True</code> 时，Evaluate 产出总结并不输出 <code>strategy_update</code>。",
+    "it.title": "迭代策略",
+    "it.sub": "Research 允许循环，但整体偏向“该停就停”，而不是无限探索。",
+    "it.body": `
+      <div class="split">
+        <div class="half">
+          <div class="label">何时再来一轮</div>
+          <h4>只有评估发现关键缺口时</h4>
+          <p>只有当 evaluator 认为当前计划确实漏掉了重要问题时，才会输出 <code>strategy_update</code>。小幅改进或投机性方向不应重新打开循环。</p>
+        </div>
+        <div class="half">
+          <div class="label">分数处理</div>
+          <h4>看趋势，不只看单点</h4>
+          <p>Research 会追踪 best/latest score 以及改进阈值，借此判断当前进展是不是“有意义的进展”。</p>
+        </div>
+      </div>
+      <div class="note-box">
+        <p><strong>停止本身是一等行为。</strong> 系统的目标不是无休止搜索，而是知道什么时候证据已经足够，可以进入 Write 阶段。</p>
+      </div>
+    `,
 
-    "kd.title":      "关键决策",
-    "kd.th_decision": "决策",
-    "kd.th_choice":  "选择",
-    "kd.k1": "迭代控制",
-    "kd.v1": "Evaluate 优先停止；仅关键空白才输出 <code>strategy_update</code>",
-    "kd.k2": "迭代反馈",
-    "kd.v2": "Strategy 更新后重新 Decompose",
-    "kd.k3": "粒度校准",
-    "kd.v3": "能力画像 + LLM（Calibrate 阶段）",
-    "kd.k4": "重分解",
-    "kd.v4": "<code>decompose(root_id=task_id)</code>——任意节点均可重新展开",
-    "kd.k5": "摘要",
-    "kd.v5": "Execute agent 写 SUMMARY 行，供下游阶段引用，而非全量输出",
-    "kd.k6": "Verify fallback",
-    "kd.v6": "2 次 JSON 解析尝试后使用 <code>pass=False</code>",
-    "kd.k7": "数据真值",
-    "kd.v7": "<code>plan_tree.json</code>；<code>plan_list.json</code> 为派生缓存",
+    "rt.title": "运行时约束",
+    "rt.sub": "开放式 agent 行为被包在确定性的 runtime 边界里，避免失控。",
+    "rt.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Preflight</div>
+          <h3>先检查 Docker</h3>
+          <p>如果 Docker SDK 或 daemon 不可用，阶段会尽早失败，而不是先消耗 token 再发现不能执行。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Sandbox</div>
+          <h3>持久化容器</h3>
+          <p>所有 task 的代码执行都发生在同一个长期存活的 session container 中，因此安装的依赖和生成的文件可跨调用保留。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Concurrency</div>
+          <h3>Semaphore + batching</h3>
+          <p>任务调度按依赖分批，同时 API 并发数由 semaphore 限制，避免无上限并行。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Timing</div>
+          <h3>限流 + 超时</h3>
+          <p>LLM 调用遵守全局请求间隔，task session 有显式 timeout，Docker 执行也有单独的 shell timeout。</p>
+        </div>
+      </div>
+    `,
 
-    "pe.title": "并行执行模式",
-    "pe.sub":   "任务通过拓扑分批尊重依赖顺序；并发上限由 Semaphore 控制。",
-    "pe.c1":    "拓扑分批——尊重依赖 DAG",
-    "pe.c2":    "单个任务失败不会取消兄弟任务",
-    "pe.body":  "每个 <code>execute_task</code> 在调用 <code>_stream_llm</code> 前先获取 <code>_get_api_semaphore()</code>，将并发 LLM 调用数限制在 <code>MAARS_API_CONCURRENCY</code> 之内。Execute → Verify → (pass | retry | redecompose) 是在 semaphore 内完成的原子周期。",
-    "pe.cfg_t": "限流配置",
-    "pe.cfg1":  "<code>MAARS_API_CONCURRENCY</code>——同时处于 in-flight 状态的 LLM 调用最大数量。",
-    "pe.cfg2":  "<code>MAARS_API_REQUEST_INTERVAL</code>——连续 LLM 调用之间的最小间隔秒数（在 <code>_stream_llm</code> 内部由 <code>_rate_limit()</code> 执行）。",
+    "ou.title": "下游阶段会消费哪些输出",
+    "ou.sub": "Research 同时写出原始结果和归一化摘要，保证 Write 阶段有稳定事实依据。",
+    "ou.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>输出</th>
+            <th>存在意义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tasks/&lt;id&gt;.md</code></td>
+            <td>供后续阅读和写作用的人类可读 task 结果。</td>
+          </tr>
+          <tr>
+            <td><code>artifacts/</code></td>
+            <td>图表、脚本、JSON 指标、分数文件等机器生成证据。</td>
+          </tr>
+          <tr>
+            <td><code>evaluations/round_n.json</code></td>
+            <td>记录外层循环为何停止或继续的评估历史。</td>
+          </tr>
+          <tr>
+            <td><code>results_summary.json</code></td>
+            <td>Write 阶段可直接信任的确定性事实锚点，不需要手工重建所有 task 细节。</td>
+          </tr>
+          <tr>
+            <td><code>reproduce/</code></td>
+            <td>为复现交付而自动生成的 Dockerfile 与脚本。</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
 
-    "sl.title": "_stream_llm 内部机制",
-    "sl.sub":   "所有 LLM 调用的统一入口，位于 <code>stage.py</code>。",
-    "sl.l1":    "<strong>限流</strong>：每次请求前调用 <code>_rate_limit()</code>，强制执行 <code>MAARS_API_REQUEST_INTERVAL</code> 间隔。",
-    "sl.l2":    "<strong>模型隔离</strong>：为每个 Agent 实例深拷贝模型（<code>deepcopy(model)</code>）。防止多任务并发调用 <code>_stream_llm</code> 时产生共享状态 bug。",
-    "sl.l3":    "<strong>无 <code>validate</code> 参数</strong>：JSON 结构校验由调用方通过 for/else 重试循环处理，不在 <code>_stream_llm</code> 内部进行。",
-
-    "jp.title":      "JSON 解析 + 重试",
-    "jp.fn_t":       "<code>parse_json_fenced</code>",
-    "jp.fn_body":    "从 LLM 输出的 fenced code block 中提取 JSON。解析前应用 <code>_repair_json_escapes()</code> 预处理——修复常见的 LaTeX 反斜杠序列（如 <code>\\rho</code>、<code>\\lambda</code>），避免 <code>json.loads</code> 失败。",
-    "jp.retry_t":    "调用层重试循环",
-    "jp.retry_body": "Decompose judge、Reviewer、Verify、Evaluate 均使用 <strong>for/else 重试循环（2 次尝试）</strong>。首次解析失败后重新发起 LLM 请求；两次均失败则使用安全的 fallback 值。取代了之前直接使用内联 fallback 而不重试的方式。",
-    "jp.c1":         "两次均失败",
-
-    "cd.title":   "代码位置",
-    "cd.th_file": "文件",
-    "cd.th_role": "职责",
-    "cd.c1": "ResearchStage——主循环 + 任务执行",
-    "cd.c2": "通用递归分解引擎",
-    "cd.c3": "Stage 基类 + <code>_stream_llm</code>（限流、每 Agent 深拷贝模型）",
-    "cd.c4": "EN prompts + builder 函数",
-    "cd.c5": "ZH prompts",
-    "cd.c6": "<code>code_execute</code> + <code>list_artifacts</code>",
-    "cd.c7": "<code>list_tasks</code> + <code>read_task_output</code> + <code>read_refined_idea</code> + <code>read_plan_tree</code>",
+    "cd.title": "代码地图",
+    "cd.sub": "Research 实现主要由一个主阶段文件，外加分解与摘要两个辅助模块构成。",
+    "cd.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>文件</th>
+            <th>职责</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>backend/pipeline/research.py</code></td>
+            <td>Research 主循环、task 执行、验证和评估。</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/decompose.py</code></td>
+            <td>递归任务分解引擎与依赖解析。</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/results_summary.py</code></td>
+            <td>供 Write 使用的确定性结果摘要生成。</td>
+          </tr>
+          <tr>
+            <td><code>backend/agno/tools/docker_exec.py</code></td>
+            <td>持久沙箱容器、<code>code_execute</code> 和 artifact 列表工具。</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/prompts_*.py</code></td>
+            <td>Research 各阶段的 prompt 和 builder 函数。</td>
+          </tr>
+        </tbody>
+      </table>
+    `
   }
 };
+
 initLang(T);
 </script>
 </body>

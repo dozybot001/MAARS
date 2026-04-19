@@ -218,12 +218,13 @@
       <span class="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-indigo-300 to-slate-400 shadow-[0_0_12px_rgba(129,140,248,.45)]"></span>
       <span class="font-semibold tracking-tight text-slate-100 group-hover:text-white">MAARS</span>
     </a>
-    <div class="hidden md:flex items-center gap-7 text-sm text-slate-300">
+    <div class="hidden md:flex items-center gap-5 xl:gap-7 text-sm text-slate-300">
+      <a class="nav-link" href="#demo-video" data-i18n="nav.demo">Demo</a>
       <a class="nav-link" href="#pipeline" data-i18n="nav.pipeline">Pipeline</a>
-      <a class="nav-link" href="#architecture" data-i18n="nav.architecture">Architecture</a>
-      <a class="nav-link" href="#stack" data-i18n="nav.stack">Stack</a>
+      <a class="nav-link" href="#architecture" data-i18n="nav.system">System</a>
       <a class="nav-link" href="#showcase" data-i18n="nav.showcase">Showcase</a>
       <a class="nav-link" href="#quickstart" data-i18n="nav.quickstart">Quick&nbsp;Start</a>
+      <a class="nav-link" href="#docs" data-i18n="nav.docs">Docs</a>
     </div>
     <div class="flex items-center gap-2">
       <div class="lang-toggle" role="tablist" aria-label="Language">
@@ -231,7 +232,7 @@
         <button type="button" data-lang-btn="en" class="active" aria-label="English">EN</button>
       </div>
       <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener"
-         class="hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition">
+         class="hidden lg:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 hover:bg-white/10 transition">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12 11.5 11.5 0 0 0 8.4 22.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.2-1.7-1.2-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.7 2.7 1.2 3.3.9.1-.7.4-1.2.7-1.5-2.5-.3-5.2-1.3-5.2-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.3.7 1 .7 2v3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
         GitHub
       </a>
@@ -243,11 +244,12 @@
         </summary>
         <div class="mobile-menu-panel">
           <span class="menu-label">Navigate</span>
+          <a href="#demo-video"><span data-i18n="nav.demo">Demo</span><span>→</span></a>
           <a href="#pipeline"><span data-i18n="nav.pipeline">Pipeline</span><span>→</span></a>
-          <a href="#architecture"><span data-i18n="nav.architecture">Architecture</span><span>→</span></a>
-          <a href="#stack"><span data-i18n="nav.stack">Stack</span><span>→</span></a>
+          <a href="#architecture"><span data-i18n="nav.system">System</span><span>→</span></a>
           <a href="#showcase"><span data-i18n="nav.showcase">Showcase</span><span>→</span></a>
           <a href="#quickstart"><span data-i18n="nav.quickstart">Quick&nbsp;Start</span><span>→</span></a>
+          <a href="#docs"><span data-i18n="nav.docs">Docs</span><span>→</span></a>
           <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener">
             <span>GitHub</span><span>↗</span>
           </a>
@@ -412,8 +414,9 @@
 <!-- ============ ARCHITECTURE ============ -->
 <section id="architecture" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-14">
-    <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="arch.label">/ architecture</div>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="arch.title">Five layers.<br/><span class="gradient-text">One clear boundary.</span></h2>
+    <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="arch.label">/ system</div>
+    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="arch.title">System design.<br/><span class="gradient-text">Clear boundaries, concrete state.</span></h2>
+    <p class="text-slate-400 mt-4 max-w-2xl" data-i18n="arch.sub">The important split is simple: Python owns control flow and persistence; agents do the open-ended work inside bounded stages.</p>
   </div>
 
   <div class="space-y-3">
@@ -489,8 +492,9 @@
 <!-- ============ STACK ============ -->
 <section id="stack" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
-    <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="stack.label">/ stack</div>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="stack.title">Boring where it counts.<br/><span class="gradient-text">Interesting where it matters.</span></h2>
+    <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="stack.label">/ implementation</div>
+    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="stack.title">Implementation choices.<br/><span class="gradient-text">Simple runtime, bounded execution.</span></h2>
+    <p class="text-slate-400 mt-4 max-w-2xl" data-i18n="stack.sub">The stack is intentionally plain: keep orchestration legible, keep execution isolated, and keep state inspectable on disk.</p>
   </div>
 
   <div class="grid md:grid-cols-4 gap-4">
@@ -659,7 +663,7 @@
 <section id="quickstart" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="qs.label">/ quick start</div>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="qs.title"><span class="gradient-text">One command.</span></h2>
+    <h2 class="text-3xl md:text-5xl font-bold tracking-tight" data-i18n="qs.title">Run it locally.<br/><span class="gradient-text">One command to boot.</span></h2>
     <p class="text-slate-400 mt-4 max-w-2xl" data-i18n="qs.sub">Requirements: Python 3.10+, Docker running, a <a href="https://aistudio.google.com/apikey" class="underline decoration-white/20 hover:decoration-white/60">Gemini API key</a>.</p>
   </div>
 
@@ -706,25 +710,31 @@ bash start.sh</code></pre>
 <section id="docs" class="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-24 border-t border-white/5">
   <div class="mb-10">
     <div class="text-xs uppercase tracking-[0.18em] text-slate-500 mb-4 font-mono" data-i18n="docs.label">/ docs</div>
-    <h2 class="text-3xl md:text-4xl font-bold tracking-tight" data-i18n="docs.title">Go deeper.</h2>
+    <h2 class="text-3xl md:text-4xl font-bold tracking-tight" data-i18n="docs.title">Read the design docs.</h2>
   </div>
-  <div class="grid md:grid-cols-3 gap-4">
+  <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
     <a data-i18n-href="docs.d1_href" href="docs/architecture.html" class="glass rounded-xl p-6 card-hover block">
       <div class="text-xs text-slate-500 font-mono mb-2" data-i18n="docs.d1_l">doc · architecture</div>
       <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d1_t">System overview</div>
-      <p class="text-sm text-slate-400" data-i18n="docs.d1_b">Five layers, SSE protocol, storage layout, stage inheritance.</p>
+      <p class="text-sm text-slate-400" data-i18n="docs.d1_b">System boundaries, stage contracts, data flow, storage layout.</p>
       <div class="text-xs text-slate-500 mt-4 font-mono" data-i18n="docs.read">read →</div>
     </a>
     <a data-i18n-href="docs.d2_href" href="docs/refine-write.html" class="glass rounded-xl p-6 card-hover block">
       <div class="text-xs text-slate-500 font-mono mb-2" data-i18n="docs.d2_l">doc · refine &amp; write</div>
-      <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d2_t">IterationState pattern</div>
-      <p class="text-sm text-slate-400" data-i18n="docs.d2_b">How Primary ↔ Reviewer loops converge to zero issues.</p>
+      <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d2_t">Shared review loop</div>
+      <p class="text-sm text-slate-400" data-i18n="docs.d2_b">IterationState, reviewer contract, and Write-specific polish behavior.</p>
       <div class="text-xs text-slate-500 mt-4 font-mono" data-i18n="docs.read">read →</div>
     </a>
     <a data-i18n-href="docs.d3_href" href="docs/research.html" class="glass rounded-xl p-6 card-hover block">
       <div class="text-xs text-slate-500 font-mono mb-2" data-i18n="docs.d3_l">doc · research</div>
-      <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d3_t">Decompose · execute · evaluate</div>
-      <p class="text-sm text-slate-400" data-i18n="docs.d3_b">Recursive decomposition, parallel DAG, strategy update loop.</p>
+      <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d3_t">Execution engine</div>
+      <p class="text-sm text-slate-400" data-i18n="docs.d3_b">Outer loop, task DAG, execution cycle, runtime guards, outputs.</p>
+      <div class="text-xs text-slate-500 mt-4 font-mono" data-i18n="docs.read">read →</div>
+    </a>
+    <a data-i18n-href="docs.d4_href" href="docs/tools.html" class="glass rounded-xl p-6 card-hover block">
+      <div class="text-xs text-slate-500 font-mono mb-2" data-i18n="docs.d4_l">doc · tools</div>
+      <div class="font-semibold text-slate-100 mb-2" data-i18n="docs.d4_t">Tool definitions</div>
+      <p class="text-sm text-slate-400" data-i18n="docs.d4_b">Tool families, capability profile, scoping, and sandbox semantics.</p>
       <div class="text-xs text-slate-500 mt-4 font-mono" data-i18n="docs.read">read →</div>
     </a>
   </div>
@@ -772,8 +782,8 @@ bash start.sh</code></pre>
 <script>
   const T = {
     en: {
-      "nav.pipeline": "Pipeline", "nav.architecture": "Architecture", "nav.stack": "Stack",
-      "nav.showcase": "Showcase", "nav.quickstart": "Quick&nbsp;Start",
+      "nav.demo": "Demo", "nav.pipeline": "Pipeline", "nav.system": "System",
+      "nav.showcase": "Showcase", "nav.quickstart": "Quick&nbsp;Start", "nav.docs": "Docs",
 
       "hero.badge": "Multi-Agent · Fully Autonomous · End-to-End",
       "hero.title": "From a research idea<br/>to a <span class=\"gradient-text\">polished paper</span>.",
@@ -813,8 +823,9 @@ bash start.sh</code></pre>
       "pipe.d3_title": "DB as single source of truth",
       "pipe.d3_body": "State lives on disk — JSON + Markdown under <span class=\"kbd\">results/{session}/</span>. SSE is notification only; the UI reads canonical data from the session DB.",
 
-      "arch.label": "/ architecture",
-      "arch.title": "Five layers.<br/><span class=\"gradient-text\">One clear boundary.</span>",
+      "arch.label": "/ system",
+      "arch.title": "System design.<br/><span class=\"gradient-text\">Clear boundaries, concrete state.</span>",
+      "arch.sub": "The important split is simple: Python owns control flow and persistence; agents do the open-ended work inside bounded stages.",
       "arch.l5_t": "Entry layer",
       "arch.l5_b": "Frontend (Vanilla JS, SSE streaming, marked.js) · FastAPI server",
       "arch.l4_t": "Orchestration layer",
@@ -846,8 +857,9 @@ bash start.sh</code></pre>
       "tree.c15": "Docker exec log",
       "tree.c16": "Dockerfile · run.sh",
 
-      "stack.label": "/ stack",
-      "stack.title": "Boring where it counts.<br/><span class=\"gradient-text\">Interesting where it matters.</span>",
+      "stack.label": "/ implementation",
+      "stack.title": "Implementation choices.<br/><span class=\"gradient-text\">Simple runtime, bounded execution.</span>",
+      "stack.sub": "The stack is intentionally plain: keep orchestration legible, keep execution isolated, and keep state inspectable on disk.",
       "stack.backend_l": "backend",
       "stack.backend_b": "Runtime, API server, SSE broadcast, session DB.",
       "stack.agents_l": "agents",
@@ -893,7 +905,7 @@ bash start.sh</code></pre>
       "ui.cap2": "web UI — streaming left, state right",
 
       "qs.label": "/ quick start",
-      "qs.title": "<span class=\"gradient-text\">One command.</span>",
+      "qs.title": "Run it locally.<br/><span class=\"gradient-text\">One command to boot.</span>",
       "qs.sub": "Requirements: Python 3.10+, Docker running, a <a href=\"https://aistudio.google.com/apikey\" class=\"underline decoration-white/20 hover:decoration-white/60\">Gemini API key</a>.",
       "qs.code_c": "clone & run",
       "qs.copied": "Copied ✓",
@@ -906,19 +918,23 @@ bash start.sh</code></pre>
       "qs.c_b": "Install the NVIDIA Container Toolkit, set <span class=\"kbd\">MAARS_DOCKER_SANDBOX_GPU=true</span>, and the sandbox gets <span class=\"kbd\">--gpus all</span> for PyTorch training.",
 
       "docs.label": "/ docs",
-      "docs.title": "Go deeper.",
+      "docs.title": "Read the design docs.",
       "docs.d1_l": "doc · architecture",
       "docs.d1_t": "System overview",
-      "docs.d1_b": "Five layers, SSE protocol, storage layout, stage inheritance.",
+      "docs.d1_b": "System boundaries, stage contracts, data flow, storage layout.",
       "docs.d1_href": "docs/architecture.html",
       "docs.d2_l": "doc · refine & write",
-      "docs.d2_t": "IterationState pattern",
-      "docs.d2_b": "How Primary ↔ Reviewer loops converge to zero issues.",
+      "docs.d2_t": "Shared review loop",
+      "docs.d2_b": "IterationState, reviewer contract, and Write-specific polish behavior.",
       "docs.d2_href": "docs/refine-write.html",
       "docs.d3_l": "doc · research",
-      "docs.d3_t": "Decompose · execute · evaluate",
-      "docs.d3_b": "Recursive decomposition, parallel DAG, strategy update loop.",
+      "docs.d3_t": "Execution engine",
+      "docs.d3_b": "Outer loop, task DAG, execution cycle, runtime guards, outputs.",
       "docs.d3_href": "docs/research.html",
+      "docs.d4_l": "doc · tools",
+      "docs.d4_t": "Tool definitions",
+      "docs.d4_b": "Tool families, capability profile, scoping, and sandbox semantics.",
+      "docs.d4_href": "docs/tools.html",
       "docs.read": "read →",
 
       "cta.title": "Bring an idea.<br/><span class=\"gradient-text\">Walk away with a paper.</span>",
@@ -932,8 +948,8 @@ bash start.sh</code></pre>
     },
 
     zh: {
-      "nav.pipeline": "流水线", "nav.architecture": "架构", "nav.stack": "技术栈",
-      "nav.showcase": "案例", "nav.quickstart": "快速开始",
+      "nav.demo": "演示", "nav.pipeline": "流水线", "nav.system": "系统设计",
+      "nav.showcase": "案例", "nav.quickstart": "快速开始", "nav.docs": "文档",
 
       "hero.badge": "多智能体 · 全自动 · 端到端",
       "hero.title": "从一个研究想法<br/>到一篇<span class=\"gradient-text\">完整论文</span>。",
@@ -973,8 +989,9 @@ bash start.sh</code></pre>
       "pipe.d3_title": "DB 即唯一真源",
       "pipe.d3_body": "状态存在磁盘上——<span class=\"kbd\">results/{session}/</span> 下的 JSON + Markdown。SSE 只做通知;UI 从 session DB 读权威数据。",
 
-      "arch.label": "/ 架构",
-      "arch.title": "五个层次。<br/><span class=\"gradient-text\">一条清晰边界。</span>",
+      "arch.label": "/ 系统",
+      "arch.title": "系统设计。<br/><span class=\"gradient-text\">边界清楚，状态落地。</span>",
+      "arch.sub": "最重要的划分很简单：Python 负责控制流与持久化，Agent 在有边界的阶段里做开放式工作。",
       "arch.l5_t": "入口层",
       "arch.l5_b": "前端(Vanilla JS、SSE 流式、marked.js)· FastAPI 服务端",
       "arch.l4_t": "编排层",
@@ -1006,8 +1023,9 @@ bash start.sh</code></pre>
       "tree.c15": "Docker 执行日志",
       "tree.c16": "Dockerfile · run.sh",
 
-      "stack.label": "/ 技术栈",
-      "stack.title": "该稳的地方务实。<br/><span class=\"gradient-text\">该巧的地方精巧。</span>",
+      "stack.label": "/ 实现选择",
+      "stack.title": "实现选择。<br/><span class=\"gradient-text\">运行时朴素，执行边界明确。</span>",
+      "stack.sub": "技术栈刻意保持直白：让编排容易读，让执行隔离，让状态能直接落盘检查。",
       "stack.backend_l": "后端",
       "stack.backend_b": "运行时、API 服务、SSE 广播、session DB。",
       "stack.agents_l": "智能体",
@@ -1053,7 +1071,7 @@ bash start.sh</code></pre>
       "ui.cap2": "Web UI — 左侧流式、右侧状态",
 
       "qs.label": "/ 快速开始",
-      "qs.title": "<span class=\"gradient-text\">一条命令。</span>",
+      "qs.title": "本地跑起来。<br/><span class=\"gradient-text\">一条命令启动。</span>",
       "qs.sub": "依赖:Python 3.10+、Docker 已启动、一枚 <a href=\"https://aistudio.google.com/apikey\" class=\"underline decoration-white/20 hover:decoration-white/60\">Gemini API key</a>。",
       "qs.code_c": "克隆并运行",
       "qs.copied": "已复制 ✓",
@@ -1066,19 +1084,23 @@ bash start.sh</code></pre>
       "qs.c_b": "安装 NVIDIA Container Toolkit、设置 <span class=\"kbd\">MAARS_DOCKER_SANDBOX_GPU=true</span>,沙箱即以 <span class=\"kbd\">--gpus all</span> 启动,供 PyTorch 训练。",
 
       "docs.label": "/ 文档",
-      "docs.title": "继续深入。",
+      "docs.title": "阅读设计文档。",
       "docs.d1_l": "文档 · 架构",
       "docs.d1_t": "系统概览",
-      "docs.d1_b": "五层架构、SSE 协议、存储布局、阶段继承。",
+      "docs.d1_b": "系统边界、阶段契约、数据流转和存储布局。",
       "docs.d1_href": "docs/architecture.html",
       "docs.d2_l": "文档 · refine & write",
-      "docs.d2_t": "IterationState 模式",
-      "docs.d2_b": "主智能体 ↔ 评审如何迭代收敛至问题归零。",
+      "docs.d2_t": "共享评审循环",
+      "docs.d2_b": "IterationState、reviewer 契约，以及 Write 的 polish 逻辑。",
       "docs.d2_href": "docs/refine-write.html",
       "docs.d3_l": "文档 · research",
-      "docs.d3_t": "分解 · 执行 · 评估",
-      "docs.d3_b": "递归分解、并行 DAG、策略更新循环。",
+      "docs.d3_t": "执行引擎",
+      "docs.d3_b": "外层循环、任务 DAG、执行周期、运行时约束和输出。",
       "docs.d3_href": "docs/research.html",
+      "docs.d4_l": "文档 · tools",
+      "docs.d4_t": "工具定义",
+      "docs.d4_b": "工具族、能力画像、权限分配和沙箱语义。",
+      "docs.d4_href": "docs/tools.html",
       "docs.read": "阅读 →",
 
       "cta.title": "带来一个想法。<br/><span class=\"gradient-text\">带走一篇论文。</span>",
@@ -1346,6 +1368,7 @@ bash start.sh</code></pre>
     else if (e.key === '1') { window.open('docs/architecture.html', '_blank'); }
     else if (e.key === '2') { window.open('docs/refine-write.html', '_blank'); }
     else if (e.key === '3') { window.open('docs/research.html',     '_blank'); }
+    else if (e.key === '4') { window.open('docs/tools.html',        '_blank'); }
   });
 
   enterSegment(0);

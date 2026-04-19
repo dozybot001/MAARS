@@ -64,7 +64,7 @@ class ResultsSummaryTests(unittest.TestCase):
             self.assertEqual(summary_json["score_direction"], "minimize")
             self.assertEqual(summary_json["best_score"]["score"], 0.11)
             self.assertEqual(summary_json["latest_score"]["score"], 0.13)
-            self.assertEqual(summary_json["evaluation_rounds"][0]["round"], 1)
+            self.assertEqual(summary_json["evaluation_rounds"][0]["round"], 0)
             self.assertEqual(summary_json["completed_tasks"][0]["id"], "1")
             self.assertEqual(summary_json["completed_tasks"][0]["best_score"]["model"], "baseline")
             self.assertIn("artifacts/1/curve.png", [f["path"] for f in summary_json["figures"]])

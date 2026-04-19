@@ -36,6 +36,16 @@ def _looks_like_strict_file_path(candidate_text: str) -> bool:
     return " " not in candidate_text and "\t" not in candidate_text
 
 
+def _is_within_allowed_roots(candidate: Path, allowed_roots: tuple[Path, ...]) -> bool:
+    for root in allowed_roots:
+        try:
+            candidate.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def _resolve_research_input(raw_input: str) -> str:
     from backend.kaggle import extract_competition_id
 
@@ -52,7 +62,7 @@ def _resolve_research_input(raw_input: str) -> str:
         base = raw_path if raw_path.is_absolute() else WORKSPACE_ROOT / raw_path
         candidate = base.resolve()
         allowed_roots = (WORKSPACE_ROOT.resolve(), Path.home().resolve())
-        if not any(str(candidate).startswith(str(r)) for r in allowed_roots):
+        if not _is_within_allowed_roots(candidate, allowed_roots):
             raise HTTPException(
                 status_code=400,
                 detail=f"Input file path '{candidate_text}' is outside allowed directories",

@@ -1,4 +1,7 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from fastapi import HTTPException
 
@@ -19,8 +22,24 @@ class ResolveResearchInputTests(unittest.TestCase):
         self.assertEqual(_resolve_research_input(text), text)
 
     def test_reads_existing_relative_file(self):
+        expected = Path("showcase/example_idea.md").read_text(encoding="utf-8").strip()
         resolved = _resolve_research_input("showcase/example_idea.md")
-        self.assertTrue(resolved.startswith("Lorenz 吸引子可视化：4 张图讲清混沌"))
+        self.assertEqual(resolved, expected)
+
+    def test_rejects_absolute_path_with_same_prefix_but_outside_workspace(self):
+        with TemporaryDirectory() as tmpdir:
+            fake_workspace = Path(tmpdir) / "workspace"
+            fake_workspace.mkdir()
+            sibling = Path(tmpdir) / "workspace-other"
+            sibling.mkdir()
+            outside_file = sibling / "idea.md"
+            outside_file.write_text("outside workspace", encoding="utf-8")
+
+            with patch("backend.routes.pipeline.WORKSPACE_ROOT", fake_workspace):
+                with self.assertRaises(HTTPException) as ctx:
+                    _resolve_research_input(str(outside_file))
+            self.assertEqual(ctx.exception.status_code, 400)
+            self.assertIn("outside allowed directories", ctx.exception.detail)
 
     def test_rejects_missing_path_like_input(self):
         with self.assertRaises(HTTPException) as ctx:

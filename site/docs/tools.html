@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tools — MAARS Docs</title>
+<meta name="description" content="Tool definitions and allocation in MAARS: search tools, DB tools, Docker tools, capability profiles, scoping, and sandbox semantics." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css" />
+</head>
+
+<body>
+<div class="grain"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="brand-dot"></span>
+      <span>MAARS</span>
+      <span style="color:#64748b;font-size:.8rem;margin-left:.3rem" data-i18n="nav.docs">/ docs</span>
+    </a>
+    <nav class="doc-nav">
+      <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+      <a href="refine-write.html" data-i18n="nav.refine_write">Refine &amp; Write</a>
+      <a href="research.html" data-i18n="nav.research">Research</a>
+      <a href="tools.html" class="current" data-i18n="nav.tools">Tools</a>
+    </nav>
+    <div class="nav-right">
+      <div class="lang-toggle">
+        <button type="button" data-lang-btn="zh">中</button>
+        <button type="button" data-lang-btn="en" class="active">EN</button>
+      </div>
+      <a href="../index.html" class="btn-ghost" data-i18n="nav.home">← Home</a>
+      <details class="mobile-doc-menu">
+        <summary aria-label="Open docs navigation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16"></path>
+          </svg>
+        </summary>
+        <div class="mobile-doc-panel">
+          <span class="mobile-doc-label">Docs</span>
+          <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
+          <a href="refine-write.html" data-i18n="nav.refine_write">Refine &amp; Write</a>
+          <a href="research.html" data-i18n="nav.research">Research</a>
+          <a href="tools.html" class="current" data-i18n="nav.tools">Tools</a>
+          <a href="../index.html" data-i18n="nav.home">← Home</a>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+
+<div class="doc-layout">
+  <aside class="sidebar">
+    <div class="sidebar-title" data-i18n="toc.label">On this page</div>
+    <ul class="toc">
+      <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+      <li><a href="#families" data-i18n="toc.families">Tool families</a></li>
+      <li><a href="#profile" data-i18n="toc.profile">Capability profile</a></li>
+      <li><a href="#allocation" data-i18n="toc.allocation">Allocation</a></li>
+      <li><a href="#sandbox" data-i18n="toc.sandbox">Sandbox semantics</a></li>
+      <li><a href="#extension" data-i18n="toc.extension">Extension rules</a></li>
+    </ul>
+  </aside>
+
+  <main class="prose">
+    <details class="mobile-toc">
+      <summary>
+        <span data-i18n="toc.label">On this page</span>
+        <span>›</span>
+      </summary>
+      <ul class="toc">
+        <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
+        <li><a href="#families" data-i18n="toc.families">Tool families</a></li>
+        <li><a href="#profile" data-i18n="toc.profile">Capability profile</a></li>
+        <li><a href="#allocation" data-i18n="toc.allocation">Allocation</a></li>
+        <li><a href="#sandbox" data-i18n="toc.sandbox">Sandbox semantics</a></li>
+        <li><a href="#extension" data-i18n="toc.extension">Extension rules</a></li>
+      </ul>
+    </details>
+
+    <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · tools</div>
+    <h1 data-i18n="doc.title">Tools</h1>
+    <p class="lede" data-i18n="doc.lede">
+      MAARS does not give every agent every power. Tools are intentionally defined and scoped so each phase can do what it needs without quietly taking on responsibilities that belong elsewhere.
+    </p>
+
+    <section id="overview">
+      <h2><span class="num">01</span><span data-i18n="ov.title">Tooling philosophy</span></h2>
+      <div data-i18n="ov.body"></div>
+    </section>
+
+    <section id="families">
+      <h2><span class="num">02</span><span data-i18n="fm.title">Tool families</span></h2>
+      <p class="sub" data-i18n="fm.sub">The tool surface is small on purpose: read state, search outside knowledge, or execute code in the sandbox.</p>
+      <div data-i18n="fm.body"></div>
+    </section>
+
+    <section id="profile">
+      <h2><span class="num">03</span><span data-i18n="pf.title">Capability profile</span></h2>
+      <p class="sub" data-i18n="pf.sub">Agents are told about the execution environment even when they cannot call every tool directly.</p>
+      <div data-i18n="pf.body"></div>
+    </section>
+
+    <section id="allocation">
+      <h2><span class="num">04</span><span data-i18n="al.title">Allocation by stage and phase</span></h2>
+      <p class="sub" data-i18n="al.sub">The same tool can be available in one phase and intentionally absent in another.</p>
+      <div data-i18n="al.body"></div>
+    </section>
+
+    <section id="sandbox">
+      <h2><span class="num">05</span><span data-i18n="sb.title">Sandbox semantics</span></h2>
+      <p class="sub" data-i18n="sb.sub">The Docker tools are more than “run code”; they define how task execution persists across the stage.</p>
+      <div data-i18n="sb.body"></div>
+    </section>
+
+    <section id="extension">
+      <h2><span class="num">06</span><span data-i18n="ex.title">Extension rules</span></h2>
+      <p class="sub" data-i18n="ex.sub">Adding a tool is easy mechanically, but the important part is preserving the stage boundary it belongs to.</p>
+      <div data-i18n="ex.body"></div>
+    </section>
+
+    <div class="pager">
+      <a href="research.html" class="btn-ghost">← <span data-i18n="nav.prev_research">Research</span></a>
+      <a href="../index.html" class="btn-ghost"><span data-i18n="nav.back">Back to site</span> →</a>
+    </div>
+  </main>
+</div>
+
+<script src="docs.js"></script>
+<script>
+const T = {
+  en: {
+    "nav.docs": "/ docs",
+    "nav.architecture": "Architecture",
+    "nav.refine_write": "Refine & Write",
+    "nav.research": "Research",
+    "nav.tools": "Tools",
+    "nav.home": "← Home",
+    "nav.prev_research": "Research",
+    "nav.back": "Back to site",
+
+    "toc.label": "On this page",
+    "toc.overview": "Overview",
+    "toc.families": "Tool families",
+    "toc.profile": "Capability profile",
+    "toc.allocation": "Allocation",
+    "toc.sandbox": "Sandbox semantics",
+    "toc.extension": "Extension rules",
+
+    "doc.eyebrow": "/ docs · tools",
+    "doc.title": "Tools",
+    "doc.lede": "MAARS does not give every agent every power. Tools are intentionally defined and scoped so each phase can do what it needs without quietly taking on responsibilities that belong elsewhere.",
+
+    "ov.title": "Tooling philosophy",
+    "ov.body": `
+      <p>In MAARS, tools are not just conveniences. They are part of the architecture. The difference between “planning”, “executing”, and “evaluating” is enforced partly by which tools are available at each point.</p>
+      <div class="note-box">
+        <p><strong>Design rule:</strong> if a phase should only inspect existing work, it should not receive execution tools. If a phase should only plan, it should not be allowed to secretly run experiments.</p>
+      </div>
+    `,
+
+    "fm.title": "Tool families",
+    "fm.sub": "The tool surface is small on purpose: read state, search outside knowledge, or execute code in the sandbox.",
+    "fm.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>Family</th>
+            <th>Tools</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Search tools</strong></td>
+            <td><code>ArxivTools</code>, <code>WikipediaTools</code></td>
+            <td>Pull external background knowledge and literature context.</td>
+          </tr>
+          <tr>
+            <td><strong>DB read tools</strong></td>
+            <td><code>read_task_output</code>, <code>list_tasks</code>, <code>read_refined_idea</code>, <code>read_plan_tree</code>, <code>read_results_summary</code>, <code>read_artifact_file</code></td>
+            <td>Expose persisted session state back to agents in a controlled, read-only way.</td>
+          </tr>
+          <tr>
+            <td><strong>Docker tools</strong></td>
+            <td><code>code_execute</code>, <code>list_artifacts</code></td>
+            <td>Run code in the sandbox and inspect the artifact directory associated with the active task.</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
+
+    "pf.title": "Capability profile",
+    "pf.sub": "Agents are told about the execution environment even when they cannot call every tool directly.",
+    "pf.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Environment</div>
+          <h3>Concrete constraints</h3>
+          <p>The capability profile tells the agent about time limits, memory, CPU, network access, dataset presence, and preinstalled packages.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Tool awareness</div>
+          <h3>Planning with execution in mind</h3>
+          <p>Even when a planning phase cannot call execution tools directly, it can still see what the execution phase will be capable of.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Why it matters</div>
+          <h3>Less hallucinated planning</h3>
+          <p>This reduces plans that assume impossible resources or miss obvious execution affordances already available in the sandbox.</p>
+        </div>
+      </div>
+    `,
+
+    "al.title": "Allocation by stage and phase",
+    "al.sub": "The same tool can be available in one phase and intentionally absent in another.",
+    "al.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>Stage / phase</th>
+            <th>Tools</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Refine</strong></td>
+            <td>Search tools</td>
+            <td>Refine needs exploration and critique, not code execution or task-level artifact reading.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Calibrate</strong></td>
+            <td>None</td>
+            <td>Calibrate is pure reasoning over the capability profile and the research topic.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Strategy</strong></td>
+            <td>Search tools</td>
+            <td>Strategy should look outward for best practices, not run experiments prematurely.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Decompose (root)</strong></td>
+            <td>Read tools + search tools</td>
+            <td>Root decomposition may inspect prior results and gather domain context before planning tasks.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Decompose (non-root)</strong></td>
+            <td>None</td>
+            <td>Child decomposition is kept narrow so it emits structured task JSON rather than wandering into execution.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Execute</strong></td>
+            <td>Full set</td>
+            <td>Execution may need search, state inspection, code execution, and artifact inspection in one task session.</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Evaluate</strong></td>
+            <td>Read tools</td>
+            <td>Evaluation should inspect completed outputs only. It must not secretly rerun work or fetch new literature.</td>
+          </tr>
+          <tr>
+            <td><strong>Write</strong></td>
+            <td>Read tools + artifact listing</td>
+            <td>Write needs grounded access to completed outputs but should not mutate the research stage by executing new code.</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
+
+    "sb.title": "Sandbox semantics",
+    "sb.sub": "The Docker tools are more than “run code”; they define how task execution persists across the stage.",
+    "sb.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Persistent session</div>
+          <h3>One long-lived container</h3>
+          <p>The sandbox container is reused across task executions within the same research session, so installed packages survive.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Task focus</div>
+          <h3><code>/workspace/output</code> points at the active task</h3>
+          <p>The runtime symlinks the current task artifact directory to a stable path so task code can write outputs consistently.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Artifact inspection</div>
+          <h3><code>list_artifacts</code> is context-aware</h3>
+          <p>During execution it lists only the current task's files; outside task scope it can show the whole artifact tree.</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Bookkeeping</div>
+          <h3><code>current_task_id</code></h3>
+          <p>The DB tracks the active task ID so scripts, execution logs, and best-score promotion all map back to the right task directory.</p>
+        </div>
+      </div>
+    `,
+
+    "ex.title": "Extension rules",
+    "ex.sub": "Adding a tool is easy mechanically, but the important part is preserving the stage boundary it belongs to.",
+    "ex.body": `
+      <p>If you add a tool, treat the scope decision as seriously as the implementation itself. The mechanical places to touch are straightforward:</p>
+      <ul>
+        <li><code>backend/agno/tools/db.py</code> for new read-only session tools.</li>
+        <li><code>backend/agno/tools/docker_exec.py</code> for sandbox-oriented execution helpers.</li>
+        <li><code>backend/agno/__init__.py</code> for stage-level tool assembly.</li>
+      </ul>
+      <div class="note-box">
+        <p><strong>Best practice:</strong> first decide which stage or phase should be allowed to use the tool, then add it to the factory wiring. Avoid “just expose it everywhere” changes, because they blur the architectural contract between planning, execution, and evaluation.</p>
+      </div>
+    `
+  },
+
+  zh: {
+    "nav.docs": "/ 文档",
+    "nav.architecture": "架构",
+    "nav.refine_write": "Refine & Write",
+    "nav.research": "Research",
+    "nav.tools": "Tools",
+    "nav.home": "← 首页",
+    "nav.prev_research": "Research",
+    "nav.back": "返回站点",
+
+    "toc.label": "本页目录",
+    "toc.overview": "总览",
+    "toc.families": "工具族",
+    "toc.profile": "能力画像",
+    "toc.allocation": "分配方式",
+    "toc.sandbox": "沙箱语义",
+    "toc.extension": "扩展规则",
+
+    "doc.eyebrow": "/ 文档 · tools",
+    "doc.title": "Tools",
+    "doc.lede": "MAARS 不会把所有能力都暴露给所有 Agent。工具是被明确定义并刻意分配的，这样每个阶段只能做自己该做的事，而不会悄悄越权。",
+
+    "ov.title": "工具设计哲学",
+    "ov.body": `
+      <p>在 MAARS 里，工具不只是“方便调用的函数”，它本身就是架构的一部分。规划、执行、评估的区别，有一大部分正是通过工具权限差异来强制落实的。</p>
+      <div class="note-box">
+        <p><strong>设计原则：</strong>如果一个阶段只该检查已有工作，就不该拿到执行工具；如果一个阶段只该规划，就不该被允许偷偷跑实验。</p>
+      </div>
+    `,
+
+    "fm.title": "工具族",
+    "fm.sub": "工具面被故意压得很小：读取状态、搜索外部知识，或在沙箱里执行代码。",
+    "fm.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>工具族</th>
+            <th>工具</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>搜索工具</strong></td>
+            <td><code>ArxivTools</code>、<code>WikipediaTools</code></td>
+            <td>获取外部背景知识与文献上下文。</td>
+          </tr>
+          <tr>
+            <td><strong>DB 读取工具</strong></td>
+            <td><code>read_task_output</code>、<code>list_tasks</code>、<code>read_refined_idea</code>、<code>read_plan_tree</code>、<code>read_results_summary</code>、<code>read_artifact_file</code></td>
+            <td>把已持久化的 session 状态以受控、只读方式重新暴露给 Agent。</td>
+          </tr>
+          <tr>
+            <td><strong>Docker 工具</strong></td>
+            <td><code>code_execute</code>、<code>list_artifacts</code></td>
+            <td>在沙箱里执行代码，并检查当前 task 对应的 artifact 目录。</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
+
+    "pf.title": "能力画像",
+    "pf.sub": "即使一个 Agent 不能直接调用所有工具，它也会被明确告知执行环境长什么样。",
+    "pf.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Environment</div>
+          <h3>明确环境约束</h3>
+          <p>能力画像会告诉 Agent 时间限制、内存、CPU、网络权限、数据集是否存在，以及预装包情况。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Tool awareness</div>
+          <h3>规划时也要知道执行边界</h3>
+          <p>即使规划阶段不能直接调用执行工具，它仍然应该知道执行阶段具备哪些能力。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Why it matters</div>
+          <h3>减少幻想式规划</h3>
+          <p>这样能减少那种默认拥有不存在资源，或忽略现有执行能力的规划错误。</p>
+        </div>
+      </div>
+    `,
+
+    "al.title": "按阶段与 phase 分配",
+    "al.sub": "同一个工具可以在一个阶段可用，而在另一个阶段被有意禁用。",
+    "al.body": `
+      <table>
+        <thead>
+          <tr>
+            <th>阶段 / phase</th>
+            <th>工具</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Refine</strong></td>
+            <td>搜索工具</td>
+            <td>Refine 需要探索与批评，不需要执行代码，也不需要读取 task 级 artifact。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Calibrate</strong></td>
+            <td>无</td>
+            <td>Calibrate 是基于能力画像和研究主题的纯推理步骤。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Strategy</strong></td>
+            <td>搜索工具</td>
+            <td>Strategy 应该先向外搜索最佳实践，而不是过早地跑实验。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Decompose（root）</strong></td>
+            <td>读取工具 + 搜索工具</td>
+            <td>根节点分解可能需要查看已有结果并补充领域上下文，然后再规划任务。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Decompose（non-root）</strong></td>
+            <td>无</td>
+            <td>子节点分解被刻意收窄，只输出结构化 task JSON，不允许滑向执行。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Execute</strong></td>
+            <td>全集</td>
+            <td>执行阶段的 task session 可能同时需要搜索、读状态、执行代码和检查 artifact。</td>
+          </tr>
+          <tr>
+            <td><strong>Research / Evaluate</strong></td>
+            <td>读取工具</td>
+            <td>Evaluate 只应检查已有结果，不能偷偷重跑工作或获取新文献。</td>
+          </tr>
+          <tr>
+            <td><strong>Write</strong></td>
+            <td>读取工具 + artifact 列表</td>
+            <td>Write 需要基于已完成结果写作，但不应该通过执行新代码去改写 Research 阶段。</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
+
+    "sb.title": "沙箱语义",
+    "sb.sub": "Docker 工具不只是“跑一下代码”，它其实定义了 task 执行如何在整个阶段里持续存在。",
+    "sb.body": `
+      <div class="card-grid">
+        <div class="info-card">
+          <div class="label">Persistent session</div>
+          <h3>一个长期存活的容器</h3>
+          <p>同一 research session 中的代码执行会复用同一个 sandbox container，因此安装的依赖可以跨 task 保留。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Task focus</div>
+          <h3><code>/workspace/output</code> 指向当前 task</h3>
+          <p>runtime 会把当前 task 的 artifact 目录软链接到稳定路径，让 task 代码始终以一致方式写文件。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Artifact inspection</div>
+          <h3><code>list_artifacts</code> 具有上下文感知</h3>
+          <p>执行中它只列出当前 task 的文件；脱离 task 上下文时，它可以展示整棵 artifact 树。</p>
+        </div>
+        <div class="info-card">
+          <div class="label">Bookkeeping</div>
+          <h3><code>current_task_id</code></h3>
+          <p>DB 会记录当前 task ID，从而让脚本、执行日志和 best-score 提升都能映射回正确目录。</p>
+        </div>
+      </div>
+    `,
+
+    "ex.title": "扩展规则",
+    "ex.sub": "从机械上说加一个工具并不难，真正重要的是守住它应该属于哪条阶段边界。",
+    "ex.body": `
+      <p>如果你要添加工具，首先应该像对待架构决策一样对待它的作用域，而不是只把它当作一个函数实现。机械上常见的落点很明确：</p>
+      <ul>
+        <li><code>backend/agno/tools/db.py</code>：新增只读 session 工具。</li>
+        <li><code>backend/agno/tools/docker_exec.py</code>：新增沙箱执行辅助工具。</li>
+        <li><code>backend/agno/__init__.py</code>：在阶段级别装配工具集合。</li>
+      </ul>
+      <div class="note-box">
+        <p><strong>最佳实践：</strong>先决定这个工具应该被哪个阶段或 phase 使用，再去改工厂装配逻辑。尽量避免“先全局暴露出来再说”的修改，因为那会直接模糊规划、执行、评估之间的架构边界。</p>
+      </div>
+    `
+  }
+};
+
+initLang(T);
+</script>
+</body>
+</html>
