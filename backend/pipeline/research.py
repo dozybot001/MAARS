@@ -122,6 +122,7 @@ class ResearchStage(Stage):
             'read_refined_idea': 'Read the refined research idea.',
             'read_plan_tree': 'Read the full decomposition tree.',
             'read_results_summary': 'Read the canonical deterministic summary of completed results.',
+            'read_artifact_file': 'Read raw content of an artifact file (JSON, text) to verify exact numeric values.',
             'ArxivTools': 'Search academic papers on arXiv.',
             'WikipediaTools': 'Search Wikipedia articles.',
         }
@@ -148,7 +149,7 @@ class ResearchStage(Stage):
             "### Available Tools",
         ]
         for t in self._tools:
-            name = getattr(t, 'name', type(t).__name__)
+            name = getattr(t, '__name__', None) or getattr(t, 'name', type(t).__name__)
             desc = _TOOL_DESCS.get(name, getattr(t, '__doc__', '') or '')
             lines.append(f"- **{name}**: {desc}" if desc else f"- {name}")
         return "\n".join(lines)

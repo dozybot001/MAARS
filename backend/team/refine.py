@@ -19,7 +19,7 @@ class RefineStage(TeamStage):
 
     def _reviewer_config(self) -> tuple[str, list, str]:
         from backend.team.prompts import REFINE_CRITIC_SYSTEM
-        return REFINE_CRITIC_SYSTEM, [], "Critic"
+        return REFINE_CRITIC_SYSTEM, self._explorer_tools, "Critic"
 
     def _finalize(self) -> str:
         result = self.output
