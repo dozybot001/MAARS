@@ -37,7 +37,8 @@ def create_agno_stages(
     docker_tools = create_docker_tools(db) if db else []
     list_artifacts = docker_tools[1:] if len(docker_tools) > 1 else []
     research_tools = [ArxivTools(), WikipediaTools()]
-    all_research_tools = db_tools + docker_tools + research_tools
+    read_tools = db_tools + list_artifacts          # Evaluate/Decompose: no code_execute
+    execute_tools = db_tools + docker_tools + research_tools  # Execute: full set
     writer_tools = db_tools + list_artifacts
     reviewer_tools = db_tools + list_artifacts
 
@@ -45,7 +46,11 @@ def create_agno_stages(
         "refine": RefineStage(model=refine_model, explorer_tools=research_tools, db=db,
                               max_delegations=max_delegations),
         "research": ResearchStage(
-            model=research_model, tools=all_research_tools, db=db,
+            model=research_model,
+            execute_tools=execute_tools,
+            read_tools=read_tools,
+            search_tools=research_tools,
+            db=db,
             max_iterations=max_iterations,
         ),
         "write": WriteStage(model=write_model, polish_model=polish_model,

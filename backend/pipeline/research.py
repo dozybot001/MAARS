@@ -75,11 +75,15 @@ SANDBOX_PREINSTALLED = (
 
 class ResearchStage(Stage):
 
-    def __init__(self, name: str = "research", model=None, tools=None,
+    def __init__(self, name: str = "research", model=None,
+                 execute_tools=None, read_tools=None, search_tools=None,
                  max_iterations: int = 1, db=None):
         super().__init__(name=name, db=db)
         self._model = model
-        self._tools = tools or []
+        self._tools = execute_tools or []          # Execute: everything
+        self._read_tools = read_tools or []        # Evaluate/Decompose: db + list_artifacts
+        self._search_tools = search_tools or []    # Strategy: arXiv + Wikipedia
+        self._decompose_tools = (read_tools or []) + (search_tools or [])
         self._task_results: dict[str, str] = {}
         self._task_summaries: dict[str, str] = {}
         self._max_iterations = max_iterations
@@ -333,7 +337,9 @@ class ResearchStage(Stage):
 
         flat_tasks, tree = await decompose(
             idea=idea,
-            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(inst, ut, cid, content_level=cl, **kw),
+            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(
+                inst, ut, cid, content_level=cl,
+                tools=kw.pop("tools", self._decompose_tools), **kw),
             max_depth=10,
             atomic_definition=self._atomic_definition,
             strategy=self._strategy,
@@ -365,7 +371,8 @@ class ResearchStage(Stage):
         new_flat, subtree = await decompose(
             idea=f"Round {round_num}",
             stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(
-                inst, ut, cid, content_level=cl, **kw),
+                inst, ut, cid, content_level=cl,
+                tools=kw.pop("tools", self._decompose_tools), **kw),
             max_depth=10,
             atomic_definition=self._atomic_definition,
             strategy=self._strategy,
@@ -563,7 +570,8 @@ class ResearchStage(Stage):
         if self._atomic_definition:
             parts.append(f"## Atomic Task Definition (from Calibrate)\n{self._atomic_definition}")
         parts.append(f"## Research Topic\n{idea}")
-        response = await self._llm(STRATEGY_SYSTEM, "\n\n".join(parts), call_id, content_level=3)
+        response = await self._llm(STRATEGY_SYSTEM, "\n\n".join(parts), call_id, content_level=3,
+                                    tools=self._search_tools)
         direction_data = parse_json_fenced(response, fallback={})
         if "score_direction" in direction_data:
             minimize = direction_data["score_direction"] != "maximize"
@@ -618,7 +626,8 @@ class ResearchStage(Stage):
             is_final=is_final,
         )
         for _parse_attempt in range(2):
-            response = await self._llm(EVALUATE_SYSTEM, user_text, call_id, content_level=3)
+            response = await self._llm(EVALUATE_SYSTEM, user_text, call_id, content_level=3,
+                                       tools=self._read_tools)
             data = parse_json_fenced(response)
             if "feedback" in data or "suggestions" in data:
                 return data
@@ -634,7 +643,8 @@ class ResearchStage(Stage):
             capabilities=self._build_capability_profile(),
             dataset=self._describe_dataset(),
         )
-        response = await self._llm(STRATEGY_SYSTEM, user_text, call_id, content_level=3)
+        response = await self._llm(STRATEGY_SYSTEM, user_text, call_id, content_level=3,
+                                    tools=self._search_tools)
         direction_data = parse_json_fenced(response, fallback={})
         if "score_direction" in direction_data:
             minimize = direction_data["score_direction"] != "maximize"
@@ -669,7 +679,7 @@ class ResearchStage(Stage):
         if dataset:
             parts.append(dataset)
         parts.append(f"## Research Topic\n{idea}")
-        response = await self._llm(CALIBRATE_SYSTEM, "\n\n".join(parts), call_id, content_level=3)
+        response = await self._llm(CALIBRATE_SYSTEM, "\n\n".join(parts), call_id, content_level=3, tools=[])
         return response.strip()
 
     # ------------------------------------------------------------------
@@ -730,7 +740,9 @@ class ResearchStage(Stage):
 
         flat_tasks, subtree = await decompose(
             idea=enriched_desc,
-            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(inst, ut, cid, content_level=cl, **kw),
+            stream_fn=lambda inst, ut, cid, cl, **kw: self._llm(
+                inst, ut, cid, content_level=cl,
+                tools=kw.pop("tools", self._decompose_tools), **kw),
             max_depth=10,
             atomic_definition=self._atomic_definition,
             strategy=self._strategy,
