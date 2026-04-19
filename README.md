@@ -55,7 +55,7 @@ On first run, `start.sh` will:
 3. Build the Docker sandbox image
 4. Start the server at **http://localhost:8000**
 
-Then paste your research idea, a Kaggle URL, or a UTF-8 text/markdown file path into the input box and press Enter. Pasting a Kaggle competition URL skips Refine and downloads the dataset automatically.
+Then paste your research idea, a Kaggle URL, or a UTF-8 text/markdown file path into the input box and press Enter. Pasting a Kaggle competition URL skips Refine and downloads the dataset automatically. In the input box, press `Cmd+E` on macOS (or `Ctrl+E` on Windows/Linux) to autofill the example idea path `showcase/example_idea.md`.
 
 ## Configuration
 

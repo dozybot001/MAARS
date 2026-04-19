@@ -55,7 +55,7 @@ bash start.sh
 3. 构建 Docker 沙箱镜像
 4. 在 **http://localhost:8000** 启动服务
 
-然后在输入框粘贴研究想法、Kaggle 比赛链接，或 UTF-8 编码的文本/Markdown 文件路径，按 Enter 启动。粘贴 Kaggle 链接会自动跳过 Refine 阶段并下载数据集。
+然后在输入框粘贴研究想法、Kaggle 比赛链接，或 UTF-8 编码的文本/Markdown 文件路径，按 Enter 启动。粘贴 Kaggle 链接会自动跳过 Refine 阶段并下载数据集。在输入框中按 `Cmd+E`（macOS）或 `Ctrl+E`（Windows / Linux）可以自动填入示例路径 `showcase/example_idea.md`。
 
 ## 配置
 
