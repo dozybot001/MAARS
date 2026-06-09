@@ -50,6 +50,7 @@ class ResearchCodexExecutorPathTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(db.get_plan_list()[0]["summary"], "saved metrics.json score=0.9")
             self.assertEqual(fake.contexts[0].task_id, "1")
             self.assertEqual(fake.contexts[0].workspace_dir.name, "1")
+            self.assertEqual(fake.contexts[0].metadata["output_language"], "Chinese")
 
 
 async def _passing_verify(task, result, task_id, call_id):

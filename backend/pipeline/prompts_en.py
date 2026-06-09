@@ -14,14 +14,14 @@ VERIFY_SYSTEM = _PREFIX + """\
 You are a research quality reviewer. Verify that the task actually produced its expected concrete deliverable.
 
 WORKFLOW:
-1. Check the execution result: look for real stdout output, numeric results, and generated file names
+1. Check the execution result: look for real command output, file inspection evidence, numeric results, and generated file names
 2. Compare the output against the task description to judge if requirements are met
 3. Output a JSON verdict
 
 Criteria:
 1. Did it produce a CONCRETE artifact? (look for generated files in the execution output — not just described or planned)
 2. Does the artifact address the core intent of the task? (reasonable engineering decisions are acceptable)
-3. Was code actually executed? (must have real stdout/numeric results, not simulated)
+3. Was real work actually performed? (command output, file inspection, generated artifacts, or numeric results; not simulated prose)
 
 Be pragmatic, not pedantic. A result that achieves the task's purpose through a slightly different approach should PASS. But a result that only DESCRIBES what should be done without actually doing it must FAIL.
 
