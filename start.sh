@@ -334,7 +334,7 @@ command -v clear >/dev/null 2>&1 && clear || printf '\033[2J\033[H'
 print_logo
 append_log "MAARS startup on $OS_NAME ($(date))"
 
-# Free SERVER_PORT first: fail fast before venv/pip/Docker/import if the port cannot be released.
+# Free SERVER_PORT first: fail fast before venv/pip/import if the port cannot be released.
 ACTIVE_LABEL="Port"
 PORT_BUSY_BEFORE=0
 if port_in_use "$SERVER_PORT"; then
@@ -350,7 +350,6 @@ fi
 PYTHON_READY=0
 DEPS_READY=0
 CONFIG_READY=0
-DOCKER_AVAILABLE=0
 
 printf '  %b\n' "${CYAN}${BOLD}Environment${NC}"
 
@@ -409,15 +408,21 @@ fi
 
 printf '\n  %b\n' "${CYAN}${BOLD}Configuration${NC}"
 
-ACTIVE_LABEL="Google API Key"
-GOOGLE_KEY="$(read_env_value MAARS_GOOGLE_API_KEY 2>/dev/null || true)"
-GOOGLE_MODEL="$(read_env_value MAARS_GOOGLE_MODEL 2>/dev/null || echo 'gemini-3-flash-preview')"
-if [ -z "$GOOGLE_KEY" ]; then
-    print_check "fail" "Google API Key" "MAARS_GOOGLE_API_KEY is empty in .env"
+ACTIVE_LABEL="OpenAI API Key"
+OPENAI_KEY="$(read_env_value MAARS_OPENAI_API_KEY 2>/dev/null || true)"
+OPENAI_MODEL="$(read_env_value MAARS_OPENAI_MODEL 2>/dev/null || echo 'gpt-5.5')"
+if [ -z "$OPENAI_KEY" ]; then
+    print_check "fail" "OpenAI API Key" "MAARS_OPENAI_API_KEY is empty in .env"
 elif API_OUT="$("$PYTHON" -c "
-import urllib.request, urllib.error, json, sys
-url = 'https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_MODEL}:generateContent?key=${GOOGLE_KEY}'
-req = urllib.request.Request(url, data=json.dumps({'contents':[{'parts':[{'text':'hi'}]}]}).encode(), headers={'Content-Type':'application/json'}, method='POST')
+import urllib.request, urllib.error, json
+url = 'https://api.openai.com/v1/responses'
+payload = {'model': '${OPENAI_MODEL}', 'input': 'hi', 'max_output_tokens': 8}
+req = urllib.request.Request(
+    url,
+    data=json.dumps(payload).encode(),
+    headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ${OPENAI_KEY}'},
+    method='POST',
+)
 try:
     with urllib.request.urlopen(req, timeout=10) as r: print('ok')
 except urllib.error.HTTPError as e: print(f'fail\t{e.code} {e.reason}')
@@ -425,30 +430,37 @@ except Exception as e: print(f'warn\t{e}')
 " 2>>"$LOG_FILE")"; then
     IFS=$'\t' read -r KEY_STATUS KEY_HINT <<< "$API_OUT"
     case "$KEY_STATUS" in
-        ok)   print_check "ok"   "Google API Key" "Verified ($GOOGLE_MODEL)" ;;
-        fail) print_check "fail" "Google API Key" "$KEY_HINT — check key or model name" ;;
-        *)    print_check "warn" "Google API Key" "Set but unreachable — $KEY_HINT" ;;
+        ok)   print_check "ok"   "OpenAI API Key" "Verified ($OPENAI_MODEL)" ;;
+        fail) print_check "fail" "OpenAI API Key" "$KEY_HINT — check key or model name" ;;
+        *)    print_check "warn" "OpenAI API Key" "Set but unreachable — $KEY_HINT" ;;
     esac
 else
-    print_check "warn" "Google API Key" "Set but could not verify"
+    print_check "warn" "OpenAI API Key" "Set but could not verify"
 fi
 
 ACTIVE_LABEL="Config Sanity"
 if SANITY_OUT="$("$PYTHON" -c '
-import re
+import shutil
 from backend.config import settings as s
 bad = []
 if s.research_max_iterations < 1: bad.append("research_max_iterations < 1")
-if s.docker_sandbox_timeout < 1:  bad.append("docker_sandbox_timeout < 1")
-if s.agent_session_timeout_seconds() < s.docker_sandbox_timeout:
-    bad.append("agent_session_timeout < docker_sandbox_timeout")
-if s.docker_sandbox_cpu <= 0:     bad.append("docker_sandbox_cpu <= 0")
-if not re.fullmatch(r"\d+[bkmg]", s.docker_sandbox_memory, re.I):
-    bad.append(f"docker_sandbox_memory={s.docker_sandbox_memory!r} invalid")
+if s.agent_session_timeout_seconds() < 1:
+    bad.append("agent_session_timeout < 1")
+if s.codex_timeout is not None and s.codex_timeout < 1:
+    bad.append("codex_timeout < 1")
+if s.codex_sandbox_provider == "local":
+    if not shutil.which(s.codex_bin):
+        bad.append(f"codex_bin={s.codex_bin!r} not found")
+elif s.codex_sandbox_provider == "docker":
+    if not s.codex_docker_image:
+        bad.append("codex_docker_image not set")
+    if not shutil.which(s.codex_docker_bin):
+        bad.append(f"codex_docker_bin={s.codex_docker_bin!r} not found")
 if bad:
     print("fail\t" + "; ".join(bad))
 else:
-    print(f"ok\titerations={s.research_max_iterations}, sandbox={s.docker_sandbox_timeout}s, agent={s.agent_session_timeout_seconds()}s, memory={s.docker_sandbox_memory}")
+    timeout = s.codex_timeout or s.agent_session_timeout_seconds()
+    print(f"ok\titerations={s.research_max_iterations}, provider={s.codex_sandbox_provider}, codex_timeout={timeout}s")
 ' 2>>"$LOG_FILE")"; then
     IFS=$'\t' read -r S_STATUS S_HINT <<< "$SANITY_OUT"
     print_check "${S_STATUS:-warn}" "Config Sanity" "${S_HINT:-Could not validate}"
@@ -467,31 +479,31 @@ else
     print_check "fail" "Frontend" "No frontend files found"
 fi
 
-ACTIVE_LABEL="Docker"
-DOCKER_IMAGE="$(read_env_value MAARS_DOCKER_SANDBOX_IMAGE 2>/dev/null || echo 'maars-sandbox:latest')"
-if ! command -v docker >/dev/null 2>&1; then
-    print_check "warn" "Docker" "Not installed — sandbox unavailable"
-elif ! docker info >/dev/null 2>&1; then
-    print_check "warn" "Docker" "Not running — start Docker Desktop"
-else
-    DOCKER_AVAILABLE=1
-    if docker image inspect "$DOCKER_IMAGE" >/dev/null 2>&1; then
-        print_check "ok" "Docker" "Image ready ($DOCKER_IMAGE)"
-    elif [ -f Dockerfile.sandbox ] && run_logged docker build -f Dockerfile.sandbox -t "$DOCKER_IMAGE" .; then
-        print_check "ok" "Docker" "Image built ($DOCKER_IMAGE)"
+ACTIVE_LABEL="Codex Runtime"
+CODEX_PROVIDER="$(read_env_value MAARS_CODEX_SANDBOX_PROVIDER 2>/dev/null || echo 'local')"
+if [ "$CODEX_PROVIDER" = "docker" ]; then
+    DOCKER_BIN="$(read_env_value MAARS_CODEX_DOCKER_BIN 2>/dev/null || echo 'docker')"
+    CODEX_DOCKER_IMAGE="$(read_env_value MAARS_CODEX_DOCKER_IMAGE 2>/dev/null || echo '')"
+    CODEX_DOCKER_GPUS="$(read_env_value MAARS_CODEX_DOCKER_GPUS 2>/dev/null || echo '')"
+    if [ -z "$CODEX_DOCKER_IMAGE" ]; then
+        fail_startup "Codex Runtime" "MAARS_CODEX_DOCKER_IMAGE is required when provider=docker"
+    elif ! command -v "$DOCKER_BIN" >/dev/null 2>&1; then
+        fail_startup "Codex Runtime" "$DOCKER_BIN not found on PATH"
+    elif DOCKER_VERSION="$("$DOCKER_BIN" --version 2>>"$LOG_FILE")"; then
+        GPU_HINT=""
+        [ -n "$CODEX_DOCKER_GPUS" ] && GPU_HINT=", gpus=$CODEX_DOCKER_GPUS"
+        print_check "ok" "Codex Runtime" "Docker provider, $DOCKER_VERSION, image=$CODEX_DOCKER_IMAGE$GPU_HINT"
     else
-        print_check "warn" "Docker" "Image build failed (see log)"
+        print_check "warn" "Codex Runtime" "Docker found but version check failed"
     fi
-
-    GPU_ENABLED="$(read_env_value MAARS_DOCKER_SANDBOX_GPU 2>/dev/null || echo 'false')"
-    if [ "$GPU_ENABLED" = "true" ]; then
-        if docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi >/dev/null 2>&1; then
-            print_check "ok" "GPU" "NVIDIA GPU available"
-        else
-            print_check "warn" "GPU" "GPU=true but nvidia-docker not working — will fall back to CPU"
-        fi
+else
+    CODEX_BIN="$(read_env_value MAARS_CODEX_BIN 2>/dev/null || echo 'codex')"
+    if ! command -v "$CODEX_BIN" >/dev/null 2>&1; then
+        fail_startup "Codex Runtime" "$CODEX_BIN not found on PATH"
+    elif CODEX_VERSION="$("$CODEX_BIN" --version 2>>"$LOG_FILE")"; then
+        print_check "ok" "Codex Runtime" "$CODEX_VERSION"
     else
-        print_check "info" "GPU" "Disabled (set MAARS_DOCKER_SANDBOX_GPU=true to enable)"
+        print_check "warn" "Codex Runtime" "Found but version check failed"
     fi
 fi
 

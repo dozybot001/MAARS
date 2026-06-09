@@ -58,20 +58,20 @@ export function appendSeparator(container, label, scroller) {
  * Wire a copy-to-clipboard button.
  */
 /**
- * Reconcile combined system status from SSE + Docker data attributes.
+ * Reconcile combined system status from SSE + runtime data attributes.
  */
 export function syncSystemStatus() {
   const el = document.getElementById('system-status');
   if (!el) return;
   const sse = el.dataset.sse || 'unknown';
-  const docker = el.dataset.docker || 'unknown';
+  const runtime = el.dataset.runtime || 'unknown';
   el.classList.remove('status-unknown', 'status-connected', 'status-disconnected');
-  if (sse === 'disconnected' || docker === 'disconnected') {
+  if (sse === 'disconnected' || runtime === 'disconnected') {
     el.classList.add('status-disconnected');
-  } else if (sse === 'connected' && docker === 'connected') {
+  } else if (sse === 'connected' && runtime === 'connected') {
     el.classList.add('status-connected');
   } else {
     el.classList.add('status-unknown');
   }
-  el.title = `SSE: ${sse} \u00b7 Docker: ${docker}`;
+  el.title = `SSE: ${sse} \u00b7 Runtime: ${runtime}`;
 }

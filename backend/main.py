@@ -28,12 +28,12 @@ async def lifespan(app):
     orchestrator = PipelineOrchestrator()
     try:
         stages = create_agno_stages(
-            model_id=settings.google_model,
+            model_id=settings.openai_model,
             refine_model_id=settings.model_for_stage("refine"),
             research_model_id=settings.model_for_stage("research"),
             write_model_id=settings.model_for_stage("write"),
             polish_model_id=settings.model_for_stage("polish"),
-            api_key=settings.google_api_key,
+            api_key=settings.openai_api_key,
             db=orchestrator.db,
             max_iterations=settings.research_max_iterations,
             max_delegations=settings.team_max_delegations,

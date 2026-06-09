@@ -3,548 +3,72 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Refine &amp; Write — MAARS Docs</title>
-<meta name="description" content="Design of the Refine and Write stages in MAARS: shared loop, IterationState, reviewer contract, and Write-specific polish behavior." />
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Refine and Write - MAARS Docs</title>
+<meta name="description" content="Refine, Write, and Polish stages in the MAARS runtime." />
 <link rel="stylesheet" href="docs.css" />
 </head>
-
 <body>
-<div class="grain"></div>
-
 <header class="nav">
   <div class="nav-inner">
-    <a href="../index.html" class="brand">
-      <span class="brand-dot"></span>
-      <span>MAARS</span>
-      <span style="color:#64748b;font-size:.8rem;margin-left:.3rem" data-i18n="nav.docs">/ docs</span>
-    </a>
-    <nav class="doc-nav">
-      <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
-      <a href="refine-write.html" class="current" data-i18n="nav.refine_write">Refine &amp; Write</a>
-      <a href="research.html" data-i18n="nav.research">Research</a>
-      <a href="tools.html" data-i18n="nav.tools">Tools</a>
+    <a href="../index.html" class="brand"><span class="brand-mark">M</span><span>MAARS / docs</span></a>
+    <nav class="nav-links" aria-label="Docs navigation">
+      <a href="architecture.html">Architecture</a>
+      <a href="research.html">Research</a>
+      <a class="current" href="refine-write.html">Refine and Write</a>
+      <a href="tools.html">Runtime Setup</a>
+      <a href="../index.html">Home</a>
     </nav>
-    <div class="nav-right">
-      <div class="lang-toggle">
-        <button type="button" data-lang-btn="zh">中</button>
-        <button type="button" data-lang-btn="en" class="active">EN</button>
-      </div>
-      <a href="../index.html" class="btn-ghost" data-i18n="nav.home">← Home</a>
-      <details class="mobile-doc-menu">
-        <summary aria-label="Open docs navigation">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-            <path d="M4 7h16M4 12h16M4 17h16"></path>
-          </svg>
-        </summary>
-        <div class="mobile-doc-panel">
-          <span class="mobile-doc-label">Docs</span>
-          <a href="architecture.html" data-i18n="nav.architecture">Architecture</a>
-          <a href="refine-write.html" class="current" data-i18n="nav.refine_write">Refine &amp; Write</a>
-          <a href="research.html" data-i18n="nav.research">Research</a>
-          <a href="tools.html" data-i18n="nav.tools">Tools</a>
-          <a href="../index.html" data-i18n="nav.home">← Home</a>
-        </div>
-      </details>
-    </div>
   </div>
 </header>
 
 <div class="doc-layout">
   <aside class="sidebar">
-    <div class="sidebar-title" data-i18n="toc.label">On this page</div>
+    <p class="sidebar-title">On this page</p>
     <ul class="toc">
-      <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
-      <li><a href="#loop" data-i18n="toc.loop">Shared loop</a></li>
-      <li><a href="#state" data-i18n="toc.state">IterationState</a></li>
-      <li><a href="#refine" data-i18n="toc.refine">Refine design</a></li>
-      <li><a href="#write" data-i18n="toc.write">Write design</a></li>
-      <li><a href="#polish" data-i18n="toc.polish">Polish + metadata</a></li>
-      <li><a href="#termination" data-i18n="toc.termination">Termination</a></li>
-      <li><a href="#code" data-i18n="toc.code">Code map</a></li>
+      <li><a href="#refine">Refine</a></li>
+      <li><a href="#write">Write</a></li>
+      <li><a href="#polish">Polish</a></li>
+      <li><a href="#fact-anchor">Fact anchor</a></li>
     </ul>
   </aside>
 
   <main class="prose">
-    <details class="mobile-toc">
-      <summary>
-        <span data-i18n="toc.label">On this page</span>
-        <span>›</span>
-      </summary>
-      <ul class="toc">
-        <li><a href="#overview" data-i18n="toc.overview">Overview</a></li>
-        <li><a href="#loop" data-i18n="toc.loop">Shared loop</a></li>
-        <li><a href="#state" data-i18n="toc.state">IterationState</a></li>
-        <li><a href="#refine" data-i18n="toc.refine">Refine design</a></li>
-        <li><a href="#write" data-i18n="toc.write">Write design</a></li>
-        <li><a href="#polish" data-i18n="toc.polish">Polish + metadata</a></li>
-        <li><a href="#termination" data-i18n="toc.termination">Termination</a></li>
-        <li><a href="#code" data-i18n="toc.code">Code map</a></li>
-      </ul>
-    </details>
-
-    <div class="doc-eyebrow" data-i18n="doc.eyebrow">/ docs · refine &amp; write</div>
-    <h1 data-i18n="doc.title">Refine &amp; Write</h1>
-    <p class="lede" data-i18n="doc.lede">
-      Refine and Write share the same control shape: a primary agent produces a draft, a reviewer critiques it, and the runtime iterates until the issue list is empty or the round limit is reached.
-    </p>
-
-    <section id="overview">
-      <h2><span class="num">01</span><span data-i18n="ov.title">Why these two stages belong together</span></h2>
-      <div data-i18n="ov.body"></div>
-    </section>
-
-    <section id="loop">
-      <h2><span class="num">02</span><span data-i18n="lp.title">Shared loop</span></h2>
-      <p class="sub" data-i18n="lp.sub">Same runtime pattern, different prompts and toolsets.</p>
-      <div data-i18n="lp.body"></div>
-    </section>
-
-    <section id="state">
-      <h2><span class="num">03</span><span data-i18n="st.title">IterationState</span></h2>
-      <p class="sub" data-i18n="st.sub">The runtime carries only the latest draft and the currently open issues.</p>
-      <div data-i18n="st.body"></div>
-    </section>
+    <p class="eyebrow">Refine and Write</p>
+    <h1>Open-ended prose stages stay separate from execution.</h1>
+    <p class="lede">Refine and Write are still agentic stages, but they do not execute experiments. They shape research intent and synthesize verified outputs from the Research runtime.</p>
 
     <section id="refine">
-      <h2><span class="num">04</span><span data-i18n="rf.title">Refine design</span></h2>
-      <p class="sub" data-i18n="rf.sub">Refine narrows intent. It does not run experiments or build plans.</p>
-      <div data-i18n="rf.body"></div>
+      <h2>Refine</h2>
+      <p>Refine turns a vague idea into an actionable research objective. The Explorer searches and drafts a proposal. The Critic checks novelty, feasibility, clarity, and scope. The stage loops until no material issues remain or the configured delegation limit is reached.</p>
+      <p>The output is <code>refined_idea.md</code>. Research treats this file as the starting objective, not as a chat transcript.</p>
     </section>
 
     <section id="write">
-      <h2><span class="num">05</span><span data-i18n="wr.title">Write design</span></h2>
-      <p class="sub" data-i18n="wr.sub">Write treats research outputs as facts and turns them into a readable paper.</p>
-      <div data-i18n="wr.body"></div>
+      <h2>Write</h2>
+      <p>Write consumes the deterministic research summary, task outputs, and artifacts. The Writer drafts a paper. The Reviewer checks structure, completeness, figure references, and especially numeric accuracy against raw artifact files.</p>
+      <p>The stage is deliberately strict: if a number cannot be found in an artifact, the paper must mark it unavailable or remove the claim.</p>
     </section>
 
     <section id="polish">
-      <h2><span class="num">06</span><span data-i18n="pl.title">Polish + metadata</span></h2>
-      <p class="sub" data-i18n="pl.sub">These are sub-steps inside Write, not a fourth top-level stage.</p>
-      <div data-i18n="pl.body"></div>
+      <h2>Polish</h2>
+      <p>Polish is a single-pass editorial stage. It may improve structure, flow, and prose, but it must not change numbers, conclusions, metrics, or artifact paths. The system appends deterministic runtime metadata separately.</p>
     </section>
 
-    <section id="termination">
-      <h2><span class="num">07</span><span data-i18n="tm.title">Termination and reviewer contract</span></h2>
-      <p class="sub" data-i18n="tm.sub">The runtime decides when the loop stops; the reviewer only reports issues.</p>
-      <div data-i18n="tm.body"></div>
+    <section id="fact-anchor">
+      <h2>Fact anchor</h2>
+      <p>The write prompt starts from <code>results_summary.json</code>. That JSON is the canonical factual anchor for the paper. It contains the research goal, task summaries, artifact list, score information, and evaluation status.</p>
+      <pre><code>Research outputs
+  -> results_summary.json
+  -> Write draft
+  -> Reviewer fact check
+  -> paper.md
+  -> Polish pass
+  -> paper_polished.md</code></pre>
     </section>
-
-    <section id="code">
-      <h2><span class="num">08</span><span data-i18n="cd.title">Code map</span></h2>
-      <p class="sub" data-i18n="cd.sub">Most of the complexity lives in the shared base, not in the concrete stages.</p>
-      <div data-i18n="cd.body"></div>
-    </section>
-
-    <div class="pager">
-      <a href="architecture.html" class="btn-ghost">← <span data-i18n="nav.prev_arch">Architecture</span></a>
-      <a href="research.html" class="btn-ghost"><span data-i18n="nav.next_research">Research</span> →</a>
-    </div>
   </main>
 </div>
 
+<footer class="footer">Refine and Write shape meaning. Research produces verified evidence.</footer>
 <script src="docs.js"></script>
-<script>
-const T = {
-  en: {
-    "nav.docs": "/ docs",
-    "nav.architecture": "Architecture",
-    "nav.refine_write": "Refine & Write",
-    "nav.research": "Research",
-    "nav.tools": "Tools",
-    "nav.home": "← Home",
-    "nav.prev_arch": "Architecture",
-    "nav.next_research": "Research",
-
-    "toc.label": "On this page",
-    "toc.overview": "Overview",
-    "toc.loop": "Shared loop",
-    "toc.state": "IterationState",
-    "toc.refine": "Refine design",
-    "toc.write": "Write design",
-    "toc.polish": "Polish + metadata",
-    "toc.termination": "Termination",
-    "toc.code": "Code map",
-
-    "doc.eyebrow": "/ docs · refine & write",
-    "doc.title": "Refine & Write",
-    "doc.lede": "Refine and Write share the same control shape: a primary agent produces a draft, a reviewer critiques it, and the runtime iterates until the issue list is empty or the round limit is reached.",
-
-    "ov.title": "Why these two stages belong together",
-    "ov.body": `
-      <p>Refine and Write solve different problems, but they use the same execution pattern. In both cases, the runtime only needs a latest draft, a list of unresolved issues, and two agent roles that alternate cleanly.</p>
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Refine</div>
-          <h3>Intent shaping</h3>
-          <p>Turns a loose idea into a tighter, reviewable research objective.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Write</div>
-          <h3>Paper synthesis</h3>
-          <p>Turns completed research outputs into a coherent paper with review-driven revisions.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Shared core</div>
-          <h3>Two-role loop</h3>
-          <p>A primary role drafts, a reviewer role critiques, and the runtime maintains the state between rounds.</p>
-        </div>
-      </div>
-    `,
-
-    "lp.title": "Shared loop",
-    "lp.sub": "Same runtime pattern, different prompts and toolsets.",
-    "lp.body": `
-      <pre><code>for round in range(max_delegations):
-    draft = primary(input_text, latest_draft, open_issues)
-    save(primary_dir / round_n, draft)
-
-    review = reviewer(input_text, draft, open_issues)
-    feedback = parse_json_fenced(review)
-    save(reviewer_dir / round_n, review, feedback)
-
-    state.update(draft, feedback)
-    if not state.issues:
-        break</code></pre>
-      <div class="note-box">
-        <p><strong>The runtime owns the loop.</strong> Agents do not decide whether the stage has converged. They only produce a draft or a critique for the current round.</p>
-      </div>
-    `,
-
-    "st.title": "IterationState",
-    "st.sub": "The runtime carries only the latest draft and the currently open issues.",
-    "st.body": `
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Field 01</div>
-          <h3><code>draft</code></h3>
-          <p>The latest full proposal or paper draft. Each round overwrites the previous version in memory.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Field 02</div>
-          <h3><code>issues</code></h3>
-          <p>The unresolved review items. The runtime removes resolved IDs and assigns new IDs to newly discovered issues.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Field 03</div>
-          <h3><code>iteration</code></h3>
-          <p>A small round counter used to build prompts and keep on-disk revisions ordered.</p>
-        </div>
-      </div>
-      <p>This state model stays intentionally compact. Prompt context does not grow with every round; it is rebuilt from <strong>original input + latest draft + unresolved issues</strong>.</p>
-    `,
-
-    "rf.title": "Refine design",
-    "rf.sub": "Refine narrows intent. It does not run experiments or build plans.",
-    "rf.body": `
-      <div class="split">
-        <div class="half">
-          <div class="label">Input + tools</div>
-          <h4>Raw idea, search-oriented context</h4>
-          <p>Refine reads <code>idea.md</code> and uses literature-oriented tools to explore and critique the idea space. Its job is to sharpen the question, not to execute work.</p>
-        </div>
-        <div class="half">
-          <div class="label">Output</div>
-          <h4><code>refined_idea.md</code></h4>
-          <p>The final product is a cleaner problem statement that Research can decompose into concrete tasks. Round artifacts are stored in <code>proposals/</code> and <code>critiques/</code>.</p>
-        </div>
-      </div>
-      <div class="note-box">
-        <p>Kaggle input is the special case: when the input is a competition URL, the runtime can skip Refine and synthesize a refined idea directly from competition metadata.</p>
-      </div>
-    `,
-
-    "wr.title": "Write design",
-    "wr.sub": "Write treats research outputs as facts and turns them into a readable paper.",
-    "wr.body": `
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Factual anchor</div>
-          <h3><code>results_summary.json</code></h3>
-          <p>Write uses the deterministic results summary as its primary truth source, then drills into tasks and artifacts for supporting detail.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Artifact handling</div>
-          <h3>Path rewriting</h3>
-          <p>Drafts live under <code>drafts/</code> and <code>reviews/</code>, so artifact links are rewritten to keep relative paths valid during drafting and after finalization.</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Outputs</div>
-          <h3><code>paper.md</code></h3>
-          <p>The writer/reviewer loop produces a stable full draft before any final polish or metadata append step runs.</p>
-        </div>
-      </div>
-      <p>The main design point is that Write is not asked to infer facts from prose. It is explicitly pointed at structured research outputs first, then at detailed artifacts second.</p>
-    `,
-
-    "pl.title": "Polish + metadata",
-    "pl.sub": "These are sub-steps inside Write, not a fourth top-level stage.",
-    "pl.body": `
-      <ol>
-        <li><strong>Writer/Reviewer loop:</strong> converges on <code>paper.md</code>.</li>
-        <li><strong>Polish:</strong> one additional LLM pass improves wording and consistency without reopening the reviewer loop.</li>
-        <li><strong>Metadata appendix:</strong> a deterministic step appends models, runtime settings, token counts, artifact counts, and session metadata.</li>
-      </ol>
-      <div class="note-box">
-        <p>This separation keeps the iterative loop focused on structure and correctness, while leaving final presentation cleanup to a cheaper, single-pass step.</p>
-      </div>
-    `,
-
-    "tm.title": "Termination and reviewer contract",
-    "tm.sub": "The runtime decides when the loop stops; the reviewer only reports issues.",
-    "tm.body": `
-      <p>The reviewer is expected to emit structured feedback rather than control flow signals. A minimal shape looks like this:</p>
-      <pre><code>{
-  "issues": [
-    {"section": "Method", "problem": "...", "suggestion": "..."}
-  ],
-  "resolved": ["I1", "I2"]
-}</code></pre>
-      <ul>
-        <li>If <code>issues</code> is empty after the runtime updates state, the stage passes.</li>
-        <li>If the round limit is reached first, the runtime logs a warning and continues with the latest available draft.</li>
-        <li>The runtime, not the reviewer, assigns and tracks issue IDs such as <code>I1</code>, <code>I2</code>, and so on.</li>
-      </ul>
-    `,
-
-    "cd.title": "Code map",
-    "cd.sub": "Most of the complexity lives in the shared base, not in the concrete stages.",
-    "cd.body": `
-      <table>
-        <thead>
-          <tr>
-            <th>File</th>
-            <th>Role</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>backend/team/stage.py</code></td>
-            <td>Shared <code>TeamStage</code> loop and <code>IterationState</code>.</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/refine.py</code></td>
-            <td>Refine-specific role and tool wiring.</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/write.py</code></td>
-            <td>Write-specific loop configuration plus polish/metadata sub-steps.</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/polish.py</code></td>
-            <td>Polish input builder and deterministic metadata appendix generator.</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/prompts_*.py</code></td>
-            <td>Refine, Write, reviewer, and polish prompts in both languages.</td>
-          </tr>
-        </tbody>
-      </table>
-    `
-  },
-
-  zh: {
-    "nav.docs": "/ 文档",
-    "nav.architecture": "架构",
-    "nav.refine_write": "Refine & Write",
-    "nav.research": "Research",
-    "nav.tools": "Tools",
-    "nav.home": "← 首页",
-    "nav.prev_arch": "架构",
-    "nav.next_research": "Research",
-
-    "toc.label": "本页目录",
-    "toc.overview": "总览",
-    "toc.loop": "共享循环",
-    "toc.state": "IterationState",
-    "toc.refine": "Refine 设计",
-    "toc.write": "Write 设计",
-    "toc.polish": "Polish + metadata",
-    "toc.termination": "终止条件",
-    "toc.code": "代码地图",
-
-    "doc.eyebrow": "/ 文档 · refine & write",
-    "doc.title": "Refine & Write",
-    "doc.lede": "Refine 和 Write 共享同一种控制形态：主角色先产出 draft，评审角色再给出 critique，runtime 在问题清零或达到轮次上限前持续迭代。",
-
-    "ov.title": "为什么这两个阶段应该放在一起讲",
-    "ov.body": `
-      <p>Refine 和 Write 解决的问题不同，但执行模式高度一致。两者都只需要维护“最新 draft”“未解决 issue 列表”以及两种交替出现的 agent 角色。</p>
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Refine</div>
-          <h3>收敛研究意图</h3>
-          <p>把松散的想法收敛成更清晰、可评审的研究目标。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Write</div>
-          <h3>综合为论文</h3>
-          <p>把已经完成的研究产物变成结构完整、可阅读的论文。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Shared core</div>
-          <h3>双角色迭代</h3>
-          <p>一个角色负责产出，一个角色负责评审，runtime 在轮次之间维护状态。</p>
-        </div>
-      </div>
-    `,
-
-    "lp.title": "共享循环",
-    "lp.sub": "runtime 模式相同，区别只在 prompt 和工具集合。",
-    "lp.body": `
-      <pre><code>for round in range(max_delegations):
-    draft = primary(input_text, latest_draft, open_issues)
-    save(primary_dir / round_n, draft)
-
-    review = reviewer(input_text, draft, open_issues)
-    feedback = parse_json_fenced(review)
-    save(reviewer_dir / round_n, review, feedback)
-
-    state.update(draft, feedback)
-    if not state.issues:
-        break</code></pre>
-      <div class="note-box">
-        <p><strong>循环的拥有者是 runtime。</strong> Agent 不负责决定是否收敛，只负责在当前轮次产出 draft 或 critique。</p>
-      </div>
-    `,
-
-    "st.title": "IterationState",
-    "st.sub": "runtime 只携带最新 draft 和当前仍未关闭的问题。",
-    "st.body": `
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Field 01</div>
-          <h3><code>draft</code></h3>
-          <p>当前最新的一版完整提案或论文草稿。每轮都会在内存里覆盖上一版。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Field 02</div>
-          <h3><code>issues</code></h3>
-          <p>尚未解决的评审项。runtime 会移除已解决 ID，并给新问题分配新的 issue ID。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Field 03</div>
-          <h3><code>iteration</code></h3>
-          <p>一个很小的轮次计数器，用于构建 prompt 和保持磁盘上的版本有序。</p>
-        </div>
-      </div>
-      <p>这个状态模型被刻意保持得很轻。prompt 上下文不会随着轮次无限增长，而是由<strong>原始输入 + 最新 draft + 未解决 issues</strong>重新构建。</p>
-    `,
-
-    "rf.title": "Refine 设计",
-    "rf.sub": "Refine 的工作是收窄问题，不是执行实验，也不是生成任务计划。",
-    "rf.body": `
-      <div class="split">
-        <div class="half">
-          <div class="label">输入 + 工具</div>
-          <h4>原始 idea，偏搜索型上下文</h4>
-          <p>Refine 读取 <code>idea.md</code>，借助文献与背景搜索工具探索问题空间并进行批评。它的目标是把问题说清楚，而不是开始执行。</p>
-        </div>
-        <div class="half">
-          <div class="label">输出</div>
-          <h4><code>refined_idea.md</code></h4>
-          <p>最终产物是一份更清晰的问题说明，供 Research 后续分解。中间轮次产物写入 <code>proposals/</code> 和 <code>critiques/</code>。</p>
-        </div>
-      </div>
-      <div class="note-box">
-        <p>Kaggle 输入是特例：当输入是比赛 URL 时，runtime 可以直接根据比赛元数据构造 refined idea，并跳过 Refine。</p>
-      </div>
-    `,
-
-    "wr.title": "Write 设计",
-    "wr.sub": "Write 把研究输出当成事实来源，再把这些事实组织成可读论文。",
-    "wr.body": `
-      <div class="card-grid">
-        <div class="info-card">
-          <div class="label">Factual anchor</div>
-          <h3><code>results_summary.json</code></h3>
-          <p>Write 会先把确定性实验摘要当成主要事实锚点，再根据需要深入 task 输出和 artifact。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Artifact handling</div>
-          <h3>路径重写</h3>
-          <p>草稿保存在 <code>drafts/</code> 和 <code>reviews/</code> 下，所以系统会重写 artifact 相对路径，保证起草阶段和最终落盘后的链接都有效。</p>
-        </div>
-        <div class="info-card">
-          <div class="label">Outputs</div>
-          <h3><code>paper.md</code></h3>
-          <p>Writer/Reviewer 循环会先收敛出一份稳定完整的草稿，然后才进入 polish 和 metadata 附加阶段。</p>
-        </div>
-      </div>
-      <p>这个设计的重点是：Write 不应该从自然语言中“猜事实”，而是要先读取结构化研究输出，再补充读取更细粒度的 artifact。</p>
-    `,
-
-    "pl.title": "Polish + metadata",
-    "pl.sub": "它们属于 Write 内部子步骤，而不是新的顶层阶段。",
-    "pl.body": `
-      <ol>
-        <li><strong>Writer/Reviewer 循环：</strong>收敛得到 <code>paper.md</code>。</li>
-        <li><strong>Polish：</strong>额外增加一次 LLM 调用，改善表述与一致性，但不重新打开 reviewer 循环。</li>
-        <li><strong>Metadata appendix：</strong>通过确定性步骤附加模型、运行参数、token 统计、artifact 数量和 session 元数据。</li>
-      </ol>
-      <div class="note-box">
-        <p>这样做可以让迭代循环专注于结构和正确性，把最终表达层面的清理交给更便宜的一次性步骤。</p>
-      </div>
-    `,
-
-    "tm.title": "终止条件与 reviewer 契约",
-    "tm.sub": "停止条件由 runtime 判断，reviewer 只负责报告问题。",
-    "tm.body": `
-      <p>reviewer 期望输出的是结构化反馈，而不是控制流指令。最小形态如下：</p>
-      <pre><code>{
-  "issues": [
-    {"section": "Method", "problem": "...", "suggestion": "..."}
-  ],
-  "resolved": ["I1", "I2"]
-}</code></pre>
-      <ul>
-        <li>如果 runtime 更新状态后 <code>issues</code> 为空，则阶段通过。</li>
-        <li>如果先达到轮次上限，runtime 会记录 warning，并使用当前最新 draft 继续向前推进。</li>
-        <li>issue ID 例如 <code>I1</code>、<code>I2</code> 都由 runtime 分配并追踪，而不是 reviewer 自己维护。</li>
-      </ul>
-    `,
-
-    "cd.title": "代码地图",
-    "cd.sub": "大部分复杂度在共享基类中，而不在具体阶段本身。",
-    "cd.body": `
-      <table>
-        <thead>
-          <tr>
-            <th>文件</th>
-            <th>职责</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>backend/team/stage.py</code></td>
-            <td>共享的 <code>TeamStage</code> 循环和 <code>IterationState</code>。</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/refine.py</code></td>
-            <td>Refine 的角色与工具配置。</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/write.py</code></td>
-            <td>Write 的循环配置，以及 polish/metadata 子步骤。</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/polish.py</code></td>
-            <td>Polish 输入拼装和确定性 metadata appendix 生成。</td>
-          </tr>
-          <tr>
-            <td><code>backend/team/prompts_*.py</code></td>
-            <td>中英文 Refine、Write、reviewer 和 polish prompt。</td>
-          </tr>
-        </tbody>
-      </table>
-    `
-  }
-};
-
-initLang(T);
-</script>
 </body>
 </html>

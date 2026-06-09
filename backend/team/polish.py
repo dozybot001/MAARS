@@ -49,7 +49,7 @@ def build_metadata_appendix(db) -> str:
     tokens_out = meta.get("tokens_output", 0)
     tokens_total = meta.get("tokens_total", 0)
 
-    main_model = settings.google_model
+    main_model = settings.openai_model
     refine_model = settings.refine_model or main_model
     research_model = settings.research_model or main_model
     write_model = settings.write_model or main_model
@@ -116,17 +116,17 @@ def _render_zh(*, research_id, duration, task_count, artifact_count,
 | 研究迭代上限 | `{settings.research_max_iterations}` |
 | 团队委托上限 | `{settings.team_max_delegations}` |
 
-### 沙箱配置
+### Codex Runtime
 
 | 配置项 | 值 |
 |--------|-----|
-| 镜像 | `{settings.docker_sandbox_image}` |
-| 内存限制 | `{settings.docker_sandbox_memory}` |
-| CPU 限制 | `{settings.docker_sandbox_cpu}` |
-| 单次执行超时 | `{settings.docker_sandbox_timeout}s` |
+| Codex 命令 | `{settings.codex_bin}` |
+| Codex 模型 | `{settings.codex_model or "默认"}` |
+| Codex 推理强度 | `{settings.codex_reasoning_effort or "默认"}` |
+| Codex 沙箱 | `{settings.codex_sandbox}` |
+| Codex sandbox provider | `{settings.codex_sandbox_provider}` |
+| Codex 超时 | `{settings.codex_timeout or settings.agent_session_timeout_seconds()}s` |
 | 会话超时 | `{settings.agent_session_timeout_seconds()}s` |
-| 网络 | `{"启用" if settings.docker_sandbox_network else "禁用"}` |
-| GPU | `{"启用" if settings.docker_sandbox_gpu else "禁用"}` |
 
 ### 运行统计
 
@@ -176,17 +176,17 @@ def _render_en(*, research_id, duration, task_count, artifact_count,
 | Research iteration limit | `{settings.research_max_iterations}` |
 | Team delegation limit | `{settings.team_max_delegations}` |
 
-### Sandbox
+### Codex Runtime
 
 | Setting | Value |
 |---------|-------|
-| Image | `{settings.docker_sandbox_image}` |
-| Memory limit | `{settings.docker_sandbox_memory}` |
-| CPU limit | `{settings.docker_sandbox_cpu}` |
-| Execution timeout | `{settings.docker_sandbox_timeout}s` |
+| Codex binary | `{settings.codex_bin}` |
+| Codex model | `{settings.codex_model or "default"}` |
+| Codex reasoning effort | `{settings.codex_reasoning_effort or "default"}` |
+| Codex sandbox | `{settings.codex_sandbox}` |
+| Codex sandbox provider | `{settings.codex_sandbox_provider}` |
+| Codex timeout | `{settings.codex_timeout or settings.agent_session_timeout_seconds()}s` |
 | Session timeout | `{settings.agent_session_timeout_seconds()}s` |
-| Network | `{"enabled" if settings.docker_sandbox_network else "disabled"}` |
-| GPU | `{"enabled" if settings.docker_sandbox_gpu else "disabled"}` |
 
 ### Run Statistics
 

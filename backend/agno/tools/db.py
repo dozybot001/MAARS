@@ -75,6 +75,35 @@ def create_db_tools(db: ResearchDB) -> list:
         except Exception as e:
             return f"Error reading {path}: {e}"
 
+    def list_artifacts() -> str:
+        """List files in the research artifact directory.
+
+        During task execution this lists the current task's artifacts. Outside
+        task execution it lists all artifacts recursively with relative paths.
+        """
+        try:
+            task_id = db.current_task_id
+            artifacts_dir = db.get_artifacts_dir(task_id)
+        except RuntimeError:
+            return "No active research session."
+
+        files = []
+        if task_id:
+            for file_path in sorted(artifacts_dir.iterdir()):
+                if file_path.is_file():
+                    files.append({
+                        "filename": file_path.name,
+                        "size_bytes": file_path.stat().st_size,
+                    })
+        else:
+            for file_path in sorted(artifacts_dir.rglob("*")):
+                if file_path.is_file():
+                    files.append({
+                        "path": str(file_path.relative_to(artifacts_dir)),
+                        "size_bytes": file_path.stat().st_size,
+                    })
+        return json.dumps(files, indent=2) if files else "No artifacts produced yet."
+
     return [
         read_task_output,
         list_tasks,
@@ -82,4 +111,5 @@ def create_db_tools(db: ResearchDB) -> list:
         read_plan_tree,
         read_results_summary,
         read_artifact_file,
+        list_artifacts,
     ]

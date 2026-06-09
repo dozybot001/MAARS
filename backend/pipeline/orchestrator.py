@@ -53,7 +53,6 @@ class PipelineOrchestrator:
             if not stage:
                 return
             stage.request_stop()
-            self._kill_containers()
             await self._cancel_pipeline(timeout=5.0)
             stage.pause()
 
@@ -71,7 +70,6 @@ class PipelineOrchestrator:
             raise RuntimeError(f"Unknown stage '{stage_name}'")
         async with self._lock:
             await self._cancel_pipeline()
-            self._kill_containers()
             if session_id:
                 self.db.attach_session(session_id)
             elif not self.db.research_id:
@@ -97,7 +95,6 @@ class PipelineOrchestrator:
             Stage.retry(stage)
 
     async def shutdown(self):
-        self._kill_containers()
         await self._cancel_pipeline(timeout=5.0)
 
     def _find_stage(self, state: StageState) -> Stage | None:
@@ -119,10 +116,6 @@ class PipelineOrchestrator:
                 logging.getLogger(__name__).warning(
                     "Unexpected error while cancelling pipeline", exc_info=True,
                 )
-
-    def _kill_containers(self):
-        from backend.agno.tools.docker_exec import kill_all_containers
-        kill_all_containers()
 
     def _reset_stages(self):
         for stage in self.stages.values():
@@ -170,13 +163,9 @@ class PipelineOrchestrator:
                 if stage.state != StageState.COMPLETED:
                     break
             except asyncio.CancelledError:
-                self._kill_containers()
                 raise
             except Exception:
-                self._kill_containers()
                 return
-        # All requested stages finished — release sandbox container
-        self._kill_containers()
 
     def _broadcast(self, event: dict):
         for q in list(self._subscribers):

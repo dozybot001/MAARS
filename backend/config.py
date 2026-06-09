@@ -1,13 +1,17 @@
 import os
 
-from pydantic import model_validator
+from typing import Literal
+
+from pydantic import ConfigDict, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # --- Google LLM ---
-    google_api_key: str
-    google_model: str
+    model_config = ConfigDict(env_prefix="MAARS_", env_file=".env", extra="ignore")
+
+    # --- OpenAI LLM ---
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.5"
     refine_model: str | None = None
     research_model: str | None = None
     write_model: str | None = None
@@ -26,41 +30,66 @@ class Settings(BaseSettings):
     api_request_interval: float = 0  # min seconds between consecutive LLM calls
     output_language: str
 
-    # --- Docker Sandbox ---
-    docker_sandbox_image: str
-    docker_sandbox_timeout: int  # one code_execute shell limit (seconds)
-    agent_session_timeout: int | None = None  # one LLM arun; unset => 2 * docker_sandbox_timeout
-    docker_sandbox_memory: str
-    docker_sandbox_cpu: float
-    docker_sandbox_network: bool
-    docker_sandbox_gpu: bool
-
-    # --- Output truncation ---
-    docker_stdout_limit: int = 5000
-    docker_stderr_limit: int = 2000
+    # --- Agent/runtime timeouts ---
+    agent_session_timeout: int | None = None
 
     # --- Score improvement threshold (fraction, e.g. 0.005 = 0.5%) ---
     score_improvement_threshold: float = 0.005
 
-    class Config:
-        env_prefix = "MAARS_"
-        env_file = ".env"
-        extra = "ignore"
+    # --- Codex task executor ---
+    codex_bin: str = "codex"
+    codex_model: str | None = None
+    codex_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    codex_verbosity: Literal["low", "medium", "high"] | None = None
+    codex_sandbox: str = "workspace-write"
+    codex_timeout: int | None = None
+    codex_inherit_proxy: bool = True
+    codex_sandbox_provider: Literal["local", "docker"] = "local"
+    codex_docker_image: str | None = None
+    codex_docker_bin: str = "docker"
+    codex_docker_codex_bin: str = "codex"
+    codex_docker_gpus: str | None = None
+
+    @field_validator(
+        "refine_model",
+        "research_model",
+        "write_model",
+        "polish_model",
+        "codex_model",
+        "codex_reasoning_effort",
+        "codex_verbosity",
+        "codex_docker_image",
+        "codex_docker_gpus",
+        mode="before",
+    )
+    @classmethod
+    def _empty_string_as_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
-    def _agent_timeout_vs_sandbox(self):
+    def _validate_runtime_settings(self):
         eff = self.agent_session_timeout_seconds()
-        if eff < self.docker_sandbox_timeout:
-            raise ValueError(
-                "MAARS_AGENT_SESSION_TIMEOUT must be >= MAARS_DOCKER_SANDBOX_TIMEOUT "
-                "(an agent turn may run one full code_execute plus model time)."
-            )
+        if eff < 1:
+            raise ValueError("MAARS_AGENT_SESSION_TIMEOUT must be positive")
+        if self.codex_timeout is not None and self.codex_timeout < 1:
+            raise ValueError("MAARS_CODEX_TIMEOUT must be positive when set")
+        if not self.codex_bin.strip():
+            raise ValueError("MAARS_CODEX_BIN must not be empty")
+        if self.codex_sandbox_provider == "docker":
+            if not self.codex_docker_image or not self.codex_docker_image.strip():
+                raise ValueError("MAARS_CODEX_DOCKER_IMAGE must be set when MAARS_CODEX_SANDBOX_PROVIDER=docker")
+            if not self.codex_docker_bin.strip():
+                raise ValueError("MAARS_CODEX_DOCKER_BIN must not be empty")
+            if not self.codex_docker_codex_bin.strip():
+                raise ValueError("MAARS_CODEX_DOCKER_CODEX_BIN must not be empty")
         return self
 
     def agent_session_timeout_seconds(self) -> int:
         if self.agent_session_timeout is not None:
             return self.agent_session_timeout
-        return 2 * self.docker_sandbox_timeout
+        return 4200
 
     def is_chinese(self) -> bool:
         return self.output_language.lower().startswith("ch")
@@ -69,15 +98,15 @@ class Settings(BaseSettings):
         override = getattr(self, f"{stage}_model", None)
         if override:
             return override
-        # polish falls back to write_model before google_model
+        # polish falls back to write_model before openai_model
         if stage == "polish" and self.write_model:
             return self.write_model
-        return self.google_model
+        return self.openai_model
 
 
 settings = Settings()
 
-if settings.google_api_key:
-    os.environ.setdefault("GOOGLE_API_KEY", settings.google_api_key)
+if settings.openai_api_key:
+    os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
 if settings.kaggle_api_token:
     os.environ.setdefault("KAGGLE_API_TOKEN", settings.kaggle_api_token)

@@ -13,17 +13,17 @@ initModal();
 connectSSE();
 syncFromAPI();
 
-async function checkDocker() {
+async function checkRuntime() {
   const el = document.getElementById('system-status');
   if (!el) return;
   try {
-    const res = await fetch('/api/docker/status');
+    const res = await fetch('/api/runtime/status');
     const data = await res.json();
-    el.dataset.docker = data.connected ? 'connected' : 'disconnected';
+    el.dataset.runtime = data.connected ? 'connected' : 'disconnected';
   } catch {
-    el.dataset.docker = 'disconnected';
+    el.dataset.runtime = 'disconnected';
   }
   syncSystemStatus();
 }
-checkDocker();
-setInterval(checkDocker, 30000);
+checkRuntime();
+setInterval(checkRuntime, 30000);

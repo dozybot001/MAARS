@@ -1,5 +1,6 @@
-import asyncio
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -131,17 +132,61 @@ async def get_status(request: Request):
     )
 
 
-@router.get("/docker/status")
-async def docker_status():
+@router.get("/runtime/status")
+async def runtime_status():
+    from backend.config import settings
+    from backend.sandbox import create_codex_sandbox_provider
+
+    provider = create_codex_sandbox_provider(
+        provider=settings.codex_sandbox_provider,
+        codex_bin=settings.codex_bin,
+        docker_image=settings.codex_docker_image,
+        docker_bin=settings.codex_docker_bin,
+        docker_codex_bin=settings.codex_docker_codex_bin,
+        docker_gpus=settings.codex_docker_gpus,
+    )
     try:
-        import docker
-        def _ping():
-            client = docker.from_env()
-            client.ping()
-        await asyncio.to_thread(_ping)
-        return {"connected": True}
-    except Exception as e:
-        return {"connected": False, "error": str(e)}
+        provider.validate()
+    except Exception as exc:
+        return {
+            "connected": False,
+            "runtime": "codex",
+            "sandbox_provider": settings.codex_sandbox_provider,
+            "error": str(exc),
+        }
+    codex_path = shutil.which(settings.codex_bin)
+    docker_path = shutil.which(settings.codex_docker_bin)
+    version_cmd = [settings.codex_bin, "--version"]
+    if settings.codex_sandbox_provider == "docker":
+        version_cmd = [settings.codex_docker_bin, "--version"]
+    try:
+        result = subprocess.run(
+            version_cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception as exc:
+        return {
+            "connected": False,
+            "runtime": "codex",
+            "path": codex_path,
+            "docker_path": docker_path,
+            "sandbox_provider": settings.codex_sandbox_provider,
+            "error": str(exc),
+        }
+    return {
+        "connected": result.returncode == 0,
+        "runtime": "codex",
+        "path": codex_path,
+        "docker_path": docker_path,
+        "sandbox_provider": settings.codex_sandbox_provider,
+        "docker_image": settings.codex_docker_image or "",
+        "docker_gpus": settings.codex_docker_gpus or "",
+        "version": result.stdout.strip() or result.stderr.strip(),
+        "error": "" if result.returncode == 0 else result.stderr.strip(),
+    }
 
 
 @router.post("/pipeline/stop", response_model=ActionResponse)
