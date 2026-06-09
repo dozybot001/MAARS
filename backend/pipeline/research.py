@@ -577,7 +577,7 @@ class ResearchStage(Stage):
             prior_attempt=prior_attempt,
             workspace_dir=session_dir / "workspaces" / _safe_path_part(task_id),
             artifacts_dir=self.db.get_artifacts_dir(task_id),
-            metadata={**metadata, "output_language": settings.output_language},
+            metadata=metadata,
         )
 
     def _handle_executor_event(self, event: RuntimeEvent):

@@ -239,9 +239,6 @@ class CodexExecutor:
             f"Task ID: {context.task_id}",
             f"Description: {context.description}",
         ]
-        output_language = str(context.metadata.get("output_language", "")).strip()
-        if output_language:
-            parts.append(f"Output language: {output_language}")
         if deps:
             parts.extend([
                 "",

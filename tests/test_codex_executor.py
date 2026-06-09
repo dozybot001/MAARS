@@ -122,14 +122,12 @@ class CodexExecutorTests(unittest.TestCase):
             artifacts_dir=Path("/tmp/artifacts"),
             dependencies=("d1",),
             dependency_summaries={"d1": "prepared data"},
-            metadata={"output_language": "Chinese"},
         )
 
         prompt = executor._build_prompt(context)
 
         self.assertIn("Task ID: t1", prompt)
         self.assertIn("Description: run experiment", prompt)
-        self.assertIn("Output language: Chinese", prompt)
         self.assertIn("Artifact Contract", prompt)
         self.assertIn("Write every durable output under `./artifacts/`", prompt)
         self.assertIn("[d1] prepared data", prompt)
