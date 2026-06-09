@@ -3,12 +3,14 @@ import { initPipelineUI, syncFromAPI } from './pipeline-ui.js';
 import { initLogViewer } from './log-viewer.js';
 import { initProcessViewer } from './process-viewer.js';
 import { initModal } from './modal.js';
+import { initSettings } from './settings.js';
 import { syncSystemStatus } from './shared.js';
 
 initPipelineUI();
 initLogViewer();
 initProcessViewer();
 initModal();
+initSettings();
 
 connectSSE();
 syncFromAPI();

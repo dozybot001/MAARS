@@ -13,6 +13,7 @@ from starlette.responses import Response
 
 from backend.config import settings
 from backend.pipeline.orchestrator import PipelineOrchestrator
+from backend.routes import config as config_routes
 from backend.routes import pipeline as pipeline_routes
 from backend.routes import events as event_routes
 from backend.routes import session as session_routes
@@ -58,6 +59,7 @@ app.add_middleware(NoCacheStaticMiddleware)
 app.include_router(pipeline_routes.router)
 app.include_router(event_routes.router)
 app.include_router(session_routes.router)
+app.include_router(config_routes.router)
 
 frontend_dir = Path(__file__).parent.parent / "frontend"
 if frontend_dir.exists():

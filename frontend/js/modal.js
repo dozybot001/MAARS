@@ -74,6 +74,7 @@ export function initModal() {
 
 export function showModal(titleText, bodyText) {
   title.textContent = titleText;
+  content.className = '';
   if (typeof marked !== 'undefined' && marked.parse) {
     content.innerHTML = marked.parse(bodyText || '');
     content.classList.remove('plain-text');

@@ -25,6 +25,31 @@ export async function fetchStatus() {
   return res.json();
 }
 
+export async function fetchEnvConfig() {
+  const res = await fetch(`${BASE}/config/env`);
+  if (!res.ok) throw new Error(`Config load failed: ${res.status}`);
+  return res.json();
+}
+
+export async function saveEnvConfig(values) {
+  const res = await fetch(`${BASE}/config/env`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+  if (!res.ok) {
+    let detail = `Config save failed: ${res.status}`;
+    try {
+      const data = await res.json();
+      detail = data.detail || detail;
+    } catch {
+      /* keep fallback */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
 export async function fetchPlanTree() {
   const res = await fetch(`${BASE}/session/plan/tree`);
   if (!res.ok) return null;
