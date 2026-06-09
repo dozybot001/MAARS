@@ -54,13 +54,17 @@ class Settings(BaseSettings):
         "codex_write_reasoning_effort",
         "codex_polish_reasoning_effort",
         "codex_verbosity",
+        "codex_timeout",
         "codex_docker_image",
         "codex_docker_gpus",
+        "agent_session_timeout",
         mode="before",
     )
     @classmethod
     def _empty_string_as_none(cls, value):
         if isinstance(value, str) and not value.strip():
+            return None
+        if isinstance(value, str) and value.strip().startswith("#"):
             return None
         return value
 

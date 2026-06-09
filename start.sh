@@ -110,8 +110,13 @@ bootstrap_python() {
         py -3 "$@"
         return $?
     fi
-    if command -v python3 >/dev/null 2>&1; then python3 "$@"; return $?; fi
-    if command -v python >/dev/null 2>&1; then python "$@"; return $?; fi
+    local candidate
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit((sys.version_info.major, sys.version_info.minor) < (3, 10))' >/dev/null 2>&1; then
+            "$candidate" "$@"
+            return $?
+        fi
+    done
     return 127
 }
 
