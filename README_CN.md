@@ -35,12 +35,12 @@ graph LR
 ```
 
 - **Refine**：Explorer 调研文献并起草提案；Critic 在声明范围内评审。迭代直到零 issue。
-- **Research**：将提案分解为原子任务，在持久化 Docker 沙箱中并行执行，验证产出，评估结果——存在关键空白时通过策略更新迭代。
+- **Research**：将提案分解为原子任务，通过 Codex session 并行执行，验证产出，评估结果——存在关键空白时通过策略更新迭代。
 - **Write**：Writer 读取研究产物撰写完整论文；Reviewer 评审并驱动修订直到零 issue。最后由 **Polish** 子步骤单次 LLM 打磨文笔，并附加确定性执行元数据附录。
 
 ## 快速开始
 
-**环境要求：** Python 3.10+、Docker 已运行、[Gemini API 密钥](https://aistudio.google.com/apikey)
+**环境要求：** Python 3.10+、[Codex CLI](https://developers.openai.com/codex/cli)、OpenAI API 密钥。当 `MAARS_CODEX_SANDBOX_PROVIDER=docker` 时，Docker 是可选执行底座。
 
 ```bash
 git clone https://github.com/dozybot001/MAARS.git && cd MAARS
@@ -51,8 +51,8 @@ bash start.sh
 
 首次运行时，`start.sh` 会：
 1. 创建虚拟环境并安装依赖
-2. 从 `.env.example` 生成 `.env`——填入你的 `MAARS_GOOGLE_API_KEY`
-3. 构建 Docker 沙箱镜像
+2. 从 `.env.example` 生成 `.env`——填入你的 `MAARS_OPENAI_API_KEY`
+3. 检查 Codex runtime
 4. 在 **http://localhost:8000** 启动服务
 
 然后在输入框粘贴研究想法、Kaggle 比赛链接，或 UTF-8 编码的文本/Markdown 文件路径，按 Enter 启动。粘贴 Kaggle 链接会自动跳过 Refine 阶段并下载数据集。在输入框中按 `Cmd+E`（macOS）或 `Ctrl+E`（Windows / Linux）可以自动填入示例路径 `showcase/example_idea.md`。
@@ -63,11 +63,14 @@ bash start.sh
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `MAARS_GOOGLE_API_KEY` | — | **必填。** Gemini API 密钥 |
-| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | 所有阶段默认使用的 LLM 模型 |
+| `MAARS_OPENAI_API_KEY` | — | **必填。** OpenAI API 密钥 |
+| `MAARS_OPENAI_MODEL` | `gpt-5.5` | 非执行阶段默认使用的 LLM 模型 |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | 提示词/输出语言（`Chinese` 或 `English`） |
 | `MAARS_API_CONCURRENCY` | `1` | LLM 最大并发数 |
 | `MAARS_API_REQUEST_INTERVAL` | `0` | LLM 请求最小间隔秒数（免费 tier 建议设 `1`–`2`） |
+| `MAARS_CODEX_REASONING_EFFORT` | `high` | Codex 任务推理深度（`low`、`medium`、`high`、`xhigh`） |
+| `MAARS_CODEX_SANDBOX_PROVIDER` | `local` | Codex 执行底座（`local` 或 `docker`） |
+| `MAARS_CODEX_DOCKER_IMAGE` | — | 包含 Codex CLI 的 Docker 镜像，仅 Docker provider 必填 |
 
 ## 文档
 

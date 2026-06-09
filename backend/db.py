@@ -50,7 +50,6 @@ class ResearchDB:
         self.research_id: str = ""
         self._meta_lock = threading.Lock()
         self._log_lock = threading.Lock()
-        self._exec_log_lock = threading.Lock()
 
     @property
     def current_task_id(self) -> str | None:
@@ -160,22 +159,6 @@ class ResearchDB:
         if parts:
             self._save_text(f"evaluations/round_{iteration}.md", "\n\n".join(parts))
 
-    def save_script(self, code: str, language: str = "python") -> tuple[Path, str]:
-        self._ensure_root()
-        task_dir = self.get_artifacts_dir(self.current_task_id)
-        ext = ".py" if language == "python" else ".r"
-        existing = sorted(task_dir.glob(f"*{ext}"))
-        seq = len(existing) + 1
-        name = f"{seq:03d}{ext}"
-        path = task_dir / name
-        path.write_text(code, encoding="utf-8")
-        return path, name
-
-    def save_reproduce_files(self, dockerfile: str, run_sh: str, compose: str):
-        self._save_text("reproduce/Dockerfile", dockerfile)
-        self._save_text("reproduce/run.sh", run_sh)
-        self._save_text("reproduce/docker-compose.yml", compose)
-
     def save_results_summary(self, data: dict, markdown: str = ""):
         self._save_json("results_summary.json", data)
         if markdown:
@@ -193,16 +176,6 @@ class ResearchDB:
             entry["label"] = True
         with self._log_lock:
             with open(self._root / "log.jsonl", "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-    def append_execution_log(self, task_id: str, script: str,
-                             language: str = "python", requirements: str = ""):
-        """Append a Docker code execution record to execution_log.jsonl."""
-        self._ensure_root()
-        entry = {"ts": time.time(), "task_id": task_id, "script": script,
-                 "language": language, "requirements": requirements}
-        with self._exec_log_lock:
-            with open(self._root / "execution_log.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def update_meta(self, **kwargs):
@@ -266,21 +239,6 @@ class ResearchDB:
                 continue
             entries.append(entry)
         return entries, new_offset
-
-    def get_execution_log(self) -> list[dict]:
-        self._ensure_root()
-        path = self._root / "execution_log.jsonl"
-        if not path.exists():
-            return []
-        with self._exec_log_lock:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        entries = []
-        for line in lines:
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-        return entries
 
     def get_meta(self) -> dict:
         return self._get_json("meta.json")
@@ -374,14 +332,14 @@ class ResearchDB:
         self._ensure_root()
         stage_dirs = {
             "refine": ("proposals", "critiques"),
-            "research": ("tasks", "evaluations", "strategy", "artifacts", "reproduce"),
+            "research": ("tasks", "evaluations", "strategy", "artifacts", "workspaces"),
             "write": ("drafts", "reviews"),
         }
         stage_files = {
             "refine": ("refined_idea.md",),
             "research": (
                 "calibration.md", "plan_tree.json", "plan_list.json",
-                "results_summary.json", "results_summary.md", "execution_log.jsonl",
+                "results_summary.json", "results_summary.md",
             ),
             "write": ("paper.md", "paper_polished.md"),
         }

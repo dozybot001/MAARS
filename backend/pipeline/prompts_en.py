@@ -7,39 +7,8 @@ _PREFIX = (
 )
 
 # ---------------------------------------------------------------------------
-# Execute & Verify
+# Verify
 # ---------------------------------------------------------------------------
-
-EXECUTE_SYSTEM = _PREFIX + """\
-You are a research assistant executing ONE specific task as part of a larger research project.
-Each task has ONE concrete deliverable. Focus entirely on producing that deliverable reliably.
-
-CRITICAL RULES:
-- When a task involves code, data analysis, or experiments: you MUST call code_execute to run real Python code. Do NOT describe code or simulate results — actually execute it.
-- When a task involves literature: you MUST call search/fetch tools. Do NOT make up citations.
-- NEVER pretend to have executed something. If you didn't call a tool, you didn't do it.
-- Stay focused on THIS task's single deliverable. Do NOT expand scope or add bonus work.
-
-OUTPUT REQUIREMENTS:
-- Produce a thorough, well-structured result in markdown
-- If you ran code: include key numerical results, describe generated files (e.g., "Generated convergence_plot.png"), and interpret the findings
-- If you reviewed literature: cite specific papers with authors and years
-- Use list_artifacts to verify what files were produced
-- On the LAST LINE of your output, write a summary starting with SUMMARY: that includes specific output filenames and key numeric results. Example:
-  SUMMARY: Parsed Cabin field into Deck/Num/Side features, saved to train_cabin_features.csv and test_cabin_features.csv
-
-SCORE TRACKING:
-- Whenever you obtain a model evaluation score (CV accuracy, F1, AUC, RMSE, etc.), \
-save the best result to /workspace/output/best_score.json using code_execute:
-  {"metric": "accuracy", "score": 0.85, "model": "XGBoost", "details": "5-fold CV"}
-- Always UPDATE this file if you achieve a better score than the existing one (read it first).
-
-ENVIRONMENT TIPS:
-- The sandbox container is persistent: packages installed by earlier code_execute calls are still available. Always try `import` first before installing anything.
-- Common ML packages (numpy, pandas, torch, torchvision, scikit-learn, xgboost, etc.) are pre-installed — do NOT reinstall them.
-- Dataset files are at /workspace/data/ — do NOT search the filesystem recursively for data.
-- Other tasks' artifacts are at /workspace/artifacts/<task_id>/ — read them directly when needed.
-- Your output directory is /workspace/output/ (relative paths also work)."""
 
 VERIFY_SYSTEM = _PREFIX + """\
 You are a research quality reviewer. Verify that the task actually produced its expected concrete deliverable.
@@ -74,18 +43,18 @@ Set "redecompose" to true ONLY when:
 
 CALIBRATE_SYSTEM = _PREFIX + """\
 You are calibrating task decomposition for a research pipeline.
-Below is the execution agent's **full capability profile** (sandbox constraints, tool list, execution model) and dataset info (if any).
+Below is the execution agent's **full capability profile** (Codex runtime, sandbox provider, execution model) and dataset info (if any).
 
 **Strictly based on these concrete constraints**, define what constitutes an "atomic task" — one the agent can RELIABLY complete with VERIFIABLE output in a SINGLE agent turn (one LLM session: streaming + all tool calls in that turn).
 
 Key principle: RELIABILITY > AMBITION.
 
-The sandbox is a **persistent container** — packages and files persist across code_execute calls **within the same session** — so "prep + train + evaluate for **one** model or **one** clearly scoped experiment" is often appropriate. Do **not** treat persistence as permission to bundle **many independent full training jobs** (e.g. several complete source trainings, or a full grid of transfer runs) into one atomic task: each long train risks hitting the **per-code_execute** limit, and **many** sequential long runs risk hitting the **per-agent-turn** limit summarized in the capability profile.
+Each atomic task runs as an **independent Codex session** in its own workspace. "Prep + train + evaluate for **one** model or **one** clearly scoped experiment" is often appropriate, because all commands in that session share the same workspace and can write artifacts under `./artifacts/`. Do **not** bundle **many independent full training jobs** (e.g. several complete source trainings, or a full grid of transfer runs) into one atomic task: long sequential work risks exceeding the per-task Codex timeout and makes verification brittle.
 
 **Sizing rule of thumb:** prefer **one primary training deliverable** (one saved checkpoint / one report for one configuration) per atomic task when epochs and data are non-trivial; use dependencies to chain tasks. Analysis-only tasks (metrics, tables, plots from **already saved** checkpoints) may combine multiple loads in one task if wall-clock stays modest.
 
 Output ONLY a concise ATOMIC DEFINITION block (3-6 short sentences) to be injected verbatim into the task planner's system prompt. Must include:
-1. What scale of computation fits **one** atomic task given both per-code_execute and per-agent-turn limits above
+1. What scale of computation fits **one** atomic task given the Codex session timeout and artifact handoff model above
 2. 2-3 concrete **atomic** examples for **this** research topic (each ends with **one** clear artifact, e.g. one `.pth` / one `.json` / one figure set)
 3. 2-3 concrete **too-large** examples (e.g. multiple unrelated full trainings or an entire experiment grid in a single task)"""
 
@@ -106,7 +75,7 @@ WORKFLOW:
 
 OUTPUT FORMAT — a concise strategy document (NOT a task list):
 - **Key Insights**: What distinguishes high-performing solutions from average ones
-- **Recommended Approach**: Specific techniques to prioritize (with rationale). Only recommend approaches that fit within the sandbox timeout, memory, and hardware (CPU/GPU) constraints stated in the capability profile above
+- **Recommended Approach**: Specific techniques to prioritize (with rationale). Only recommend approaches that fit within the Codex task timeout, artifact handoff model, and runtime constraints stated in the capability profile above
 - **Pitfalls to Avoid**: Common mistakes that hurt performance
 - **Target Metric**: What score range to aim for based on your research
 
@@ -252,79 +221,10 @@ def build_strategy_update_user(
     )
     return "\n".join(parts)
 
-def build_execute_prompt(task: dict, prior_attempt: str = "",
-                         dep_summaries: dict[str, str] | None = None) -> tuple[str, str]:
-    from backend.config import settings
-    from backend.sandbox.gpu_probe import gpu_disclosure_markdown
-    parts = []
-
-    # Sandbox constraints (keep aligned with ResearchOrchestrator._build_capability_profile)
-    env_lines = [
-        "## Environment Constraints",
-        f"- code_execute timeout: {settings.docker_sandbox_timeout}s",
-        f"- agent turn timeout (one task session, all tool calls): "
-        f"{settings.agent_session_timeout_seconds()}s",
-        f"- Memory limit: {settings.docker_sandbox_memory}",
-        f"- CPU quota (approx. cores): {settings.docker_sandbox_cpu}",
-        *gpu_disclosure_markdown().split("\n"),
-        "---",
-    ]
-    parts.append("\n".join(env_lines) + "\n")
-
-    # Dependency summaries
-    deps = task.get("dependencies", [])
-    if deps:
-        dep_lines = []
-        for d in deps:
-            summary = (dep_summaries or {}).get(d)
-            if summary:
-                dep_lines.append(f"- **[{d}]**: {summary}")
-            else:
-                dep_lines.append(f"- **[{d}]** (use read_task_output for details)")
-        parts.append("## Prerequisite Tasks\n" + "\n".join(dep_lines) + "\n---\n")
-
-    if prior_attempt:
-        parts.append(
-            "## Prior attempt on parent task (reference only — focus on YOUR specific subtask):\n"
-            f"{prior_attempt}\n---\n"
-        )
-    parts.append(f"## Your task [{task['id']}]:\n{task['description']}")
-    data_hint = ""
-    if settings.dataset_dir:
-        data_hint = (
-            " Dataset files are pre-mounted at /workspace/data/ inside the "
-            "code execution sandbox — read them directly (e.g., "
-            "pd.read_csv('/workspace/data/train.csv'))."
-        )
-    parts.append(
-        "\n---\n"
-        "REMINDER: You MUST call code_execute to run real code. "
-        "Do NOT describe or simulate code — actually execute it." + data_hint +
-        " Use list_artifacts to verify generated files."
-    )
-    return EXECUTE_SYSTEM, "\n".join(parts)
-
-
 def build_verify_prompt(task: dict, result: str) -> tuple[str, str]:
     return VERIFY_SYSTEM, (
         f"Task [{task['id']}]: {task['description']}\n\n"
         f"--- Execution result ---\n{result}"
-    )
-
-
-def build_retry_prompt(task: dict, result: str, review: str,
-                       dep_summaries: dict[str, str] | None = None,
-                       prior_attempt: str = "") -> tuple[str, str]:
-    _, original_user = build_execute_prompt(task, prior_attempt=prior_attempt,
-                                            dep_summaries=dep_summaries)
-    return EXECUTE_SYSTEM, (
-        f"{original_user}\n\n"
-        f"---\n\n[Previous Output]\n{result}\n\n"
-        f"---\n\nYour previous output was reviewed and needs improvement:\n\n"
-        f"{review}\n\n"
-        f"Address ONLY the issues listed above. Do NOT re-execute code that already "
-        f"produced correct results. Use list_artifacts to check what already exists, "
-        f"then write only the code needed to fix the identified problems."
     )
 
 
@@ -353,8 +253,8 @@ WHEN TO STOP DECOMPOSING:
 - Strictly follow the atomic task definition above. If a task's complexity exceeds the atomic examples given above, it needs decomposition.
 - Prefer FEWER, MEATIER tasks over many trivial ones — each task carries LLM planning and verification overhead.
 - Only split when a task truly contains INDEPENDENT deliverables that cannot share context.
-- A task that requires more than 5-8 code_execute calls to complete is likely too large.
-- The sandbox is persistent: for **one** scoped experiment, "prep + train + evaluate" can be ONE task — but **not** when the description bundles **several independent full trainings** or a **whole experiment grid**; split those into separate tasks per the atomic definition above.
+- A task that requires many command/debug cycles or a long multi-experiment session is likely too large.
+- Each atomic task runs in an isolated Codex workspace. For **one** scoped experiment, "prep + train + evaluate" can be ONE task — but **not** when the description bundles **several independent full trainings** or a **whole experiment grid**; split those into separate tasks per the atomic definition above.
 
 Rules for subtasks:
 - Dependencies are ONLY between sibling subtasks (same parent).

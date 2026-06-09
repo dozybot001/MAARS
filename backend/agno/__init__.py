@@ -3,7 +3,7 @@
 from agno.tools.arxiv import ArxivTools
 from agno.tools.wikipedia import WikipediaTools
 
-from backend.agno.tools import create_db_tools, create_docker_tools
+from backend.agno.tools import create_db_tools
 from backend.agno.models import create_model
 from backend.pipeline.research import ResearchStage
 from backend.team.refine import RefineStage
@@ -11,7 +11,7 @@ from backend.team.write import WriteStage
 
 
 def create_agno_stages(
-    model_id: str = "gemini-2.5-flash",
+    model_id: str = "gpt-5.5",
     refine_model_id: str | None = None,
     research_model_id: str | None = None,
     write_model_id: str | None = None,
@@ -26,7 +26,7 @@ def create_agno_stages(
     def get_model(stage_model_id: str | None) -> object:
         resolved = stage_model_id or model_id
         if resolved not in model_cache:
-            model_cache[resolved] = create_model("google", resolved, api_key)
+            model_cache[resolved] = create_model("openai", resolved, api_key)
         return model_cache[resolved]
 
     refine_model = get_model(refine_model_id)
@@ -34,13 +34,11 @@ def create_agno_stages(
     write_model = get_model(write_model_id)
     polish_model = get_model(polish_model_id or write_model_id)
     db_tools = create_db_tools(db) if db else []
-    docker_tools = create_docker_tools(db) if db else []
-    list_artifacts = docker_tools[1:] if len(docker_tools) > 1 else []
     research_tools = [ArxivTools(), WikipediaTools()]
-    read_tools = db_tools + list_artifacts          # Evaluate/Decompose: no code_execute
-    execute_tools = db_tools + docker_tools + research_tools  # Execute: full set
-    writer_tools = db_tools + list_artifacts
-    reviewer_tools = db_tools + list_artifacts
+    read_tools = db_tools
+    execute_tools = db_tools + research_tools
+    writer_tools = db_tools
+    reviewer_tools = db_tools
 
     return {
         "refine": RefineStage(model=refine_model, explorer_tools=research_tools, db=db,

@@ -9,17 +9,31 @@ import logging
 from pathlib import Path
 
 from backend.config import settings
-from backend.sandbox.gpu_probe import gpu_disclosure_markdown
+from backend.core.research import RuntimeEvent
+from backend.executors import CodexExecutor, TaskContext, TaskExecutionResult
+from backend.sandbox import create_codex_sandbox_provider
 
 log = logging.getLogger(__name__)
 from backend.pipeline.stage import Stage, StageState
 from backend.pipeline.decompose import decompose
 from backend.pipeline.prompts import (
     CALIBRATE_SYSTEM, EVALUATE_SYSTEM,
-    STRATEGY_SYSTEM, build_execute_prompt, build_verify_prompt, build_retry_prompt,
+    STRATEGY_SYSTEM, build_verify_prompt,
     build_evaluate_user, build_strategy_update_user,
 )
+from backend.pipeline.research_graph_nodes import ResearchStageGraphNodes
+from backend.pipeline.task_cycle_nodes import ResearchTaskCycleNodes
+from backend.runtime.langgraph_research import LangGraphResearchRuntime
+from backend.runtime.langgraph_task import LangGraphTaskRuntime
 from backend.utils import parse_json_fenced
+
+
+def _safe_path_part(value: str) -> str:
+    safe = "".join(
+        char if char.isalnum() or char in "._-" else "_"
+        for char in value
+    ).strip("._")
+    return safe or "task"
 
 
 def topological_batches(tasks: list[dict], precompleted: set[str] | None = None) -> list[list[dict]]:
@@ -41,18 +55,19 @@ def topological_batches(tasks: list[dict], precompleted: set[str] | None = None)
     return batches
 
 
-def _preflight_docker():
-    try:
-        import docker
-    except ImportError:
-        raise RuntimeError("Research requires Docker: install the SDK with `pip install docker`")
-    try:
-        client = docker.from_env()
-        client.ping()
-    except Exception as e:
-        raise RuntimeError(
-            f"Research requires Docker daemon to be running and reachable: {e}"
-        )
+def _preflight_codex():
+    _create_codex_sandbox_provider().validate()
+
+
+def _create_codex_sandbox_provider():
+    return create_codex_sandbox_provider(
+        provider=settings.codex_sandbox_provider,
+        codex_bin=settings.codex_bin,
+        docker_image=settings.codex_docker_image,
+        docker_bin=settings.codex_docker_bin,
+        docker_codex_bin=settings.codex_docker_codex_bin,
+        docker_gpus=settings.codex_docker_gpus,
+    )
 
 
 def _find_node(tree: dict, node_id: str) -> dict | None:
@@ -63,14 +78,6 @@ def _find_node(tree: dict, node_id: str) -> dict | None:
         if found:
             return found
     return None
-
-
-# Pre-installed packages in Docker sandbox — keep in sync with Dockerfile.sandbox
-SANDBOX_PREINSTALLED = (
-    "numpy, pandas, matplotlib, scipy, scikit-learn, "
-    "torch, torchvision, xgboost, lightgbm, catboost, "
-    "statsmodels, seaborn, networkx, sympy"
-)
 
 
 class ResearchStage(Stage):
@@ -109,54 +116,29 @@ class ResearchStage(Stage):
 
     def _build_capability_profile(self) -> str:
         """Deterministic capability profile built from config + tools."""
-        _code_exec_desc = (
-            "Execute Python in Docker sandbox. Returns stdout, stderr, exit_code, generated file list. "
-            "stdout truncated to 5000 chars."
-        )
-        if settings.docker_sandbox_gpu:
-            _code_exec_desc += (
-                " NVIDIA GPU is passed into the sandbox; capability profile lists probed "
-                "device name, VRAM, compute capability, and driver when available."
-            )
-        _TOOL_DESCS = {
-            'code_execute': _code_exec_desc,
-            'list_artifacts': 'List files in current task artifacts directory.',
-            'read_task_output': 'Read markdown output of a completed sibling task.',
-            'list_tasks': 'List all completed tasks with IDs and sizes.',
-            'read_refined_idea': 'Read the refined research idea.',
-            'read_plan_tree': 'Read the full decomposition tree.',
-            'read_results_summary': 'Read the canonical deterministic summary of completed results.',
-            'read_artifact_file': 'Read raw content of an artifact file (JSON, text) to verify exact numeric values.',
-            'ArxivTools': 'Search academic papers on arXiv.',
-            'WikipediaTools': 'Search Wikipedia articles.',
-        }
-        lines = [
+        return "\n".join([
             "## Execution Environment",
             "",
-            "### Docker Sandbox",
-            f"- Timeout per code_execute: {settings.docker_sandbox_timeout}s",
-            f"- Timeout per agent turn (LLM + all tool calls): "
-            f"{settings.agent_session_timeout_seconds()}s",
-            f"- Memory: {settings.docker_sandbox_memory}",
-            f"- CPU: {settings.docker_sandbox_cpu} cores",
-            *gpu_disclosure_markdown().split("\n"),
-            f"- Network: {'enabled' if settings.docker_sandbox_network else 'disabled'}",
-            f"- Pre-installed packages: {SANDBOX_PREINSTALLED}",
+            "### Codex Executor",
+            f"- Executor: {settings.codex_bin} exec",
+            f"- Sandbox: {settings.codex_sandbox}",
+            f"- Sandbox provider: {settings.codex_sandbox_provider}",
+            f"- Model: {settings.codex_model or 'Codex default'}",
+            f"- Reasoning effort: {settings.codex_reasoning_effort or 'Codex default'}",
+            f"- Inherit proxy: {settings.codex_inherit_proxy}",
+            f"- Timeout per task session: {settings.codex_timeout or settings.agent_session_timeout_seconds()}s",
+            "- Each task runs in its own workspace and writes artifacts under ./artifacts/.",
+            "- The runtime copies task artifacts back into the MAARS session artifact directory.",
+            "- Use real shell/Python commands for code, data analysis, and experiments.",
             "",
             "### Execution Model",
-            "- Each task = ONE independent agent session (single system prompt + user message)",
-            "- Agent can make MULTIPLE tool calls within one session",
-            "- All code_execute calls share one persistent container — installed packages persist across calls and tasks",
-            "- /workspace/output/ is the current task's artifact directory; other tasks' files are at /workspace/artifacts/<id>/",
-            "- Tasks share data ONLY via artifact files — no direct communication",
+            "- Each task = ONE independent Codex session.",
+            "- Tasks share data only through persisted artifact files and dependency summaries.",
+            "- The MAARS runtime, not Codex, decides retries, verification, and iteration routing.",
             "",
-            "### Available Tools",
-        ]
-        for t in self._tools:
-            name = getattr(t, '__name__', None) or getattr(t, 'name', type(t).__name__)
-            desc = _TOOL_DESCS.get(name, getattr(t, '__doc__', '') or '')
-            lines.append(f"- **{name}**: {desc}" if desc else f"- {name}")
-        return "\n".join(lines)
+            "### Available Executor Capability",
+            "- **codex_exec**: Run commands, edit files in the task workspace, debug failures, and return structured JSON output.",
+        ])
 
     def _describe_dataset(self) -> str:
         """Describe dataset files if available."""
@@ -185,17 +167,16 @@ class ResearchStage(Stage):
             raise asyncio.CancelledError()
 
     async def _execute(self) -> str:
-        await asyncio.to_thread(_preflight_docker)
+        _preflight_codex()
 
         self.output = ""
         idea = self.db.get_refined_idea()
-
-        await self._calibrate_once(idea)
-        await self._run_loop(idea)
+        runtime = LangGraphResearchRuntime(ResearchStageGraphNodes(self))
+        result = await runtime.run(idea)
 
         if self.state == StageState.FAILED:
             raise RuntimeError("Research stage failed: one or more tasks could not be completed")
-        return self._build_final_output()
+        return result.output
 
     # ------------------------------------------------------------------
     # Calibrate (one-time)
@@ -217,113 +198,152 @@ class ResearchStage(Stage):
     # Main loop: strategy → decompose → execute → evaluate → repeat
     # ------------------------------------------------------------------
 
-    async def _run_loop(self, idea: str):
+    def _initialize_research_loop(self) -> dict:
         iteration = self.db.get_iteration()
 
-        # If the last completed evaluation was satisfied, nothing to do
         if iteration > 0:
             last_eval = self.db.get_evaluation(iteration - 1)
             if last_eval and not last_eval.get("strategy_update", "").strip():
-                return
-
-        while True:
-            round_label = f"round {iteration}"
-            is_final = iteration >= self._max_iterations - 1
-
-            # Strategy — load from disk or generate
-            self._current_phase = "strategy"
-            strategy_tag = f"Strategy · {round_label}"
-            self._send(chunk={"text": strategy_tag, "call_id": strategy_tag, "label": True, "level": 2})
-            existing_strategy = self.db.get_strategy_for(iteration)
-            if existing_strategy:
-                self._strategy = existing_strategy
-            elif iteration > 0:
-                prev_eval = self.db.get_evaluation(iteration - 1)
-                self._strategy = await self._update_strategy(idea, prev_eval)
-                self.db.save_strategy(self._strategy, iteration)
-            else:
-                strategy = await self._research_strategy(idea)
-                if strategy:
-                    self._strategy = strategy
-                    self.db.save_strategy(strategy, iteration)
-            self._send()
-            self._check_stop()
-
-            # Decompose — reuse existing plan or generate
-            self._current_phase = "decompose"
-            decompose_tag = f"Decompose · {round_label}"
-            self._send(chunk={"text": decompose_tag, "call_id": decompose_tag, "label": True, "level": 2})
-            existing_plan = self.db.get_plan_list()
-            if existing_plan:
-                self._all_tasks = existing_plan
-                self._tree = self.db.get_plan_tree() or self._tree
-            has_pending = any(
-                t["id"] not in self._task_results and t.get("status") != "failed"
-                for t in self._all_tasks
-            ) if self._all_tasks else False
-            if not self._all_tasks:
-                await self._decompose_fresh(idea)
-            elif not has_pending and iteration > 0:
-                round_id = f"r{iteration}"
-                if not self._tree or not any(
-                    c.get("id") == round_id
-                    for c in self._tree.get("children", [])
-                ):
-                    await self._decompose_round(idea, iteration)
-            self._send()
-            self._check_stop()
-
-            # Execute
-            self._current_phase = "execute"
-            self._init_task_batches()
-            execute_tag = f"Execute · {round_label}"
-            self._send(chunk={"text": execute_tag, "call_id": execute_tag, "label": True, "level": 2})
-            self._send()
-
-            self._check_stop()
-
-            failed = await self._execute_all_tasks()
-            if failed:
-                break
-
-            # Evaluate
-            self._current_phase = "evaluate"
-            evaluate_tag = f"Evaluate · {round_label}"
-            self._send(chunk={"text": evaluate_tag, "call_id": evaluate_tag, "label": True, "level": 2})
-            minimize = self.db.get_score_minimize()
-            improved, current_score = self._check_score_improved(self._prev_score, minimize)
-            prev_score_snapshot = self._prev_score
-            if current_score is not None:
-                self.db.update_meta(current_score=current_score, previous_score=self._prev_score, improved=improved)
-                self._prev_score = current_score
-
-            self._check_stop()
-
-            summaries = [
-                {"id": tid, "summary": self._task_summaries.get(tid, "(no summary)")}
-                for tid in sorted(self._task_results.keys())
-            ]
-            evaluation = await self._evaluate_results(
-                idea, summaries, current_score, prev_score_snapshot,
-                minimize, iteration, is_final,
-            )
-            evaluation["score"] = current_score
-            strategy_update = evaluation.get("strategy_update", "").strip()
-
-            if not strategy_update:
-                evaluation["satisfied"] = True
-            self.db.save_evaluation(evaluation, iteration)
-            self._send()
-
-            if not strategy_update:
-                break
-
-            self._check_stop()
-            iteration += 1
+                return {
+                    "phase": "loop_completed",
+                    "iteration": iteration,
+                    "loop_done": True,
+                    "failed": False,
+                    "strategy_update": "",
+                }
             if iteration >= self._max_iterations:
-                log.warning("Reached max iterations (%d), stopping research loop",
-                            self._max_iterations)
-                break
+                return {
+                    "phase": "max_iterations_reached",
+                    "iteration": iteration,
+                    "loop_done": True,
+                    "failed": False,
+                    "strategy_update": last_eval.get("strategy_update", "").strip(),
+                }
+
+        return {
+            "phase": "loop_initialized",
+            "iteration": iteration,
+            "loop_done": False,
+            "failed": False,
+            "strategy_update": "",
+        }
+
+    async def _prepare_strategy_round(self, idea: str, iteration: int):
+        round_label = f"round {iteration}"
+        self._current_phase = "strategy"
+        strategy_tag = f"Strategy · {round_label}"
+        self._send(chunk={"text": strategy_tag, "call_id": strategy_tag, "label": True, "level": 2})
+        existing_strategy = self.db.get_strategy_for(iteration)
+        if existing_strategy:
+            self._strategy = existing_strategy
+        elif iteration > 0:
+            prev_eval = self.db.get_evaluation(iteration - 1)
+            self._strategy = await self._update_strategy(idea, prev_eval)
+            self.db.save_strategy(self._strategy, iteration)
+        else:
+            strategy = await self._research_strategy(idea)
+            if strategy:
+                self._strategy = strategy
+                self.db.save_strategy(strategy, iteration)
+        self._send()
+        self._check_stop()
+
+    async def _prepare_decomposition_round(self, idea: str, iteration: int):
+        round_label = f"round {iteration}"
+        self._current_phase = "decompose"
+        decompose_tag = f"Decompose · {round_label}"
+        self._send(chunk={"text": decompose_tag, "call_id": decompose_tag, "label": True, "level": 2})
+        existing_plan = self.db.get_plan_list()
+        if existing_plan:
+            self._all_tasks = existing_plan
+            self._tree = self.db.get_plan_tree() or self._tree
+        has_pending = any(
+            t["id"] not in self._task_results and t.get("status") != "failed"
+            for t in self._all_tasks
+        ) if self._all_tasks else False
+        if not self._all_tasks:
+            await self._decompose_fresh(idea)
+        elif not has_pending and iteration > 0:
+            round_id = f"r{iteration}"
+            if not self._tree or not any(
+                c.get("id") == round_id
+                for c in self._tree.get("children", [])
+            ):
+                await self._decompose_round(idea, iteration)
+        self._send()
+        self._check_stop()
+
+    async def _execute_task_round(self, iteration: int) -> bool:
+        round_label = f"round {iteration}"
+        self._current_phase = "execute"
+        self._init_task_batches()
+        execute_tag = f"Execute · {round_label}"
+        self._send(chunk={"text": execute_tag, "call_id": execute_tag, "label": True, "level": 2})
+        self._send()
+        self._check_stop()
+        return await self._execute_all_tasks()
+
+    async def _evaluate_research_round(self, idea: str, iteration: int) -> dict:
+        round_label = f"round {iteration}"
+        is_final = iteration >= self._max_iterations - 1
+        self._current_phase = "evaluate"
+        evaluate_tag = f"Evaluate · {round_label}"
+        self._send(chunk={"text": evaluate_tag, "call_id": evaluate_tag, "label": True, "level": 2})
+        minimize = self.db.get_score_minimize()
+        improved, current_score = self._check_score_improved(self._prev_score, minimize)
+        prev_score_snapshot = self._prev_score
+        if current_score is not None:
+            self.db.update_meta(
+                current_score=current_score,
+                previous_score=self._prev_score,
+                improved=improved,
+            )
+            self._prev_score = current_score
+
+        self._check_stop()
+
+        summaries = [
+            {"id": tid, "summary": self._task_summaries.get(tid, "(no summary)")}
+            for tid in sorted(self._task_results.keys())
+        ]
+        evaluation = await self._evaluate_results(
+            idea, summaries, current_score, prev_score_snapshot,
+            minimize, iteration, is_final,
+        )
+        evaluation["score"] = current_score
+        strategy_update = evaluation.get("strategy_update", "").strip()
+
+        if not strategy_update:
+            evaluation["satisfied"] = True
+        self.db.save_evaluation(evaluation, iteration)
+        self._send()
+
+        if not strategy_update:
+            return {
+                "phase": "evaluated",
+                "iteration": iteration,
+                "loop_done": True,
+                "strategy_update": "",
+            }
+
+        self._check_stop()
+        next_iteration = iteration + 1
+        if next_iteration >= self._max_iterations:
+            log.warning("Reached max iterations (%d), stopping research loop",
+                        self._max_iterations)
+            return {
+                "phase": "max_iterations_reached",
+                "iteration": next_iteration,
+                "loop_done": True,
+                "strategy_update": strategy_update,
+            }
+
+        return {
+            "phase": "evaluated",
+            "iteration": next_iteration,
+            "loop_done": False,
+            "strategy_update": strategy_update,
+        }
 
     # ------------------------------------------------------------------
     # Decompose helpers
@@ -493,32 +513,91 @@ class ResearchStage(Stage):
             for d in task.get("dependencies", [])
             if d in self._task_summaries
         }
-        instruction, user_text = build_execute_prompt(task, prior_attempt, dep_summaries)
-        result = await self._llm(instruction, user_text, call_id, content_level=4, label=True, label_level=3, _skip_semaphore=True)
-        self._update_summary(task_id, result)
+        runtime = LangGraphTaskRuntime(ResearchTaskCycleNodes(self))
+        cycle = await runtime.run(
+            task,
+            task_id=task_id,
+            call_id=call_id,
+            prior_attempt=prior_attempt,
+            dep_summaries=dep_summaries,
+        )
 
-        passed, review, redecompose = await self._verify_task(task, result, task_id, call_id)
-        if passed:
-            self._save_task(task_id, result)
-            return (False, task, result, "")
-        if redecompose:
-            return (True, task, result, review)
+        if cycle.passed:
+            self._save_task(task_id, cycle.result)
+            return (False, task, cycle.result, "")
+        if cycle.needs_redecompose:
+            return (True, task, cycle.result, cycle.review)
 
-        # Retry once
-        self._send(status="retrying", task_id=task_id)
-        ri, rt = build_retry_prompt(task, result, review, dep_summaries,
-                                     prior_attempt=prior_attempt)
-        result = await self._llm(ri, rt, call_id, content_level=4, _skip_semaphore=True)
-        self._update_summary(task_id, result)
+        raise RuntimeError(f"Task {task_id} failed verification after retry: {cycle.review}")
 
-        passed, review, redecompose = await self._verify_task(task, result, task_id, call_id)
-        if passed:
-            self._save_task(task_id, result)
-            return (False, task, result, "")
-        if redecompose:
-            return (True, task, result, review)
+    async def _execute_once(
+        self,
+        task: dict,
+        prior_attempt: str,
+        dep_summaries: dict[str, str],
+        metadata: dict | None = None,
+    ) -> TaskExecutionResult:
+        executor = self._create_task_executor()
+        context = self._build_task_context(
+            task,
+            prior_attempt=prior_attempt,
+            dep_summaries=dep_summaries,
+            metadata=metadata or {},
+        )
+        return await executor.run(context)
 
-        raise RuntimeError(f"Task {task_id} failed verification after retry: {review}")
+    def _create_task_executor(self) -> CodexExecutor:
+        return CodexExecutor(
+            codex_bin=settings.codex_bin,
+            model=settings.codex_model or None,
+            reasoning_effort=settings.codex_reasoning_effort,
+            verbosity=settings.codex_verbosity,
+            sandbox=settings.codex_sandbox,
+            timeout=float(settings.codex_timeout or settings.agent_session_timeout_seconds()),
+            inherit_proxy=settings.codex_inherit_proxy,
+            event_sink=self._handle_executor_event,
+            sandbox_provider=_create_codex_sandbox_provider(),
+        )
+
+    def _build_task_context(
+        self,
+        task: dict,
+        prior_attempt: str,
+        dep_summaries: dict[str, str],
+        metadata: dict,
+    ) -> TaskContext:
+        task_id = task["id"]
+        session_dir = self.db.session_dir
+        return TaskContext(
+            session_id=self.db.research_id,
+            task_id=task_id,
+            description=task["description"],
+            dependencies=tuple(task.get("dependencies", []) or []),
+            dependency_summaries=dep_summaries,
+            prior_attempt=prior_attempt,
+            workspace_dir=session_dir / "workspaces" / _safe_path_part(task_id),
+            artifacts_dir=self.db.get_artifacts_dir(task_id),
+            metadata=metadata,
+        )
+
+    def _handle_executor_event(self, event: RuntimeEvent):
+        if not event.message:
+            return
+        level = 4 if event.task_id else 3
+        self._send(
+            chunk={
+                "text": event.message,
+                "call_id": f"Codex {event.task_id or 'executor'}",
+                "level": level,
+            },
+            task_id=event.task_id,
+        )
+
+    def _record_execution_result(self, execution: TaskExecutionResult):
+        if execution.summary:
+            self._task_summaries[execution.task_id] = execution.summary
+        else:
+            self._update_summary(execution.task_id, execution.markdown)
 
     async def _verify_task(self, task, result, task_id, call_id) -> tuple[bool, str, bool]:
         self._send(status="verifying", task_id=task_id)
@@ -772,11 +851,6 @@ class ResearchStage(Stage):
                 self.db.save_results_summary(data, markdown)
             except Exception:
                 log.exception("Failed to generate results summary")
-            try:
-                from backend.reproduce import generate_reproduce_files
-                generate_reproduce_files(self.db)
-            except Exception:
-                pass
         parts = []
         for task_id in sorted(self._task_results.keys()):
             parts.append(f"## Task [{task_id}]\n\n{self._task_results[task_id]}")

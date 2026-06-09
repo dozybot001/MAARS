@@ -35,12 +35,12 @@ graph LR
 ```
 
 - **Refine**: Explorer surveys literature and drafts a proposal; Critic reviews within declared scope. Iterates until zero issues remain.
-- **Research**: Decomposes the proposal into atomic tasks, executes them in a persistent Docker sandbox with parallel scheduling, verifies outputs, and evaluates results — looping with strategy updates when critical gaps exist.
+- **Research**: Decomposes the proposal into atomic tasks, executes them through Codex sessions with parallel scheduling, verifies outputs, and evaluates results — looping with strategy updates when critical gaps exist.
 - **Write**: Writer reads all research outputs and produces a complete paper; Reviewer critiques and drives revisions until zero issues remain. A final **Polish** sub-step runs a single-pass LLM refinement and appends a deterministic metadata appendix.
 
 ## Quick Start
 
-**Requirements:** Python 3.10+, Docker running, a [Gemini API key](https://aistudio.google.com/apikey)
+**Requirements:** Python 3.10+, [Codex CLI](https://developers.openai.com/codex/cli), an OpenAI API key. Docker is optional when `MAARS_CODEX_SANDBOX_PROVIDER=docker`.
 
 ```bash
 git clone https://github.com/dozybot001/MAARS.git && cd MAARS
@@ -51,8 +51,8 @@ On Windows, use **Git Bash** (Git for Windows) in the project folder and run the
 
 On first run, `start.sh` will:
 1. Create a virtual environment and install dependencies
-2. Generate `.env` from `.env.example` — fill in your `MAARS_GOOGLE_API_KEY`
-3. Build the Docker sandbox image
+2. Generate `.env` from `.env.example` — fill in your `MAARS_OPENAI_API_KEY`
+3. Verify the Codex runtime
 4. Start the server at **http://localhost:8000**
 
 Then paste your research idea, a Kaggle URL, or a UTF-8 text/markdown file path into the input box and press Enter. Pasting a Kaggle competition URL skips Refine and downloads the dataset automatically. In the input box, press `Cmd+E` on macOS (or `Ctrl+E` on Windows/Linux) to autofill the example idea path `showcase/example_idea.md`.
@@ -63,11 +63,14 @@ Key variables in `.env` (full list in `.env.example`):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `MAARS_GOOGLE_API_KEY` | — | **Required.** Gemini API key |
-| `MAARS_GOOGLE_MODEL` | `gemini-3-flash-preview` | LLM model for all stages |
+| `MAARS_OPENAI_API_KEY` | — | **Required.** OpenAI API key |
+| `MAARS_OPENAI_MODEL` | `gpt-5.5` | LLM model for non-executor stages |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | Prompt/output language (`Chinese` or `English`) |
 | `MAARS_API_CONCURRENCY` | `1` | Max concurrent LLM requests |
 | `MAARS_API_REQUEST_INTERVAL` | `0` | Min seconds between LLM calls (set `1`–`2` for free-tier) |
+| `MAARS_CODEX_REASONING_EFFORT` | `high` | Codex task reasoning depth (`low`, `medium`, `high`, `xhigh`) |
+| `MAARS_CODEX_SANDBOX_PROVIDER` | `local` | Codex execution substrate (`local` or `docker`) |
+| `MAARS_CODEX_DOCKER_IMAGE` | — | Docker image containing Codex CLI, required only for Docker provider |
 
 ## Documentation
 

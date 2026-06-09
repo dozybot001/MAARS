@@ -20,7 +20,6 @@ class StageModelOverrideTests(unittest.TestCase):
 
         with patch("backend.agno.create_model", side_effect=lambda provider, model_id, api_key="": f"{provider}:{model_id}"), \
              patch("backend.agno.create_db_tools", return_value=[]), \
-             patch("backend.agno.create_docker_tools", return_value=[]), \
              patch("backend.agno.ArxivTools", return_value="arxiv"), \
              patch("backend.agno.WikipediaTools", return_value="wikipedia"), \
              patch("backend.agno.RefineStage", DummyRefineStage), \
@@ -29,17 +28,17 @@ class StageModelOverrideTests(unittest.TestCase):
             from backend.agno import create_agno_stages
 
             create_agno_stages(
-                model_id="gemini-default",
-                refine_model_id="gemini-refine",
-                research_model_id="gemini-research",
-                write_model_id="gemini-write",
+                model_id="gpt-default",
+                refine_model_id="gpt-refine",
+                research_model_id="gpt-research",
+                write_model_id="gpt-write",
                 api_key="key",
                 db=None,
             )
 
-        self.assertEqual(captured["refine"]["model"], "google:gemini-refine")
-        self.assertEqual(captured["research"]["model"], "google:gemini-research")
-        self.assertEqual(captured["write"]["model"], "google:gemini-write")
+        self.assertEqual(captured["refine"]["model"], "openai:gpt-refine")
+        self.assertEqual(captured["research"]["model"], "openai:gpt-research")
+        self.assertEqual(captured["write"]["model"], "openai:gpt-write")
 
 
 if __name__ == "__main__":
