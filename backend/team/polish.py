@@ -49,20 +49,14 @@ def build_metadata_appendix(db) -> str:
     tokens_out = meta.get("tokens_output", 0)
     tokens_total = meta.get("tokens_total", 0)
 
-    main_model = settings.openai_model
-    refine_model = settings.refine_model or main_model
-    research_model = settings.research_model or main_model
-    write_model = settings.write_model or main_model
-    polish_model = settings.model_for_stage("polish")
+    model = settings.codex_model or "Codex CLI default"
 
     renderer = _render_zh if zh else _render_en
     return renderer(
         research_id=research_id, duration=duration_str,
         task_count=task_count, artifact_count=artifact_count,
         tokens_in=tokens_in, tokens_out=tokens_out, tokens_total=tokens_total,
-        main_model=main_model, refine_model=refine_model,
-        research_model=research_model, write_model=write_model,
-        polish_model=polish_model, settings=settings,
+        model=model, settings=settings,
     )
 
 
@@ -94,8 +88,7 @@ def _count_artifacts(db) -> int:
 
 def _render_zh(*, research_id, duration, task_count, artifact_count,
                tokens_in, tokens_out, tokens_total,
-               main_model, refine_model, research_model, write_model,
-               polish_model, settings) -> str:
+               model, settings) -> str:
     return f"""---
 
 ## 附录：MAARS 执行报告
@@ -106,11 +99,8 @@ def _render_zh(*, research_id, duration, task_count, artifact_count,
 
 | 配置项 | 值 |
 |--------|-----|
-| 主模型 | `{main_model}` |
-| Refine 模型 | `{refine_model}` |
-| Research 模型 | `{research_model}` |
-| Write 模型 | `{write_model}` |
-| Polish 模型 | `{polish_model}` |
+| Runtime 入口 | `Codex CLI` |
+| Codex 模型 | `{model}` |
 | 输出语言 | `{settings.output_language}` |
 | API 并发 | `{settings.api_concurrency}` |
 | 研究迭代上限 | `{settings.research_max_iterations}` |
@@ -154,8 +144,7 @@ def _render_zh(*, research_id, duration, task_count, artifact_count,
 
 def _render_en(*, research_id, duration, task_count, artifact_count,
                tokens_in, tokens_out, tokens_total,
-               main_model, refine_model, research_model, write_model,
-               polish_model, settings) -> str:
+               model, settings) -> str:
     return f"""---
 
 ## Appendix: MAARS Execution Report
@@ -166,11 +155,8 @@ def _render_en(*, research_id, duration, task_count, artifact_count,
 
 | Setting | Value |
 |---------|-------|
-| Main model | `{main_model}` |
-| Refine model | `{refine_model}` |
-| Research model | `{research_model}` |
-| Write model | `{write_model}` |
-| Polish model | `{polish_model}` |
+| Runtime entry | `Codex CLI` |
+| Codex model | `{model}` |
 | Output language | `{settings.output_language}` |
 | API concurrency | `{settings.api_concurrency}` |
 | Research iteration limit | `{settings.research_max_iterations}` |

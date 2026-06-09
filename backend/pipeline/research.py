@@ -87,9 +87,9 @@ class ResearchStage(Stage):
                  max_iterations: int = 1, db=None):
         super().__init__(name=name, db=db)
         self._model = model
-        self._tools = execute_tools or []          # Execute: everything
-        self._read_tools = read_tools or []        # Evaluate/Decompose: db + list_artifacts
-        self._search_tools = search_tools or []    # Strategy: arXiv + Wikipedia
+        self._tools = execute_tools or []          # Kept for Stage API compatibility; Codex inspects files directly.
+        self._read_tools = read_tools or []
+        self._search_tools = search_tools or []
         self._decompose_tools = (read_tools or []) + (search_tools or [])
         self._task_results: dict[str, str] = {}
         self._task_summaries: dict[str, str] = {}

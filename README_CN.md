@@ -40,7 +40,7 @@ graph LR
 
 ## 快速开始
 
-**环境要求：** Python 3.10+、[Codex CLI](https://developers.openai.com/codex/cli)、OpenAI API 密钥。当 `MAARS_CODEX_SANDBOX_PROVIDER=docker` 时，Docker 是可选执行底座。
+**环境要求：** Python 3.10+、已完成认证的 [Codex CLI](https://developers.openai.com/codex/cli)。当 `MAARS_CODEX_SANDBOX_PROVIDER=docker` 时，Docker 是可选执行底座。
 
 ```bash
 git clone https://github.com/dozybot001/MAARS.git && cd MAARS
@@ -51,7 +51,7 @@ bash start.sh
 
 首次运行时，`start.sh` 会：
 1. 创建虚拟环境并安装依赖
-2. 从 `.env.example` 生成 `.env`——填入你的 `MAARS_OPENAI_API_KEY`
+2. 从 `.env.example` 生成 `.env`
 3. 检查 Codex runtime
 4. 在 **http://localhost:8000** 启动服务
 
@@ -63,12 +63,13 @@ bash start.sh
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `MAARS_OPENAI_API_KEY` | — | **必填。** OpenAI API 密钥 |
-| `MAARS_OPENAI_MODEL` | `gpt-5.5` | 非执行阶段默认使用的 LLM 模型 |
+| `MAARS_CODEX_BIN` | `codex` | 所有 LLM 调用使用的 Codex CLI 命令 |
+| `MAARS_CODEX_MODEL` | — | 可选 Codex 模型覆盖；为空时使用 CLI/账号默认值 |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | 提示词/输出语言（`Chinese` 或 `English`） |
-| `MAARS_API_CONCURRENCY` | `1` | LLM 最大并发数 |
+| `MAARS_API_CONCURRENCY` | `3` | LLM 最大并发数 |
 | `MAARS_API_REQUEST_INTERVAL` | `0` | LLM 请求最小间隔秒数（免费 tier 建议设 `1`–`2`） |
 | `MAARS_CODEX_REASONING_EFFORT` | `high` | Codex 任务推理深度（`low`、`medium`、`high`、`xhigh`） |
+| `MAARS_CODEX_*_REASONING_EFFORT` | — | Refine、Research、Write、Polish 的可选阶段覆盖 |
 | `MAARS_CODEX_SANDBOX_PROVIDER` | `local` | Codex 执行底座（`local` 或 `docker`） |
 | `MAARS_CODEX_DOCKER_IMAGE` | — | 包含 Codex CLI 的 Docker 镜像，仅 Docker provider 必填 |
 

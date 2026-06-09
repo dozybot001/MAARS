@@ -2,8 +2,7 @@
 
 _PREFIX = (
     "This is a fully automated pipeline. No human is in the loop. "
-    "Do NOT ask questions or request input. Make all decisions autonomously.\n"
-    "Write ALL output in English.\n\n"
+    "Do NOT ask questions or request input. Make all decisions autonomously.\n\n"
 )
 
 # ---------------------------------------------------------------------------
@@ -59,14 +58,15 @@ Output ONLY a concise ATOMIC DEFINITION block (3-6 short sentences) to be inject
 3. 2-3 concrete **too-large** examples (e.g. multiple unrelated full trainings or an entire experiment grid in a single task)"""
 
 STRATEGY_SYSTEM = _PREFIX + """\
-You are a research strategist with search tools. Before the team decomposes a research \
-project into tasks, you research best practices and state-of-the-art approaches.
+You are a research strategist. Before the team decomposes a research project into tasks, \
+use Codex shell/Python commands or web-accessible sources to research best practices and \
+state-of-the-art approaches.
 
 Below is the execution agent's capability profile, dataset info (if any), and the atomic task \
 definition (if any). All techniques you recommend MUST be feasible within these constraints.
 
 WORKFLOW:
-1. USE YOUR SEARCH TOOLS to find:
+1. Perform real source lookup to find:
    - State-of-the-art methods and recent advances relevant to this research
    - Established best practices and validated approaches
    - Common pitfalls and failure modes to avoid
@@ -96,9 +96,9 @@ additional experiments are needed to fill specific gaps.
 
 WORKFLOW:
 1. REVIEW the research goal, completed task summaries, and current strategy
-2. USE YOUR TOOLS to verify actual results:
-   - Call read_task_output(task_id) to read FULL outputs of key tasks
-   - Call list_artifacts() to see what files were produced
+2. Verify actual results from the session directory:
+   - Read FULL outputs of key tasks under tasks/
+   - Inspect artifacts/ to see what files were produced
 3. Evaluate along the dimensions below
 4. Decide: sufficient to write up, or specific gaps remain?
 
@@ -187,7 +187,7 @@ def build_evaluate_user(
             "Do NOT include strategy_update."
         )
     parts.append(
-        "\nUse read_task_output and list_artifacts to investigate actual results. "
+        "\nInspect tasks/ and artifacts/ to investigate actual results. "
         "Analyze what can be improved and provide specific suggestions."
     )
     return "\n".join(parts)
@@ -235,10 +235,10 @@ def build_verify_prompt(task: dict, result: str) -> tuple[str, str]:
 DECOMPOSE_SYSTEM_TEMPLATE = """\
 You are a research project planner. Given a task, decide whether it is atomic (executable as-is) or needs decomposition into subtasks.
 
-You may use tools to inform your decisions:
-- Search tools: understand domain best practices to guide decomposition
-- read_task_output: read detailed outputs of completed tasks (if any)
-- list_artifacts: check what output files already exist
+Use Codex shell/Python commands and file inspection to inform your decisions:
+- Source lookup: understand domain best practices to guide decomposition
+- tasks/: read detailed outputs of completed tasks (if any)
+- artifacts/: check what output files already exist
 
 CONTEXT: This is an automated research pipeline.
 - Each atomic task is executed independently by an AI agent.

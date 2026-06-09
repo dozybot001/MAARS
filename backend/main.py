@@ -3,9 +3,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-# Agno calls search tools (wikipedia, arxiv) synchronously with no timeout.
-# A hanging HTTP request blocks the entire event loop. Global socket timeout
-# ensures all network calls fail after 30s rather than hanging forever.
+# Keep a global socket timeout so synchronous helper calls cannot hang startup
+# or request handling indefinitely.
 socket.setdefaulttimeout(20)
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,17 +22,11 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app):
-    from backend.agno import create_agno_stages
+    from backend.runtime.stages import create_codex_stages
 
     orchestrator = PipelineOrchestrator()
     try:
-        stages = create_agno_stages(
-            model_id=settings.openai_model,
-            refine_model_id=settings.model_for_stage("refine"),
-            research_model_id=settings.model_for_stage("research"),
-            write_model_id=settings.model_for_stage("write"),
-            polish_model_id=settings.model_for_stage("polish"),
-            api_key=settings.openai_api_key,
+        stages = create_codex_stages(
             db=orchestrator.db,
             max_iterations=settings.research_max_iterations,
             max_delegations=settings.team_max_delegations,

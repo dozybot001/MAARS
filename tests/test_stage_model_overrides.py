@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import patch
 
 
-class StageModelOverrideTests(unittest.TestCase):
-    def test_stage_specific_models_are_wired_independently(self):
+class CodexStageFactoryTests(unittest.TestCase):
+    def test_factory_wires_stages_without_model_clients_or_tools(self):
         captured = {}
 
         class DummyRefineStage:
@@ -18,27 +18,25 @@ class StageModelOverrideTests(unittest.TestCase):
             def __init__(self, **kwargs):
                 captured["write"] = kwargs
 
-        with patch("backend.agno.create_model", side_effect=lambda provider, model_id, api_key="": f"{provider}:{model_id}"), \
-             patch("backend.agno.create_db_tools", return_value=[]), \
-             patch("backend.agno.ArxivTools", return_value="arxiv"), \
-             patch("backend.agno.WikipediaTools", return_value="wikipedia"), \
-             patch("backend.agno.RefineStage", DummyRefineStage), \
-             patch("backend.agno.ResearchStage", DummyResearchStage), \
-             patch("backend.agno.WriteStage", DummyWriteStage):
-            from backend.agno import create_agno_stages
+        with patch("backend.runtime.stages.RefineStage", DummyRefineStage), \
+             patch("backend.runtime.stages.ResearchStage", DummyResearchStage), \
+             patch("backend.runtime.stages.WriteStage", DummyWriteStage):
+            from backend.runtime.stages import create_codex_stages
 
-            create_agno_stages(
-                model_id="gpt-default",
-                refine_model_id="gpt-refine",
-                research_model_id="gpt-research",
-                write_model_id="gpt-write",
-                api_key="key",
-                db=None,
-            )
+            create_codex_stages(db=None, max_iterations=2, max_delegations=3)
 
-        self.assertEqual(captured["refine"]["model"], "openai:gpt-refine")
-        self.assertEqual(captured["research"]["model"], "openai:gpt-research")
-        self.assertEqual(captured["write"]["model"], "openai:gpt-write")
+        self.assertIsNone(captured["refine"]["model"])
+        self.assertEqual(captured["refine"]["explorer_tools"], [])
+        self.assertEqual(captured["refine"]["max_delegations"], 3)
+        self.assertIsNone(captured["research"]["model"])
+        self.assertEqual(captured["research"]["execute_tools"], [])
+        self.assertEqual(captured["research"]["read_tools"], [])
+        self.assertEqual(captured["research"]["search_tools"], [])
+        self.assertEqual(captured["research"]["max_iterations"], 2)
+        self.assertIsNone(captured["write"]["model"])
+        self.assertIsNone(captured["write"]["polish_model"])
+        self.assertEqual(captured["write"]["writer_tools"], [])
+        self.assertEqual(captured["write"]["reviewer_tools"], [])
 
 
 if __name__ == "__main__":

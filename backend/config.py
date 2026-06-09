@@ -9,26 +9,18 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     model_config = ConfigDict(env_prefix="MAARS_", env_file=".env", extra="ignore")
 
-    # --- OpenAI LLM ---
-    openai_api_key: str = ""
-    openai_model: str = "gpt-5.5"
-    refine_model: str | None = None
-    research_model: str | None = None
-    write_model: str | None = None
-    polish_model: str | None = None
-
     # --- Research ---
-    research_max_iterations: int
-    team_max_delegations: int
+    research_max_iterations: int = 3
+    team_max_delegations: int = 5
 
     # --- Kaggle ---
-    kaggle_api_token: str
-    dataset_dir: str
+    kaggle_api_token: str = ""
+    dataset_dir: str = "data/"
 
     # --- API ---
-    api_concurrency: int
+    api_concurrency: int = 3
     api_request_interval: float = 0  # min seconds between consecutive LLM calls
-    output_language: str
+    output_language: str = "Chinese"
 
     # --- Agent/runtime timeouts ---
     agent_session_timeout: int | None = None
@@ -40,6 +32,10 @@ class Settings(BaseSettings):
     codex_bin: str = "codex"
     codex_model: str | None = None
     codex_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    codex_refine_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    codex_research_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    codex_write_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    codex_polish_reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
     codex_verbosity: Literal["low", "medium", "high"] | None = None
     codex_sandbox: str = "workspace-write"
     codex_timeout: int | None = None
@@ -51,12 +47,12 @@ class Settings(BaseSettings):
     codex_docker_gpus: str | None = None
 
     @field_validator(
-        "refine_model",
-        "research_model",
-        "write_model",
-        "polish_model",
         "codex_model",
         "codex_reasoning_effort",
+        "codex_refine_reasoning_effort",
+        "codex_research_reasoning_effort",
+        "codex_write_reasoning_effort",
+        "codex_polish_reasoning_effort",
         "codex_verbosity",
         "codex_docker_image",
         "codex_docker_gpus",
@@ -94,19 +90,8 @@ class Settings(BaseSettings):
     def is_chinese(self) -> bool:
         return self.output_language.lower().startswith("ch")
 
-    def model_for_stage(self, stage: str) -> str:
-        override = getattr(self, f"{stage}_model", None)
-        if override:
-            return override
-        # polish falls back to write_model before openai_model
-        if stage == "polish" and self.write_model:
-            return self.write_model
-        return self.openai_model
-
 
 settings = Settings()
 
-if settings.openai_api_key:
-    os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
 if settings.kaggle_api_token:
     os.environ.setdefault("KAGGLE_API_TOKEN", settings.kaggle_api_token)

@@ -7,9 +7,11 @@ import contextlib
 import logging
 import time
 from enum import Enum
+from pathlib import Path
 
-from agno.agent import Agent, RunEvent
 from backend.config import settings
+from backend.core.research import RuntimeEvent
+from backend.runtime.codex_cli import CodexCliRuntime
 
 log = logging.getLogger(__name__)
 
@@ -179,50 +181,64 @@ class Stage:
 
     async def _run_agent(self, model, tools, instruction, user_text,
                          call_id, content_level, timeout, extra) -> str:
-        from copy import deepcopy
-        result = ""
-        agent = Agent(model=deepcopy(model), instructions=instruction, tools=tools, markdown=True)
-        async with asyncio.timeout(timeout):
-            async for event in agent.arun(user_text, stream=True, stream_events=True):
-                if self._stop_requested:
-                    raise asyncio.CancelledError()
-                content = self._handle_stream_event(event, call_id, content_level, extra)
-                if content:
-                    result += content
-        return result
+        cwd = self._codex_cwd()
+        runtime_prompt = self._build_codex_runtime_prompt(instruction)
+        runtime = CodexCliRuntime(
+            model=model or settings.codex_model,
+            reasoning_effort=self._codex_reasoning_effort(call_id),
+            timeout=timeout,
+            event_sink=lambda event: self._handle_codex_event(event, call_id, content_level, extra),
+        )
+        return await runtime.run(
+            instruction=runtime_prompt,
+            user_text=user_text,
+            cwd=cwd,
+            call_id=call_id,
+            content_level=content_level,
+            task_id=extra.get("task_id", ""),
+        )
 
-    def _handle_stream_event(self, event, call_id, content_level, extra) -> str | None:
-        if event.event == RunEvent.run_content:
-            if event.content:
-                text = str(event.content)
-                self._send(chunk={"text": text, "call_id": call_id, "level": content_level}, **extra)
-                return text
-        elif event.event == RunEvent.reasoning_step:
-            if event.content:
-                rid = event.call_id or "Thinking"
-                self._send(chunk={"text": rid, "call_id": rid, "label": True, "level": content_level}, **extra)
-                self._send(chunk={"text": str(event.content), "call_id": rid, "level": content_level}, **extra)
-        elif event.event == RunEvent.tool_call_started:
-            tool_name = event.tool.tool_name if event.tool else "tool"
-            tcid = getattr(event.tool, "tool_call_id", "") or f"{tool_name}_{id(event.tool)}" if event.tool else tool_name
-            tool_cid = f"Tool: {tcid}"
-            self._send(chunk={"text": f"Tool: {tool_name}", "call_id": tool_cid, "label": True, "level": content_level}, **extra)
-            if event.tool and event.tool.tool_args:
-                args_str = ", ".join(f"{k}={v}" for k, v in event.tool.tool_args.items())
-                self._send(chunk={"text": f"{tool_name}({args_str})", "call_id": tool_cid, "level": content_level}, **extra)
-        elif event.event == RunEvent.tool_call_completed:
-            tool_name = event.tool.tool_name if event.tool else "tool"
-            tcid = getattr(event.tool, "tool_call_id", "") or f"{tool_name}_{id(event.tool)}" if event.tool else tool_name
-            cid = f"Tool: {tcid}"
-            result_text = str(event.content)[:500] if event.content else ""
-            if result_text:
-                self._send(chunk={"text": result_text, "call_id": cid, "level": content_level}, **extra)
-        elif event.event == RunEvent.run_error:
-            error_msg = str(event.content) if event.content else "Unknown agent error"
-            raise RuntimeError(f"Agno agent error: {error_msg}")
-        elif event.event == RunEvent.run_completed:
-            self._record_metrics(event.metrics)
-        return None
+    def _codex_cwd(self) -> Path:
+        if self.db and getattr(self.db, "session_dir", None):
+            self.db.session_dir.mkdir(parents=True, exist_ok=True)
+            return self.db.session_dir
+        return Path.cwd()
+
+    def _build_codex_runtime_prompt(self, instruction: str) -> str:
+        context = [
+            instruction,
+            "",
+            "## MAARS Codex Runtime",
+            "- You are running through the Codex CLI. Legacy in-process tool calling is not available.",
+            "- Use shell/Python commands and file inspection when you need external search, session state, artifacts, or task outputs.",
+            "- Work in the current MAARS session directory when it exists.",
+            "- Useful session files/directories may include: `idea.md`, `refined_idea.md`, `plan_tree.json`, `tasks/`, `artifacts/`, `results_summary.json`, `drafts/`, and `reviews/`.",
+            "- Do not ask for human input. Produce the requested final answer directly.",
+        ]
+        return "\n".join(context)
+
+    def _codex_reasoning_effort(self, call_id: str) -> str | None:
+        if self.name == "write" and call_id == "Polish":
+            return settings.codex_polish_reasoning_effort or settings.codex_write_reasoning_effort or settings.codex_reasoning_effort
+        stage_specific = getattr(settings, f"codex_{self.name}_reasoning_effort", None)
+        return stage_specific or settings.codex_reasoning_effort
+
+    def _handle_codex_event(self, event: RuntimeEvent, call_id: str, content_level: int, extra) -> None:
+        if not event.message:
+            return
+        item = event.payload.get("item")
+        event_call_id = call_id
+        text = event.message
+        label = False
+        if isinstance(item, dict):
+            item_type = str(item.get("type", ""))
+            if item_type in {"command_execution", "tool_call"}:
+                event_call_id = f"Tool: {item.get('id') or item.get('call_id') or call_id}"
+                label = True
+            elif item_type == "reasoning":
+                event_call_id = f"Thinking: {call_id}"
+                label = True
+        self._send(chunk={"text": text, "call_id": event_call_id, "level": content_level, "label": label}, **extra)
 
     def _record_metrics(self, metrics):
         if metrics and self.db:

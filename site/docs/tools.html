@@ -43,14 +43,12 @@
     <section id="minimum">
       <h2><span data-lang="en">Minimum config</span><span data-lang="zh">最小配置</span></h2>
       <p><span data-lang="en">For a real local run, start with these values. Codex must already be authenticated on the machine.</span><span data-lang="zh">真实本地运行可以从这些值开始。Codex 需要已经在机器上完成认证。</span></p>
-      <pre><code>MAARS_OPENAI_API_KEY=...
-MAARS_OPENAI_MODEL=gpt-5.5
-MAARS_RESEARCH_MAX_ITERATIONS=3
+      <pre><code>MAARS_RESEARCH_MAX_ITERATIONS=3
 MAARS_TEAM_MAX_DELEGATIONS=5
 MAARS_DATASET_DIR=data/
 
 MAARS_CODEX_BIN=codex
-MAARS_CODEX_MODEL=gpt-5.5
+	MAARS_CODEX_MODEL=
 MAARS_CODEX_REASONING_EFFORT=high
 MAARS_CODEX_VERBOSITY=low
 MAARS_CODEX_SANDBOX=workspace-write
@@ -62,6 +60,7 @@ MAARS_CODEX_TIMEOUT=4200</code></pre>
     <section id="reasoning">
       <h2><span data-lang="en">Reasoning effort</span><span data-lang="zh">推理强度</span></h2>
       <p><span data-lang="en"><code>MAARS_CODEX_REASONING_EFFORT</code> is passed to Codex as <code>model_reasoning_effort</code>. Use it to tune cost, latency, and reliability.</span><span data-lang="zh"><code>MAARS_CODEX_REASONING_EFFORT</code> 会作为 <code>model_reasoning_effort</code> 传给 Codex，可用于平衡成本、延迟与可靠性。</span></p>
+      <p><span data-lang="en">Stage overrides are available with <code>MAARS_CODEX_REFINE_REASONING_EFFORT</code>, <code>MAARS_CODEX_RESEARCH_REASONING_EFFORT</code>, <code>MAARS_CODEX_WRITE_REASONING_EFFORT</code>, and <code>MAARS_CODEX_POLISH_REASONING_EFFORT</code>.</span><span data-lang="zh">也可以用 <code>MAARS_CODEX_REFINE_REASONING_EFFORT</code>、<code>MAARS_CODEX_RESEARCH_REASONING_EFFORT</code>、<code>MAARS_CODEX_WRITE_REASONING_EFFORT</code>、<code>MAARS_CODEX_POLISH_REASONING_EFFORT</code> 做阶段级覆盖。</span></p>
       <div class="table-wrap">
         <table>
           <thead><tr><th><span data-lang="en">Value</span><span data-lang="zh">值</span></th><th><span data-lang="en">Use case</span><span data-lang="zh">适用场景</span></th></tr></thead>
@@ -103,16 +102,14 @@ MAARS_CODEX_DOCKER_GPUS=all</code></pre>
     <section id="smoke-test">
       <h2>Smoke test</h2>
       <p><span data-lang="en">Before a full run, verify that Codex can execute one schema-constrained task through MAARS's executor.</span><span data-lang="zh">完整运行前，先确认 Codex 能通过 MAARS 执行器完成一个受 schema 约束的任务。</span></p>
-      <pre><code>MAARS_OPENAI_API_KEY=test \
-MAARS_OPENAI_MODEL=gpt-test \
-MAARS_RESEARCH_MAX_ITERATIONS=1 \
+      <pre><code>MAARS_RESEARCH_MAX_ITERATIONS=1 \
 MAARS_TEAM_MAX_DELEGATIONS=1 \
 MAARS_KAGGLE_API_TOKEN= \
 MAARS_DATASET_DIR=data \
 MAARS_API_CONCURRENCY=1 \
 MAARS_OUTPUT_LANGUAGE=Chinese \
 .venv/bin/python -m pytest tests/test_codex_executor.py -q</code></pre>
-      <div class="callout"><span data-lang="en">A full MAARS run needs OpenAI configuration for prose stages and Codex configuration for Research task execution.</span><span data-lang="zh">完整 MAARS 运行需要为文本阶段配置 OpenAI，也需要为 Research 任务执行配置 Codex。</span></div>
+      <div class="callout"><span data-lang="en">A full MAARS run uses Codex CLI for prose stages, planning, verification, and task execution. Make sure Codex is authenticated before starting.</span><span data-lang="zh">完整 MAARS 运行统一使用 Codex CLI 完成文本阶段、规划、验证和任务执行。启动前请确认 Codex 已完成认证。</span></div>
     </section>
   </main>
 </div>

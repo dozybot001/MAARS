@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import os
 import shutil
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -13,6 +12,7 @@ from typing import Any
 
 from backend.core.research import ArtifactRef, RuntimeEvent
 from backend.executors.task import TaskContext, TaskExecutionResult
+from backend.runtime.codex_cli import CodexCliRuntime
 from backend.sandbox import CodexSandboxProvider, LocalCodexSandboxProvider
 from backend.utils import parse_json_fenced
 
@@ -188,31 +188,21 @@ class CodexExecutor:
         reasoning_effort: str = "",
         verbosity: str = "",
     ) -> list[str]:
-        cmd = [
-            codex_bin,
-            "exec",
-            "--json",
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--sandbox",
-            self.sandbox,
-            "--cd",
-            cwd,
-            "-c",
-            'shell_environment_policy.inherit="none"',
-            "-c",
-            'shell_environment_policy.include_only=["PATH","HOME","TMPDIR"]',
-            "--output-schema",
-            schema_path,
-        ]
-        if self.model:
-            cmd.extend(["--model", self.model])
-        if reasoning_effort:
-            cmd.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
-        if verbosity:
-            cmd.extend(["-c", f'model_verbosity="{verbosity}"'])
-        cmd.append(prompt)
-        return cmd
+        runtime = CodexCliRuntime(
+            codex_bin=codex_bin,
+            model=self.model,
+            reasoning_effort=reasoning_effort or None,
+            verbosity=verbosity or None,
+            sandbox=self.sandbox,
+            timeout=self.timeout,
+            inherit_proxy=self.inherit_proxy,
+        )
+        return runtime._build_command(
+            cwd=Path(cwd),
+            prompt=prompt,
+            output_path=None,
+            schema_path=Path(schema_path),
+        )
 
     def _build_prompt(self, context: TaskContext) -> str:
         deps = "\n".join(
@@ -277,59 +267,11 @@ class CodexExecutor:
         return "\n".join(parts)
 
     def _build_env(self) -> dict[str, str]:
-        allowed = {
-            "PATH",
-            "HOME",
-            "USER",
-            "LOGNAME",
-            "SHELL",
-            "TMPDIR",
-            "CODEX_HOME",
-            "CODEX_API_KEY",
-            "OPENAI_API_KEY",
-            "CODEX_CA_CERTIFICATE",
-            "SSL_CERT_FILE",
-        }
-        if self.inherit_proxy:
-            allowed.update({
-                "HTTP_PROXY",
-                "HTTPS_PROXY",
-                "ALL_PROXY",
-                "NO_PROXY",
-                "http_proxy",
-                "https_proxy",
-                "all_proxy",
-                "no_proxy",
-            })
-        return {
-            key: value
-            for key, value in os.environ.items()
-            if key in allowed and value
-        }
+        return CodexCliRuntime(inherit_proxy=self.inherit_proxy)._build_env()
 
     @staticmethod
     def _parse_events(stdout: str, task_id: str) -> list[RuntimeEvent]:
-        events: list[RuntimeEvent] = []
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            event_type = str(data.get("type", "codex.event"))
-            message = str(data.get("text") or data.get("message") or "")
-            item = data.get("item")
-            if isinstance(item, dict):
-                message = message or str(item.get("text", "") or item.get("command", ""))
-            events.append(RuntimeEvent(
-                type=event_type,
-                task_id=task_id,
-                message=message,
-                payload=data,
-            ))
-        return events
+        return CodexCliRuntime.parse_events(stdout, task_id=task_id)
 
     @staticmethod
     def _parse_final_payload(events: list[RuntimeEvent], stdout: str) -> dict[str, Any]:
@@ -417,10 +359,7 @@ class CodexExecutor:
 
     @staticmethod
     def _output_tail(stdout: str, max_lines: int = 12) -> str:
-        lines = [line for line in stdout.splitlines() if line.strip()]
-        if not lines:
-            return ""
-        return "\n".join(lines[-max_lines:])
+        return CodexCliRuntime._output_tail(stdout, max_lines=max_lines)
 
     async def _emit(self, event: RuntimeEvent):
         if not self.event_sink:

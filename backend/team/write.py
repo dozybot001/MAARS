@@ -50,9 +50,9 @@ class WriteStage(TeamStage):
             parts = [
                 "以下 JSON 是研究阶段生成的确定性实验摘要，也是论文写作的唯一事实锚点。",
                 "你写出的论文题目、任务、模型、数据集、结果、图表与结论，必须与这份 JSON 一致；如果不一致，就是错误草稿。",
-                "先阅读并严格遵守这份 JSON，再使用 list_tasks 和 read_task_output 工具补充阅读已完成研究产出。",
-                "使用 read_refined_idea 获取研究目标，使用 read_plan_tree 了解结构。",
-                "使用 list_artifacts 核对可用图片，并只引用真实存在的文件。",
+                "先阅读并严格遵守这份 JSON，再检查 tasks/ 中的已完成任务输出补充细节。",
+                "读取 refined_idea.md 获取研究目标，读取 plan_tree.json 了解结构。",
+                "检查 artifacts/ 核对可用图片和数据文件，并只引用真实存在的文件。",
                 "重要：当前草稿文件保存在 drafts/ 或 reviews/ 子目录中，因此图片和 artifacts 链接在草稿里必须写成 ../artifacts/... 形式。",
                 "用 markdown 撰写完整论文。",
             ]
@@ -62,9 +62,9 @@ class WriteStage(TeamStage):
         parts = [
             "The JSON below is the deterministic results summary from the research stage and is the sole factual anchor for the paper.",
             "The paper's topic, task, model, dataset, results, figures, and conclusions must match this JSON. If they do not match, the draft is wrong.",
-            "Read and follow this JSON first, then use list_tasks and read_task_output to inspect completed research outputs in more detail.",
-            "Use read_refined_idea for context and read_plan_tree for structure.",
-            "Use list_artifacts to verify available images and cite only files that actually exist.",
+            "Read and follow this JSON first, then inspect completed task outputs under tasks/ for additional detail.",
+            "Read refined_idea.md for context and plan_tree.json for structure.",
+            "Inspect artifacts/ to verify available images and data files, and cite only files that actually exist.",
             "Important: draft files are saved under drafts/ or reviews/, so image and artifact links inside drafts must use ../artifacts/... paths.",
             "Write the complete research paper in markdown.",
         ]

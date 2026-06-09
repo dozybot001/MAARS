@@ -44,7 +44,7 @@ Research 阶段还有一层 `ResearchStage._llm(...)` 包装（`backend/pipeline
 
 共享组件：
 
-- **`_PREFIX`**：每个 system prompt 顶部通用前缀（声明「全自动、无人参与、不要提问」+ 输出语言约定）
+- **`_PREFIX`**：每个 system prompt 顶部通用前缀（声明「全自动、无人参与、不要提问」）；语言由所选中英文 prompt 文件自然决定
 - **`_REVIEWER_OUTPUT_FORMAT`**：被 #2 Critic 与 #12 Reviewer 复用的 JSON 输出规范（`issues[]` + `resolved[]`，由系统分配 issue ID）
 
 ## 4. 13 类调用总表
@@ -79,11 +79,11 @@ Research 阶段还有一层 `ResearchStage._llm(...)` 包装（`backend/pipeline
 
 **#3 Calibrate** — 整轮研究只调用一次。基于能力画像（沙箱约束、工具列表）+ 数据集信息 + 研究主题，产出一段「原子任务定义」（3-6 句），这段定义将被逐字注入 #5 Decompose 的 system prompt。调用点：`research.py:674`。
 
-**#4 Strategy（首轮）** — 每轮研究的第一次调用。使用搜索工具调研领域最佳实践，输出简洁的策略文档（关键洞察 / 推荐方案 / 避坑 / 目标指标），末尾追加一行 JSON 声明分数方向（minimize/maximize）。调用点：`research.py:564`。
+**#4 Strategy（首轮）** — 每轮研究的第一次调用。通过 Codex CLI 进行真实来源查找，调研领域最佳实践，输出简洁的策略文档（关键洞察 / 推荐方案 / 避坑 / 目标指标），末尾追加一行 JSON 声明分数方向（minimize/maximize）。调用点：`research.py:564`。
 
 **#5 Decompose / Judge** — 递归分解的单元调用。对每个任务节点单独调用一次 LLM，判断是否原子；若非原子则输出 subtasks 列表。system prompt 通过 `build_decompose_system(atomic_definition, strategy)` 动态拼接 #3、#4 的产物。调用点：`decompose.py:91`。
 
-**#6 Execute** — 每个原子任务一次。agent 在 Docker 沙箱里调用 `code_execute` 等工具，产出 markdown 结果 + 最后一行 `SUMMARY:`。输出存入 DB 的 `task_output/<id>.md`，供下游 #7、Write 阶段与 #13 Polish 使用。调用点：`research.py:497`。
+**#6 Execute** — 每个原子任务一次。agent 通过 Codex CLI 在独立 workspace 中运行命令、写文件并同步 artifacts，产出 markdown 结果 + 最后一行 `SUMMARY:`。输出存入 DB 的任务记录，供下游 #7、Write 阶段与 #13 Polish 使用。调用点：`research.py:497`。
 
 **#7 Verify** — Execute 后立即调用。基于任务描述 + 执行结果输出 JSON 判定：`{pass, redecompose, review}`。`redecompose=true` 触发对该任务再一次 #5；`pass=false` 且 `redecompose=false` 触发 #8 Retry。调用点：`research.py:527`，tools=[]（不带工具）。
 
@@ -95,9 +95,9 @@ Research 阶段还有一层 `ResearchStage._llm(...)` 包装（`backend/pipeline
 
 ### Write 阶段
 
-**#11 Writer** — Write 循环的 primary。每轮读取研究产物（`list_tasks` / `read_task_output` / `list_artifacts` / `read_artifact_file`），以 `results_summary.json` 为唯一事实锚点写出完整论文。首轮 user prompt 由 `WriteStage.load_input` 构造（含 summary JSON）；后续轮按 TeamStage 范式附加草稿 + Reviewer issues。调用点：`team/stage.py:99`（继承通道）。
+**#11 Writer** — Write 循环的 primary。每轮检查 session 目录中的 `tasks/`、`artifacts/`、`refined_idea.md` 与 `plan_tree.json`，以 `results_summary.json` 为唯一事实锚点写出完整论文。首轮 user prompt 由 `WriteStage.load_input` 构造（含 summary JSON）；后续轮按 TeamStage 范式附加草稿 + Reviewer issues。调用点：`team/stage.py:99`（继承通道）。
 
-**#12 Reviewer** — Write 循环的 reviewer。强制调用工具交叉核对数字（`read_artifact_file` vs. 论文中的表格值），任何不一致必须作为 Accuracy issue 上报。输出与 #2 同一套 JSON 格式。调用点：`team/stage.py:118`。
+**#12 Reviewer** — Write 循环的 reviewer。通过 Codex 文件检查交叉核对 artifact JSON 与论文表格值，任何不一致必须作为 Accuracy issue 上报。输出与 #2 同一套 JSON 格式。调用点：`team/stage.py:118`。
 
 **#13 Polish** — Writer/Reviewer 循环收敛后的单次打磨，无迭代。输入是最终草稿 + 规范化实验摘要，输出打磨后的完整论文（禁止改动数据、数字、图表路径）。最终 `paper_polished.md` = Polish 输出 + 确定性元数据附录（由 `build_metadata_appendix` 拼接，非 LLM）。调用点：`team/write.py:108`。
 

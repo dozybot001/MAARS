@@ -40,7 +40,7 @@ graph LR
 
 ## Quick Start
 
-**Requirements:** Python 3.10+, [Codex CLI](https://developers.openai.com/codex/cli), an OpenAI API key. Docker is optional when `MAARS_CODEX_SANDBOX_PROVIDER=docker`.
+**Requirements:** Python 3.10+ and an authenticated [Codex CLI](https://developers.openai.com/codex/cli). Docker is optional when `MAARS_CODEX_SANDBOX_PROVIDER=docker`.
 
 ```bash
 git clone https://github.com/dozybot001/MAARS.git && cd MAARS
@@ -51,7 +51,7 @@ On Windows, use **Git Bash** (Git for Windows) in the project folder and run the
 
 On first run, `start.sh` will:
 1. Create a virtual environment and install dependencies
-2. Generate `.env` from `.env.example` — fill in your `MAARS_OPENAI_API_KEY`
+2. Generate `.env` from `.env.example`
 3. Verify the Codex runtime
 4. Start the server at **http://localhost:8000**
 
@@ -63,12 +63,13 @@ Key variables in `.env` (full list in `.env.example`):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `MAARS_OPENAI_API_KEY` | — | **Required.** OpenAI API key |
-| `MAARS_OPENAI_MODEL` | `gpt-5.5` | LLM model for non-executor stages |
+| `MAARS_CODEX_BIN` | `codex` | Codex CLI binary used for every LLM call |
+| `MAARS_CODEX_MODEL` | — | Optional Codex model override; unset uses the CLI/account default |
 | `MAARS_OUTPUT_LANGUAGE` | `Chinese` | Prompt/output language (`Chinese` or `English`) |
-| `MAARS_API_CONCURRENCY` | `1` | Max concurrent LLM requests |
+| `MAARS_API_CONCURRENCY` | `3` | Max concurrent LLM requests |
 | `MAARS_API_REQUEST_INTERVAL` | `0` | Min seconds between LLM calls (set `1`–`2` for free-tier) |
 | `MAARS_CODEX_REASONING_EFFORT` | `high` | Codex task reasoning depth (`low`, `medium`, `high`, `xhigh`) |
+| `MAARS_CODEX_*_REASONING_EFFORT` | — | Optional stage overrides for Refine, Research, Write, and Polish |
 | `MAARS_CODEX_SANDBOX_PROVIDER` | `local` | Codex execution substrate (`local` or `docker`) |
 | `MAARS_CODEX_DOCKER_IMAGE` | — | Docker image containing Codex CLI, required only for Docker provider |
 

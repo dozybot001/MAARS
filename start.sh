@@ -401,42 +401,12 @@ if [ -f .env ]; then
     fi
 elif cp .env.example .env 2>>"$LOG_FILE"; then
     CONFIG_READY=1
-    print_check "warn" "Config File" "Created from .env.example — add your API key"
+    print_check "warn" "Config File" "Created from .env.example — verify Codex login"
 else
     fail_startup "Config File" "Cannot create .env"
 fi
 
 printf '\n  %b\n' "${CYAN}${BOLD}Configuration${NC}"
-
-ACTIVE_LABEL="OpenAI API Key"
-OPENAI_KEY="$(read_env_value MAARS_OPENAI_API_KEY 2>/dev/null || true)"
-OPENAI_MODEL="$(read_env_value MAARS_OPENAI_MODEL 2>/dev/null || echo 'gpt-5.5')"
-if [ -z "$OPENAI_KEY" ]; then
-    print_check "fail" "OpenAI API Key" "MAARS_OPENAI_API_KEY is empty in .env"
-elif API_OUT="$("$PYTHON" -c "
-import urllib.request, urllib.error, json
-url = 'https://api.openai.com/v1/responses'
-payload = {'model': '${OPENAI_MODEL}', 'input': 'hi', 'max_output_tokens': 8}
-req = urllib.request.Request(
-    url,
-    data=json.dumps(payload).encode(),
-    headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ${OPENAI_KEY}'},
-    method='POST',
-)
-try:
-    with urllib.request.urlopen(req, timeout=10) as r: print('ok')
-except urllib.error.HTTPError as e: print(f'fail\t{e.code} {e.reason}')
-except Exception as e: print(f'warn\t{e}')
-" 2>>"$LOG_FILE")"; then
-    IFS=$'\t' read -r KEY_STATUS KEY_HINT <<< "$API_OUT"
-    case "$KEY_STATUS" in
-        ok)   print_check "ok"   "OpenAI API Key" "Verified ($OPENAI_MODEL)" ;;
-        fail) print_check "fail" "OpenAI API Key" "$KEY_HINT — check key or model name" ;;
-        *)    print_check "warn" "OpenAI API Key" "Set but unreachable — $KEY_HINT" ;;
-    esac
-else
-    print_check "warn" "OpenAI API Key" "Set but could not verify"
-fi
 
 ACTIVE_LABEL="Config Sanity"
 if SANITY_OUT="$("$PYTHON" -c '
