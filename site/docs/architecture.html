@@ -12,99 +12,91 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand"><span class="brand-mark">M</span><span>MAARS / docs</span></a>
     <nav class="nav-links" aria-label="Docs navigation">
-      <a class="current" href="architecture.html">Architecture</a>
-      <a href="research.html">Research</a>
-      <a href="refine-write.html">Refine and Write</a>
-      <a href="tools.html">Runtime Setup</a>
-      <a href="../new/index.html">New site</a>
-      <a href="../index.html">Home</a>
+      <a class="current" href="architecture.html"><span data-lang="en">Architecture</span><span data-lang="zh">架构</span></a>
+      <a href="research.html"><span data-lang="en">Research</span><span data-lang="zh">研究</span></a>
+      <a href="refine-write.html"><span data-lang="en">Refine and Write</span><span data-lang="zh">构思与写作</span></a>
+      <a href="tools.html"><span data-lang="en">Runtime Setup</span><span data-lang="zh">运行配置</span></a>
+      <a href="../index.html"><span data-lang="en">Home</span><span data-lang="zh">首页</span></a>
     </nav>
+    <div class="nav-tools"><div class="lang-toggle"><button type="button" data-lang-btn="zh">中</button><button type="button" data-lang-btn="en">EN</button></div></div>
   </div>
 </header>
 
 <div class="doc-layout">
   <aside class="sidebar">
-    <p class="sidebar-title">On this page</p>
+    <p class="sidebar-title"><span data-lang="en">On this page</span><span data-lang="zh">本页目录</span></p>
     <ul class="toc">
-      <li><a href="#overview">Overview</a></li>
-      <li><a href="#layers">Layers</a></li>
-      <li><a href="#contracts">Contracts</a></li>
-      <li><a href="#storage">Storage</a></li>
-      <li><a href="#code-map">Code map</a></li>
+      <li><a href="#overview"><span data-lang="en">Overview</span><span data-lang="zh">概览</span></a></li>
+      <li><a href="#layers"><span data-lang="en">Layers</span><span data-lang="zh">分层</span></a></li>
+      <li><a href="#contracts"><span data-lang="en">Contracts</span><span data-lang="zh">契约</span></a></li>
+      <li><a href="#storage"><span data-lang="en">Storage</span><span data-lang="zh">存储</span></a></li>
+      <li><a href="#code-map"><span data-lang="en">Code map</span><span data-lang="zh">代码地图</span></a></li>
     </ul>
   </aside>
 
   <main class="prose">
-    <p class="eyebrow">Architecture</p>
-    <h1>Runtime first, Codex powered.</h1>
-    <p class="lede">MAARS is now a deterministic research runtime that delegates atomic execution to Codex. This removes the duplicate execution layer while keeping orchestration, verification, persistence, and recovery inside the application.</p>
+    <p class="eyebrow"><span data-lang="en">Architecture</span><span data-lang="zh">架构</span></p>
+    <h1><span data-lang="en">Runtime first, Codex powered.</span><span data-lang="zh">运行时优先，由 Codex 驱动。</span></h1>
+    <p class="lede"><span data-lang="en">MAARS is now a deterministic research runtime that delegates atomic execution to Codex while keeping orchestration, verification, persistence, and recovery inside the application.</span><span data-lang="zh">MAARS 现在是确定性的研究运行时：原子执行交给 Codex，编排、验证、持久化与恢复仍由应用负责。</span></p>
 
     <section id="overview">
-      <h2>Overview</h2>
-      <p>The core rule is simple: <strong>Python owns the workflow, Codex owns the task work, files own the handoff.</strong> Refine and Write still use model agents for open-ended prose work. Research now uses LangGraph for state flow and Codex for concrete task execution.</p>
-      <div class="callout">Docker is no longer a task tool. When enabled, Docker is only a sandbox provider that wraps the same Codex command inside a configured container.</div>
+      <h2><span data-lang="en">Overview</span><span data-lang="zh">概览</span></h2>
+      <p><span data-lang="en">The core rule is simple: <strong>Python owns workflow, Codex owns task work, files own handoff.</strong> Refine and Write handle open-ended prose. Research uses LangGraph for state flow and Codex for concrete task execution.</span><span data-lang="zh">核心规则很简单：<strong>Python 负责流程，Codex 负责任务，文件负责交接。</strong> Refine 与 Write 处理开放式文本工作，Research 使用 LangGraph 管理状态流，并用 Codex 执行具体任务。</span></p>
+      <div class="callout"><span data-lang="en">Docker is no longer a task tool. When enabled, Docker only wraps the same Codex command inside a configured container.</span><span data-lang="zh">Docker 不再是任务工具。启用时，它只是在配置好的容器里包装同一条 Codex 命令。</span></div>
     </section>
 
     <section id="layers">
-      <h2>Layers</h2>
+      <h2><span data-lang="en">Layers</span><span data-lang="zh">分层</span></h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Layer</th><th>Responsibility</th><th>Representative code</th></tr></thead>
+          <thead><tr><th><span data-lang="en">Layer</span><span data-lang="zh">层</span></th><th><span data-lang="en">Responsibility</span><span data-lang="zh">职责</span></th><th><span data-lang="en">Code</span><span data-lang="zh">代码</span></th></tr></thead>
           <tbody>
-            <tr><td>Frontend and API</td><td>User actions, runtime status, SSE event display.</td><td><code>backend/routes/</code>, <code>frontend/</code></td></tr>
-            <tr><td>Pipeline</td><td>Stage start, stop, resume, and persisted stage contracts.</td><td><code>backend/pipeline/</code></td></tr>
-            <tr><td>LangGraph runtime</td><td>Research loop and task retry graphs.</td><td><code>backend/runtime/</code></td></tr>
-            <tr><td>Executor</td><td>Non-interactive Codex sessions with JSON-schema output.</td><td><code>backend/executors/codex.py</code></td></tr>
-            <tr><td>Sandbox provider</td><td>Local or Docker command substrate for Codex.</td><td><code>backend/sandbox/codex.py</code></td></tr>
-            <tr><td>Persistence</td><td>Session files, task outputs, artifacts, summaries.</td><td><code>backend/db.py</code></td></tr>
+            <tr><td>Frontend/API</td><td><span data-lang="en">User actions, runtime status, SSE event display.</span><span data-lang="zh">用户操作、运行时状态、SSE 事件展示。</span></td><td><code>backend/routes/</code>, <code>frontend/</code></td></tr>
+            <tr><td>Pipeline</td><td><span data-lang="en">Stage lifecycle and persisted stage contracts.</span><span data-lang="zh">阶段生命周期与持久化阶段契约。</span></td><td><code>backend/pipeline/</code></td></tr>
+            <tr><td>LangGraph</td><td><span data-lang="en">Research loop and task retry graphs.</span><span data-lang="zh">研究循环与任务重试图。</span></td><td><code>backend/runtime/</code></td></tr>
+            <tr><td>Executor</td><td><span data-lang="en">Non-interactive Codex sessions with schema output.</span><span data-lang="zh">非交互式 Codex 会话与 schema 输出。</span></td><td><code>backend/executors/codex.py</code></td></tr>
+            <tr><td>Persistence</td><td><span data-lang="en">Session files, task outputs, artifacts, summaries.</span><span data-lang="zh">Session 文件、任务输出、产物与摘要。</span></td><td><code>backend/db.py</code></td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section id="contracts">
-      <h2>Contracts</h2>
-      <p>Every atomic task receives a <code>TaskContext</code>: session id, task id, description, workspace path, artifact path, dependencies, summaries, prior attempt, and metadata. The executor returns a <code>TaskExecutionResult</code>: markdown, summary, artifacts, best score, events, and raw Codex output.</p>
+      <h2><span data-lang="en">Contracts</span><span data-lang="zh">契约</span></h2>
+      <p><span data-lang="en">Each task receives a <code>TaskContext</code> and returns a <code>TaskExecutionResult</code>. The runtime can change graph routing without changing Codex prompts, and Codex can execute work without knowing research-loop policy.</span><span data-lang="zh">每个任务接收 <code>TaskContext</code>，返回 <code>TaskExecutionResult</code>。运行时可以调整图路由而不影响 Codex prompt；Codex 可以执行任务而无需理解研究循环策略。</span></p>
       <pre><code>ResearchStage
   -> LangGraphResearchRuntime
   -> LangGraphTaskRuntime
   -> CodexExecutor
   -> CodexSandboxProvider
   -> workspace + artifacts + RuntimeEvent</code></pre>
-      <p>The contract is intentionally small. LangGraph does not know about shell commands. Codex does not know about research-loop routing. The DB does not know which sandbox provider was used.</p>
     </section>
 
     <section id="storage">
-      <h2>Storage</h2>
-      <p>A run is represented by one session directory. Research task workspaces are separate from durable task artifacts, so Codex can freely work inside a task directory while MAARS keeps stable outputs for later stages.</p>
+      <h2><span data-lang="en">Storage</span><span data-lang="zh">存储</span></h2>
+      <p><span data-lang="en">A run is represented by one session directory. Task workspaces are separate from durable artifacts, so Codex can work freely while MAARS preserves stable outputs for later stages.</span><span data-lang="zh">一次运行对应一个 session 目录。任务工作区与持久产物分离，Codex 可以自由工作，而 MAARS 为后续阶段保留稳定输出。</span></p>
       <pre><code>results/&lt;session&gt;/
   refined_idea.md
   plan_tree.json
-  tasks/
-  artifacts/&lt;task_id&gt;/
   workspaces/&lt;task_id&gt;/
-  evaluations/
+  artifacts/&lt;task_id&gt;/
   results_summary.json
-  drafts/
-  reviews/
   paper.md</code></pre>
     </section>
 
     <section id="code-map">
-      <h2>Code map</h2>
+      <h2><span data-lang="en">Code map</span><span data-lang="zh">代码地图</span></h2>
       <ul>
-        <li><code>backend/core/research.py</code> defines runtime state and result dataclasses.</li>
-        <li><code>backend/runtime/langgraph_research.py</code> defines the research round graph.</li>
-        <li><code>backend/runtime/langgraph_task.py</code> defines execution, verification, retry, and failure transitions.</li>
-        <li><code>backend/pipeline/research_graph_nodes.py</code> and <code>task_cycle_nodes.py</code> adapt existing stage methods to LangGraph nodes.</li>
-        <li><code>backend/executors/codex.py</code> builds the Codex command, parses JSONL events, validates final payloads, and syncs artifacts.</li>
-        <li><code>backend/sandbox/codex.py</code> provides local and Docker command substrates.</li>
+        <li><code>backend/core/research.py</code> <span data-lang="en">defines runtime state and result dataclasses.</span><span data-lang="zh">定义运行时状态与结果数据结构。</span></li>
+        <li><code>backend/runtime/</code> <span data-lang="en">contains the LangGraph research and task graphs.</span><span data-lang="zh">包含 LangGraph 研究图与任务图。</span></li>
+        <li><code>backend/executors/codex.py</code> <span data-lang="en">builds the Codex command, parses events, and syncs artifacts.</span><span data-lang="zh">构建 Codex 命令、解析事件并同步产物。</span></li>
+        <li><code>backend/sandbox/codex.py</code> <span data-lang="en">provides local and Docker command substrates.</span><span data-lang="zh">提供本地与 Docker 命令基底。</span></li>
       </ul>
     </section>
   </main>
 </div>
 
-<footer class="footer">MAARS docs reflect the LangGraph + Codex runtime architecture.</footer>
+<footer class="footer"><span data-lang="en">MAARS docs reflect the LangGraph + Codex runtime architecture.</span><span data-lang="zh">MAARS 文档对应当前 LangGraph + Codex 运行时架构。</span></footer>
 <script src="docs.js"></script>
 </body>
 </html>

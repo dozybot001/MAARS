@@ -12,64 +12,63 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand"><span class="brand-mark">M</span><span>MAARS / docs</span></a>
     <nav class="nav-links" aria-label="Docs navigation">
-      <a href="architecture.html">Architecture</a>
-      <a href="research.html">Research</a>
-      <a class="current" href="refine-write.html">Refine and Write</a>
-      <a href="tools.html">Runtime Setup</a>
-      <a href="../new/index.html">New site</a>
-      <a href="../index.html">Home</a>
+      <a href="architecture.html"><span data-lang="en">Architecture</span><span data-lang="zh">架构</span></a>
+      <a href="research.html"><span data-lang="en">Research</span><span data-lang="zh">研究</span></a>
+      <a class="current" href="refine-write.html"><span data-lang="en">Refine and Write</span><span data-lang="zh">构思与写作</span></a>
+      <a href="tools.html"><span data-lang="en">Runtime Setup</span><span data-lang="zh">运行配置</span></a>
+      <a href="../index.html"><span data-lang="en">Home</span><span data-lang="zh">首页</span></a>
     </nav>
+    <div class="nav-tools"><div class="lang-toggle"><button type="button" data-lang-btn="zh">中</button><button type="button" data-lang-btn="en">EN</button></div></div>
   </div>
 </header>
 
 <div class="doc-layout">
   <aside class="sidebar">
-    <p class="sidebar-title">On this page</p>
+    <p class="sidebar-title"><span data-lang="en">On this page</span><span data-lang="zh">本页目录</span></p>
     <ul class="toc">
-      <li><a href="#refine">Refine</a></li>
-      <li><a href="#write">Write</a></li>
-      <li><a href="#polish">Polish</a></li>
-      <li><a href="#fact-anchor">Fact anchor</a></li>
+      <li><a href="#refine"><span data-lang="en">Refine</span><span data-lang="zh">构思精炼</span></a></li>
+      <li><a href="#write"><span data-lang="en">Write</span><span data-lang="zh">写作</span></a></li>
+      <li><a href="#polish"><span data-lang="en">Polish</span><span data-lang="zh">润色</span></a></li>
+      <li><a href="#fact-anchor"><span data-lang="en">Fact anchor</span><span data-lang="zh">事实锚点</span></a></li>
     </ul>
   </aside>
 
   <main class="prose">
-    <p class="eyebrow">Refine and Write</p>
-    <h1>Open-ended prose stages stay separate from execution.</h1>
-    <p class="lede">Refine and Write are still agentic stages, but they do not execute experiments. They shape research intent and synthesize verified outputs from the Research runtime.</p>
+    <p class="eyebrow"><span data-lang="en">Refine and Write</span><span data-lang="zh">构思与写作</span></p>
+    <h1><span data-lang="en">Open-ended prose stages stay separate from execution.</span><span data-lang="zh">开放式文本阶段与执行阶段保持分离。</span></h1>
+    <p class="lede"><span data-lang="en">Refine and Write shape research intent and synthesize verified outputs. They do not run experiments directly.</span><span data-lang="zh">Refine 与 Write 负责塑造研究意图、综合已验证输出；它们不直接运行实验。</span></p>
 
     <section id="refine">
-      <h2>Refine</h2>
-      <p>Refine turns a vague idea into an actionable research objective. The Explorer searches and drafts a proposal. The Critic checks novelty, feasibility, clarity, and scope. The stage loops until no material issues remain or the configured delegation limit is reached.</p>
-      <p>The output is <code>refined_idea.md</code>. Research treats this file as the starting objective, not as a chat transcript.</p>
+      <h2><span data-lang="en">Refine</span><span data-lang="zh">构思精炼</span></h2>
+      <p><span data-lang="en">Refine turns a vague idea into an actionable objective. The Explorer searches and drafts a proposal. The Critic checks novelty, feasibility, clarity, and scope.</span><span data-lang="zh">Refine 把模糊想法变成可执行目标。Explorer 搜索并起草方案，Critic 检查新颖性、可行性、清晰度与范围。</span></p>
+      <p><span data-lang="en">The output is <code>refined_idea.md</code>. Research treats it as the starting objective, not as a chat transcript.</span><span data-lang="zh">输出是 <code>refined_idea.md</code>。Research 把它作为起始目标，而不是聊天记录。</span></p>
     </section>
 
     <section id="write">
-      <h2>Write</h2>
-      <p>Write consumes the deterministic research summary, task outputs, and artifacts. The Writer drafts a paper. The Reviewer checks structure, completeness, figure references, and especially numeric accuracy against raw artifact files.</p>
-      <p>The stage is deliberately strict: if a number cannot be found in an artifact, the paper must mark it unavailable or remove the claim.</p>
+      <h2><span data-lang="en">Write</span><span data-lang="zh">写作</span></h2>
+      <p><span data-lang="en">Write consumes the deterministic research summary, task outputs, and artifacts. The Reviewer checks structure, completeness, figure references, and numeric accuracy against raw files.</span><span data-lang="zh">Write 消费确定性的研究摘要、任务输出与产物。Reviewer 对照原始文件检查结构、完整性、图表引用与数值准确性。</span></p>
+      <p><span data-lang="en">If a number cannot be found in an artifact, the paper must mark it unavailable or remove the claim.</span><span data-lang="zh">如果某个数值无法在产物中找到，论文必须标记为不可用或删除该断言。</span></p>
     </section>
 
     <section id="polish">
-      <h2>Polish</h2>
-      <p>Polish is a single-pass editorial stage. It may improve structure, flow, and prose, but it must not change numbers, conclusions, metrics, or artifact paths. The system appends deterministic runtime metadata separately.</p>
+      <h2><span data-lang="en">Polish</span><span data-lang="zh">润色</span></h2>
+      <p><span data-lang="en">Polish may improve structure, flow, and prose, but it must not change numbers, conclusions, metrics, or artifact paths.</span><span data-lang="zh">Polish 可以改进结构、流畅度与表达，但不能更改数值、结论、指标或产物路径。</span></p>
     </section>
 
     <section id="fact-anchor">
-      <h2>Fact anchor</h2>
-      <p>The write prompt starts from <code>results_summary.json</code>. That JSON is the canonical factual anchor for the paper. It contains the research goal, task summaries, artifact list, score information, and evaluation status.</p>
+      <h2><span data-lang="en">Fact anchor</span><span data-lang="zh">事实锚点</span></h2>
+      <p><span data-lang="en"><code>results_summary.json</code> is the canonical factual input for the paper. It contains goal, task summaries, artifact list, score information, and evaluation status.</span><span data-lang="zh"><code>results_summary.json</code> 是论文的规范事实输入，包含目标、任务摘要、产物列表、分数信息与评估状态。</span></p>
       <pre><code>Research outputs
   -> results_summary.json
   -> Write draft
   -> Reviewer fact check
   -> paper.md
-  -> Polish pass
-  -> paper_polished.md</code></pre>
+  -> Polish pass</code></pre>
     </section>
   </main>
 </div>
 
-<footer class="footer">Refine and Write shape meaning. Research produces verified evidence.</footer>
+<footer class="footer"><span data-lang="en">Refine and Write shape meaning. Research produces verified evidence.</span><span data-lang="zh">Refine 与 Write 塑造意义，Research 产生已验证证据。</span></footer>
 <script src="docs.js"></script>
 </body>
 </html>

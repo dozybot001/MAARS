@@ -12,36 +12,36 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand"><span class="brand-mark">M</span><span>MAARS / docs</span></a>
     <nav class="nav-links" aria-label="Docs navigation">
-      <a href="architecture.html">Architecture</a>
-      <a class="current" href="research.html">Research</a>
-      <a href="refine-write.html">Refine and Write</a>
-      <a href="tools.html">Runtime Setup</a>
-      <a href="../new/index.html">New site</a>
-      <a href="../index.html">Home</a>
+      <a href="architecture.html"><span data-lang="en">Architecture</span><span data-lang="zh">架构</span></a>
+      <a class="current" href="research.html"><span data-lang="en">Research</span><span data-lang="zh">研究</span></a>
+      <a href="refine-write.html"><span data-lang="en">Refine and Write</span><span data-lang="zh">构思与写作</span></a>
+      <a href="tools.html"><span data-lang="en">Runtime Setup</span><span data-lang="zh">运行配置</span></a>
+      <a href="../index.html"><span data-lang="en">Home</span><span data-lang="zh">首页</span></a>
     </nav>
+    <div class="nav-tools"><div class="lang-toggle"><button type="button" data-lang-btn="zh">中</button><button type="button" data-lang-btn="en">EN</button></div></div>
   </div>
 </header>
 
 <div class="doc-layout">
   <aside class="sidebar">
-    <p class="sidebar-title">On this page</p>
+    <p class="sidebar-title"><span data-lang="en">On this page</span><span data-lang="zh">本页目录</span></p>
     <ul class="toc">
-      <li><a href="#graph">Research graph</a></li>
-      <li><a href="#task-cycle">Task cycle</a></li>
-      <li><a href="#codex-contract">Codex contract</a></li>
-      <li><a href="#verification">Verification</a></li>
-      <li><a href="#iteration">Iteration</a></li>
+      <li><a href="#graph"><span data-lang="en">Research graph</span><span data-lang="zh">研究图</span></a></li>
+      <li><a href="#task-cycle"><span data-lang="en">Task cycle</span><span data-lang="zh">任务周期</span></a></li>
+      <li><a href="#codex-contract"><span data-lang="en">Codex contract</span><span data-lang="zh">Codex 契约</span></a></li>
+      <li><a href="#verification"><span data-lang="en">Verification</span><span data-lang="zh">验证</span></a></li>
+      <li><a href="#iteration"><span data-lang="en">Iteration</span><span data-lang="zh">迭代</span></a></li>
     </ul>
   </aside>
 
   <main class="prose">
-    <p class="eyebrow">Research</p>
-    <h1>Research is a state graph, not an agent loop.</h1>
-    <p class="lede">The Research stage turns a refined idea into verified task outputs. LangGraph owns the control flow. Codex owns each concrete task execution.</p>
+    <p class="eyebrow"><span data-lang="en">Research</span><span data-lang="zh">研究</span></p>
+    <h1><span data-lang="en">Research is a state graph, not an agent loop.</span><span data-lang="zh">Research 是状态图，不是智能体循环。</span></h1>
+    <p class="lede"><span data-lang="en">The Research stage turns a refined idea into verified task outputs. LangGraph owns control flow. Codex owns each concrete task execution.</span><span data-lang="zh">Research 阶段把精炼后的想法转成经过验证的任务输出。LangGraph 负责控制流，Codex 负责每个具体任务的执行。</span></p>
 
     <section id="graph">
-      <h2>Research graph</h2>
-      <p>The high-level graph is stable and inspectable. Each node is implemented as a method on <code>ResearchStage</code> and exposed through <code>ResearchStageGraphNodes</code>.</p>
+      <h2><span data-lang="en">Research graph</span><span data-lang="zh">研究图</span></h2>
+      <p><span data-lang="en">The high-level graph is stable and inspectable. Each node is implemented on <code>ResearchStage</code> and exposed through <code>ResearchStageGraphNodes</code>.</span><span data-lang="zh">高层图稳定且可检查。每个节点由 <code>ResearchStage</code> 方法实现，并通过 <code>ResearchStageGraphNodes</code> 暴露。</span></p>
       <pre><code>calibrate
   -> initialize_loop
   -> prepare_strategy
@@ -49,50 +49,47 @@
   -> execute_tasks
   -> evaluate_round
   -> initialize_loop | end</code></pre>
-      <p>Conditional edges decide whether the loop is complete, another round is needed, or the stage failed.</p>
     </section>
 
     <section id="task-cycle">
-      <h2>Task cycle</h2>
-      <p>Each atomic task runs through a smaller graph. This keeps retries local and prevents the full research loop from becoming a tangled control-flow function.</p>
+      <h2><span data-lang="en">Task cycle</span><span data-lang="zh">任务周期</span></h2>
+      <p><span data-lang="en">Each atomic task runs through a smaller graph. Retries stay local, so the full research loop does not become a tangled control-flow function.</span><span data-lang="zh">每个原子任务通过一个更小的图运行。重试保持在任务局部，避免整个研究循环变成纠缠的控制流函数。</span></p>
       <pre><code>execute_attempt
   -> verify_attempt
   -> complete | retry | failed | redecompose</code></pre>
-      <p>Retries include the previous result and reviewer feedback in task metadata. Codex is asked to address the feedback without redoing correct work.</p>
+      <p><span data-lang="en">Retries include previous output and reviewer feedback. Codex is asked to address the feedback without redoing correct work.</span><span data-lang="zh">重试会带上前一次输出与审查反馈。Codex 只需要修复反馈指出的问题，不必重做已经正确的部分。</span></p>
     </section>
 
     <section id="codex-contract">
-      <h2>Codex contract</h2>
-      <p>Codex receives a task contract, not a vague prompt. The executor writes a JSON Schema into the task workspace and requires the final response to satisfy it.</p>
+      <h2><span data-lang="en">Codex contract</span><span data-lang="zh">Codex 契约</span></h2>
+      <p><span data-lang="en">Codex receives a task contract, not a vague prompt. The executor writes a JSON Schema into the workspace and requires the final response to satisfy it.</span><span data-lang="zh">Codex 收到的是任务契约，不是模糊 prompt。执行器会把 JSON Schema 写入工作区，并要求最终响应满足该 schema。</span></p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+          <thead><tr><th><span data-lang="en">Field</span><span data-lang="zh">字段</span></th><th><span data-lang="en">Meaning</span><span data-lang="zh">含义</span></th></tr></thead>
           <tbody>
-            <tr><td><code>markdown</code></td><td>Complete task result, commands run, outputs, and artifact references.</td></tr>
-            <tr><td><code>summary</code></td><td>One concise line with filenames and key numeric results.</td></tr>
-            <tr><td><code>artifacts</code></td><td>Durable files written under <code>./artifacts/</code>.</td></tr>
-            <tr><td><code>best_score</code></td><td>Optional structured metric for score tracking.</td></tr>
-            <tr><td><code>warnings</code></td><td>Explicit blockers or caveats. Empty when there are none.</td></tr>
+            <tr><td><code>markdown</code></td><td><span data-lang="en">Complete task result, commands, outputs, and artifact references.</span><span data-lang="zh">完整任务结果、命令、输出与产物引用。</span></td></tr>
+            <tr><td><code>summary</code></td><td><span data-lang="en">One concise line with filenames and key numeric results.</span><span data-lang="zh">一行摘要，包含文件名与关键数值结果。</span></td></tr>
+            <tr><td><code>artifacts</code></td><td><span data-lang="en">Durable files written under <code>./artifacts/</code>.</span><span data-lang="zh">写入 <code>./artifacts/</code> 的持久文件。</span></td></tr>
+            <tr><td><code>warnings</code></td><td><span data-lang="en">Explicit blockers or caveats. Empty when there are none.</span><span data-lang="zh">明确阻塞或注意事项；没有时为空。</span></td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section id="verification">
-      <h2>Verification</h2>
-      <p>Verification is handled by the Research stage after Codex returns. The reviewer checks whether the result contains concrete artifacts, real command output, and deliverables that match the task description.</p>
-      <p>Small issues trigger a retry. Scope problems or fundamentally wrong decomposition can trigger redecomposition. Passing tasks are saved and become dependencies for later tasks.</p>
+      <h2><span data-lang="en">Verification</span><span data-lang="zh">验证</span></h2>
+      <p><span data-lang="en">Verification happens after Codex returns. The reviewer checks artifacts, command evidence, and whether the deliverable matches the task description.</span><span data-lang="zh">验证发生在 Codex 返回之后。审查器检查产物、命令证据，以及交付物是否匹配任务描述。</span></p>
     </section>
 
     <section id="iteration">
-      <h2>Iteration</h2>
-      <p>After a round completes, the evaluator inspects task outputs and artifacts. The default behavior is to stop when the current evidence is sufficient. A new strategy round is created only for a specific, critical gap.</p>
-      <div class="callout">The runtime is biased toward finishing with honest limitations instead of expanding scope indefinitely.</div>
+      <h2><span data-lang="en">Iteration</span><span data-lang="zh">迭代</span></h2>
+      <p><span data-lang="en">After a round completes, the evaluator inspects outputs and artifacts. A new strategy round is created only for a specific critical gap.</span><span data-lang="zh">一轮完成后，评估器检查输出与产物。只有存在具体关键缺口时，才创建新的策略轮次。</span></p>
+      <div class="callout"><span data-lang="en">The runtime is biased toward finishing with honest limitations instead of expanding scope indefinitely.</span><span data-lang="zh">运行时倾向于带着诚实边界完成，而不是无限扩张范围。</span></div>
     </section>
   </main>
 </div>
 
-<footer class="footer">Research tasks are independent Codex sessions coordinated by LangGraph.</footer>
+<footer class="footer"><span data-lang="en">Research tasks are independent Codex sessions coordinated by LangGraph.</span><span data-lang="zh">研究任务是由 LangGraph 协调的独立 Codex 会话。</span></footer>
 <script src="docs.js"></script>
 </body>
 </html>
