@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MAARS - Codex Runtime Research System</title>
+<meta name="description" content="MAARS is a LangGraph and Codex based runtime for automated research: refine ideas, execute atomic research tasks, and write papers from verified artifacts." />
+<meta property="og:title" content="MAARS - Codex Runtime Research System" />
+<meta property="og:description" content="A modern automated research runtime built around LangGraph orchestration and Codex task execution." />
+<link rel="stylesheet" href="docs/docs.css" />
+</head>
+<body>
+<div class="site-shell">
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="brand"><span class="brand-mark">M</span><span>MAARS</span></a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#architecture">Architecture</a>
+        <a href="#runtime">Runtime</a>
+        <a href="#configuration">Configuration</a>
+        <a href="docs/architecture.html">Docs</a>
+        <a href="../index.html">Classic site</a>
+        <a href="https://github.com/dozybot001/MAARS" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Automated research runtime</p>
+        <h1>MAARS now runs research tasks through Codex.</h1>
+        <p class="lede">
+          The project is moving from a Docker tool execution model to a cleaner runtime:
+          Python and LangGraph own orchestration, Codex executes atomic research tasks,
+          and every handoff is captured as workspace files, artifacts, events, and summaries.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="docs/architecture.html">Read architecture</a>
+          <a class="button secondary" href="#configuration">Configure runtime</a>
+        </div>
+      </div>
+      <aside class="runtime-panel" aria-label="Current runtime profile">
+        <h2>Runtime profile</h2>
+        <div class="runtime-row"><span>Orchestrator</span><strong>LangGraph</strong></div>
+        <div class="runtime-row"><span>Executor</span><strong>Codex CLI</strong></div>
+        <div class="runtime-row"><span>Default sandbox</span><strong>local workspace-write</strong></div>
+        <div class="runtime-row"><span>Optional sandbox</span><strong>Codex in Docker</strong></div>
+        <div class="runtime-row"><span>Artifacts</span><strong>per-task ./artifacts</strong></div>
+      </aside>
+    </section>
+
+    <section id="architecture" class="section">
+      <div class="section-header">
+        <h2>Architecture boundaries</h2>
+        <p>MAARS is easier to reason about when every layer has one job. The runtime controls flow. Codex does execution. The session store is the source of truth.</p>
+      </div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="num">01</div>
+          <h3>Frontend and API</h3>
+          <p>FastAPI routes, SSE events, and a static UI show stage and task progress.</p>
+        </div>
+        <div class="flow-step">
+          <div class="num">02</div>
+          <h3>Pipeline</h3>
+          <p>Refine, Research, Write, and Polish remain explicit stages with persisted contracts.</p>
+        </div>
+        <div class="flow-step">
+          <div class="num">03</div>
+          <h3>LangGraph</h3>
+          <p>Research rounds and task retries are state graphs instead of hand-written loops.</p>
+        </div>
+        <div class="flow-step">
+          <div class="num">04</div>
+          <h3>Codex Executor</h3>
+          <p>Each atomic task becomes one non-interactive Codex session with structured JSON output.</p>
+        </div>
+        <div class="flow-step">
+          <div class="num">05</div>
+          <h3>Artifacts</h3>
+          <p>Outputs move through workspaces, task artifact folders, summaries, and final paper inputs.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="runtime" class="section">
+      <div class="section-header">
+        <h2>Runtime model</h2>
+        <p>The old Docker execution tool path is intentionally retired. Docker can still be used, but only as a sandbox provider under Codex.</p>
+      </div>
+      <div class="grid cols-3">
+        <article class="card">
+          <span class="tag">Runtime</span>
+          <h3>Python decides control flow</h3>
+          <p>Stage routing, iteration stopping, task scheduling, retries, and verification are deterministic application responsibilities.</p>
+        </article>
+        <article class="card">
+          <span class="tag">Executor</span>
+          <h3>Codex performs work</h3>
+          <p>Codex receives one atomic task, runs commands, edits files in its workspace, and returns schema-constrained JSON.</p>
+        </article>
+        <article class="card">
+          <span class="tag">Sandbox</span>
+          <h3>Provider is pluggable</h3>
+          <p>Local mode is the default. Docker mode wraps the same Codex command in a configured container image.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="configuration" class="section">
+      <div class="section-header">
+        <h2>Configuration for a real run</h2>
+        <p>Minimum configuration is intentionally small. Use local Codex first; switch to Docker provider only when you need stronger external isolation or a pinned runtime image.</p>
+      </div>
+      <div class="grid cols-2">
+        <article class="card">
+          <h3>Local Codex provider</h3>
+          <pre><code>MAARS_OPENAI_API_KEY=...
+MAARS_OPENAI_MODEL=gpt-5.5
+MAARS_CODEX_BIN=codex
+MAARS_CODEX_MODEL=gpt-5.5
+MAARS_CODEX_REASONING_EFFORT=high
+MAARS_CODEX_SANDBOX=workspace-write
+MAARS_CODEX_SANDBOX_PROVIDER=local</code></pre>
+          <p>Best default for development. Codex uses its normal local auth and MAARS creates one workspace per task.</p>
+        </article>
+        <article class="card">
+          <h3>Docker Codex provider</h3>
+          <pre><code>MAARS_CODEX_SANDBOX_PROVIDER=docker
+MAARS_CODEX_DOCKER_IMAGE=maars-codex:latest
+MAARS_CODEX_DOCKER_BIN=docker
+MAARS_CODEX_DOCKER_CODEX_BIN=codex
+MAARS_CODEX_DOCKER_GPUS=all</code></pre>
+          <p>The image must contain Codex CLI and experiment dependencies. In GPU environments, pass through GPUs explicitly.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>Documentation map</h2>
+        <p>The docs now follow the implementation layers rather than the old tool inventory.</p>
+      </div>
+      <div class="grid cols-3">
+        <a class="card" href="docs/architecture.html">
+          <h3>Architecture</h3>
+          <p>Layer boundaries, LangGraph runtime, Codex executor, sandbox providers, and storage.</p>
+        </a>
+        <a class="card" href="docs/research.html">
+          <h3>Research Runtime</h3>
+          <p>Calibration, strategy, decomposition, task execution, verification, evaluation, and retries.</p>
+        </a>
+        <a class="card" href="docs/tools.html">
+          <h3>Runtime Setup</h3>
+          <p>Codex configuration, reasoning effort, local vs Docker provider, and smoke-test commands.</p>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    MAARS is a research orchestration runtime. Agents generate work; the application owns state, contracts, and recovery.
+  </footer>
+</div>
+<script src="docs/docs.js"></script>
+</body>
+</html>
